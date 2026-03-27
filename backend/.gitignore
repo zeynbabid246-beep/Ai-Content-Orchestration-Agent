@@ -1,0 +1,47 @@
+# ========================
+# Visual Studio / IDE
+# ========================
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.idea/
+.vscode/
+
+# ========================
+# Build output
+# ========================
+bin/
+obj/
+Debug/
+Release/
+
+# ========================
+# NuGet Packages
+# ========================
+*.nupkg
+*.snupkg
+packages/
+
+# ========================
+# Logs and temporary files
+# ========================
+*.log
+*.vsix
+*.cache
+*.dbmdl
+
+# ========================
+# OS / Misc
+# ========================
+Thumbs.db
+.DS_Store
+*.DS_Store
+
+# ========================
+# Optional: Rider or JetBrains IDE
+# ========================
+.idea/
+*.iml
+out/
