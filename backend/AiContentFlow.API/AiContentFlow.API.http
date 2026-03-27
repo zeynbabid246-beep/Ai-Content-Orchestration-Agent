@@ -1,6 +1,0 @@
-@AiContentFlow.API_HostAddress = http://localhost:5073
-
-GET {{AiContentFlow.API_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
