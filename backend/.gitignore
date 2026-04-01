@@ -1,47 +1,37 @@
-# ========================
-# Visual Studio / IDE
-# ========================
-.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-.idea/
-.vscode/
-
-# ========================
-# Build output
-# ========================
+# =========================
+# .NET
+# =========================
 bin/
 obj/
-Debug/
-Release/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-# ========================
-# NuGet Packages
-# ========================
-*.nupkg
-*.snupkg
-packages/
-
-# ========================
-# Logs and temporary files
-# ========================
+# =========================
+# Logs
+# =========================
 *.log
-*.vsix
-*.cache
-*.dbmdl
 
-# ========================
-# OS / Misc
-# ========================
-Thumbs.db
+# =========================
+# OS
+# =========================
 .DS_Store
-*.DS_Store
+Thumbs.db
 
-# ========================
-# Optional: Rider or JetBrains IDE
-# ========================
-.idea/
-*.iml
-out/
+# =========================
+# Config / Secrets
+# =========================
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+
+
+# =========================
+# Misc
+# =========================
+coverage/
+*.tmp
+*.temp

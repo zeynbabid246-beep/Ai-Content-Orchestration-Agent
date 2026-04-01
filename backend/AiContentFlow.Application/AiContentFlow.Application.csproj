@@ -9,13 +9,6 @@
   
 
   <ItemGroup>
-    <Folder Include="DTOs\" />
-    <Folder Include="Services\" />
-  </ItemGroup>
-
-  
-
-  <ItemGroup>
     <ProjectReference Include="..\AiContentFlow.Domain\AiContentFlow.Domain.csproj" />
   </ItemGroup>
 
