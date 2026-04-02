@@ -1,12 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
+import Navbar from "../Home/components/Navbar/Navbar";
 
 export default function Login() {
   const navigate = useNavigate();
 
   return (
-    <div className="login-container">
-      <div className="login-box">
+    <>
+      <Navbar />
+      <div className="login-container">
+        <div className="login-box">
 
         <h2>Welcome to Ai_content-flow</h2>
         <p className="login-subtitle">Sign in to your account</p>
@@ -54,5 +57,6 @@ export default function Login() {
 
       </div>
     </div>
+    </>
   );
 }

@@ -1,10 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
+import Navbar from "../Home/components/Navbar/Navbar";
 
 export default function Register() {
   const navigate = useNavigate();
 
   return (
+    <>
+    <Navbar />
     <div className="login-container">
       <div className="login-box">
         <h2>Create your account</h2>
@@ -24,5 +27,6 @@ export default function Register() {
         </p>
       </div>
     </div>
+    </>
   );
 }
