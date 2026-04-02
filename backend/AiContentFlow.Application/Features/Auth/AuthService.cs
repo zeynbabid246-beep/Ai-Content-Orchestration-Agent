@@ -9,13 +9,17 @@ namespace AiContentFlow.Application.Features.Auth
     {
         private readonly IIdentityService _identityService;
         private readonly IJwtTokenGenerator _jwtTokenGenerator;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
 
         public AuthService(
            IIdentityService identityService,
-            IJwtTokenGenerator jwtTokenGenerator)
+            IJwtTokenGenerator jwtTokenGenerator,
+            IRefreshTokenRepository refreshTokenRepository)
         {
             _identityService = identityService;
             _jwtTokenGenerator = jwtTokenGenerator;
+            _refreshTokenRepository = refreshTokenRepository;
+
         }
 
         
@@ -32,7 +36,14 @@ namespace AiContentFlow.Application.Features.Auth
             var accessToken = _jwtTokenGenerator.GenerateToken(result.UserId, request.Email);
 
             // (we’ll implement refresh token properly later)
-            var refreshToken = Guid.NewGuid().ToString();
+            var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+            await _refreshTokenRepository.AddAsync(
+                result.UserId,
+                refreshToken,
+                DateTime.UtcNow.AddDays(7));
+
+
+
 
             return new AuthResponseDto
             {
@@ -50,7 +61,12 @@ namespace AiContentFlow.Application.Features.Auth
 
             var accessToken = _jwtTokenGenerator.GenerateToken(result.UserId, request.Email);
 
-            var refreshToken = Guid.NewGuid().ToString(); 
+            var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+            await _refreshTokenRepository.AddAsync(
+                result.UserId,
+                refreshToken,
+                DateTime.UtcNow.AddDays(7));
+
 
             return new AuthResponseDto
             {
@@ -58,5 +74,41 @@ namespace AiContentFlow.Application.Features.Auth
                 RefreshToken = refreshToken
             };
         }
+
+
+        public async Task<AuthResponseDto> RefreshAsync(RefreshRequestDto request)
+        {
+            var tokenData = await _refreshTokenRepository.GetByTokenAsync(request.RefreshToken);
+
+            if (tokenData == null)
+                throw new Exception("Invalid refresh token");
+
+            if (tokenData.IsRevoked)
+                throw new Exception("Token revoked");
+
+            if (tokenData.ExpiresAt < DateTime.UtcNow)
+                throw new Exception("Token expired");
+
+            // Generate new access token
+            var accessToken = _jwtTokenGenerator.GenerateToken(tokenData.UserId, "");
+
+            // 🔁 Optional: rotate refresh token
+            await _refreshTokenRepository.RevokeAsync(request.RefreshToken);
+
+            var newRefreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+
+            await _refreshTokenRepository.AddAsync(
+                tokenData.UserId,
+                newRefreshToken,
+                DateTime.UtcNow.AddDays(7)
+            );
+
+            return new AuthResponseDto
+            {
+                AccessToken = accessToken,
+                RefreshToken = newRefreshToken
+            };
+        }
+
     }
 }

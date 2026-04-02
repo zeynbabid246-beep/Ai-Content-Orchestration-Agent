@@ -2,6 +2,7 @@ using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
+using AiContentFlow.Infrastructure.Persistence.Repositories;
 using AiContentFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +19,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

@@ -6,12 +6,6 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
-  
-
-  <ItemGroup>
-    <Folder Include="Persistence\" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
