@@ -1,35 +1,38 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Auth;
+using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
 using AiContentFlow.Infrastructure.Persistence.Repositories;
 using AiContentFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft. EntityFrameworkCore;
-using Microsoft. IdentityModel. Tokens;
-using System. Text;
-
+using Microsoft.EntityFrameworkCore; 
+using Microsoft.IdentityModel.Tokens; 
+using AiContentFlow.Infrastructure.Persistence.Services;  
+using System.Text;  
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-
-
+// Application Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
+// Infrastructure Services
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ITeamService, TeamService>();  // FIXED: TeamService is in Infrastructure now
 
+// Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-
+// JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 
 builder.Services.AddAuthentication(options =>
@@ -45,21 +48,22 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSettings["Secret"])
-        )
+            Encoding.UTF8.GetBytes(jwtSettings["Secret"]!))
     };
 });
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
-var app = builder. Build();
 
-app. UseAuthentication();
-app. UseAuthorization();
+
+var app = builder.Build();
+
+app.UseAuthentication();  
+app.UseAuthorization();   
 
 app.MapControllers();
 

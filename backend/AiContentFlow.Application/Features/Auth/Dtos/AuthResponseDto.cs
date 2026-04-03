@@ -5,8 +5,10 @@ using System.Text;
 namespace AiContentFlow.Application.Features.Auth.Dtos
 {
     public class AuthResponseDto
-    {
-        public string AccessToken { get; set; }
-        public string RefreshToken { get; set; }
+    {    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string? Email { get; set; }
+        public required string AccessToken { get; set; }
+        public required string RefreshToken { get; set; }
     }
 }

@@ -6,6 +6,6 @@ namespace AiContentFlow.Application.Features.Auth.Dtos
 {
     public class RefreshRequestDto
     {
-        public string RefreshToken { get; set; }
+        public required string RefreshToken { get; set; }
     }
 }

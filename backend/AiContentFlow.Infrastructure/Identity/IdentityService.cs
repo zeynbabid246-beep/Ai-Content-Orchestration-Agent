@@ -17,12 +17,12 @@ namespace AiContentFlow.Infrastructure.Identity
 
         
 
-        public Task<(bool Success, string UserId, IEnumerable<string> Errors)> RegisterAsync(string email, string password)
+        public Task<(bool Success, string UserId, IEnumerable<string> Errors)> RegisterAsync(string email, string password, string username)
         {
             var user = new ApplicationUser
             {
                 Email = email,
-                UserName = email
+                UserName = username
             };
             var result = _userManager.CreateAsync(user, password);
 

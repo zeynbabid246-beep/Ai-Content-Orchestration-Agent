@@ -26,7 +26,7 @@ namespace AiContentFlow.Application.Features.Auth
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
         {
-            var result = await _identityService.RegisterAsync(request.Email, request.Password);
+         var result = await _identityService.RegisterAsync(request.Email, request.Password, request.Username);
 
             if (!result.Success)
             {
