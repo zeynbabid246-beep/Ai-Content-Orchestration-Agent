@@ -2,7 +2,7 @@ using System;
 
 namespace AiContentFlow.Application.Features.Teams.Dtos;
 
-public record CreateTeamDto(string Name);  
+public record CreateTeamDto(string Name);
 
 public record TeamResponseDto(
     Guid Id,
@@ -13,12 +13,9 @@ public record TeamResponseDto(
 
 public record TeamMemberDto(
     string UserId,
-    string Username,
+    string Username,   
     string Role,
     DateTime JoinedAt
 );
 
-public record InviteUserDto(
-    string Username,
-    string Role
-);
+public record InviteUserDto(string Username, string Role);

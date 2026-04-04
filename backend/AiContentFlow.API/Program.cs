@@ -7,10 +7,10 @@ using AiContentFlow.Infrastructure.Persistence.Repositories;
 using AiContentFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore; 
-using Microsoft.IdentityModel.Tokens; 
-using AiContentFlow.Infrastructure.Persistence.Services;  
-using System.Text;  
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using AiContentFlow.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +21,8 @@ builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
 // Infrastructure Services
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-builder.Services.AddScoped<ITeamService, TeamService>();  // FIXED: TeamService is in Infrastructure now
+ builder.Services.AddScoped<ITeamRepository, TeamRepository>();
+builder.Services.AddScoped<ITeamService, TeamService>();
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
