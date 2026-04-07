@@ -2,7 +2,7 @@ using System.Text;
 using AiContentFlow.API.Middleware;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Auth;
-using AiContentFlow.Application.Features.Posts;
+using AiContentFlow.Application.Features.ContentPosts;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
@@ -12,6 +12,7 @@ using AiContentFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,12 +22,12 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<ITeamService, TeamService>();
-builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<IContentPostService, ContentPostService>();
 
 // Infrastructure Services
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ITeamRepository, TeamRepository>();
-builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IContentPostRepository, ContentPostRepository>();
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -64,9 +65,13 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
-
-
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.Migrate();
+}
 
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseAuthentication();  

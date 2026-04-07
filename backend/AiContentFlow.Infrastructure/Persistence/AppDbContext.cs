@@ -12,7 +12,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Team> Teams { get; set; }
     public DbSet<UserTeam> UserTeams { get; set; }
-    public DbSet<Post> Posts { get; set; }
+    public DbSet<ContentPost> ContentPosts { get; set; }
+    public DbSet<PostVariant> PostVariants { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -55,18 +56,50 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<Post>(entity =>
+        builder.Entity<ContentPost>(entity =>
         {
-            entity.HasKey(p => p.Id);
-            entity.Property(p => p.Title).IsRequired().HasMaxLength(200);
-            entity.Property(p => p.Content).IsRequired();
-            entity.Property(p => p.CreatedByUserId).IsRequired();
-            entity.HasIndex(p => new { p.TeamId, p.CreatedAt });
+            entity.HasKey(cp => cp.Id);
+            entity.Property(cp => cp.Title).HasMaxLength(200);
+            entity.Property(cp => cp.ContentJson).IsRequired().HasColumnType("jsonb");
+            entity.Property(cp => cp.ContentType).HasConversion<int>();
+            entity.Property(cp => cp.Status).HasConversion<int>();
+            entity.Property(cp => cp.Prompt).HasMaxLength(4000);
+            entity.Property(cp => cp.AiModel).HasMaxLength(100);
+            entity.Property(cp => cp.PlatformPostId).HasMaxLength(200);
+            entity.Property(cp => cp.PlatformPostUrl).HasMaxLength(500);
+            entity.Property(cp => cp.LastError).HasMaxLength(4000);
+            entity.Property(cp => cp.CreatedByUserId).IsRequired();
+            entity.Property(cp => cp.CreatedAt).IsRequired();
+            entity.Property(cp => cp.UpdatedAt).IsRequired();
+            entity.Property(cp => cp.RetryCount).HasDefaultValue(0);
+            entity.HasIndex(cp => new { cp.TeamId, cp.CreatedAt });
+            entity.HasIndex(cp => new { cp.ChannelId, cp.SocialAccountId });
 
-            entity.HasOne(p => p.Team)
-                  .WithMany(t => t.Posts)
-                  .HasForeignKey(p => p.TeamId)
+            entity.HasOne(cp => cp.Team)
+                  .WithMany(t => t.ContentPosts)
+                  .HasForeignKey(cp => cp.TeamId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(cp => cp.PostVariants)
+                  .WithOne(pv => pv.ContentPost)
+                  .HasForeignKey(pv => pv.ContentPostId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PostVariant>(entity =>
+        {
+            entity.HasKey(pv => pv.Id);
+            entity.Property(pv => pv.ContentJson).IsRequired().HasColumnType("jsonb");
+            entity.Property(pv => pv.Title).HasMaxLength(200);
+            entity.Property(pv => pv.Platform).HasConversion<int>();
+            entity.Property(pv => pv.Status).HasConversion<int>();
+            entity.Property(pv => pv.PlatformPostId).HasMaxLength(200);
+            entity.Property(pv => pv.PlatformPostUrl).HasMaxLength(500);
+            entity.Property(pv => pv.LastError).HasMaxLength(4000);
+            entity.Property(pv => pv.CreatedAt).IsRequired();
+            entity.Property(pv => pv.UpdatedAt).IsRequired();
+            entity.Property(pv => pv.RetryCount).HasDefaultValue(0);
+            entity.HasIndex(pv => new { pv.ContentPostId, pv.Platform }).IsUnique();
         });
     }
 }

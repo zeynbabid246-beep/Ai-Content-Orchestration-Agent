@@ -64,6 +64,13 @@ This document records the main foundation updates made to the AiContentFlow back
 ### 9) Unnecessary package dependency was removed
 - Removed `Microsoft.Extensions.Configuration.Abstractions` from `AiContentFlow.API.csproj` to keep the project clean and avoid the NuGet pruning warning.
 
+### 10) The legacy post slice was replaced with the real content workflow aggregate
+- Removed the old `Post` slice entirely.
+- Added `ContentPost` as the primary content aggregate.
+- Added `PostVariant` for social-platform variants.
+- Added team-scoped `ContentPost` API, application service, repository, and EF mapping.
+- Replaced the old post migration with a drop-and-create migration for `ContentPosts` and `PostVariants`.
+
 ## Files Updated
 
 ### New Files
@@ -79,7 +86,6 @@ This document records the main foundation updates made to the AiContentFlow back
 - `AiContentFlow.Application/Common/Interfaces/ITeamRepository.cs`
 - `AiContentFlow.Application/Features/Auth/AuthService.cs`
 - `AiContentFlow.Application/Features/Auth/Dtos/RefreshTokenDto.cs`
-- `AiContentFlow.Application/Features/Posts/PostService.cs`
 - `AiContentFlow.Application/Features/Teams/TeamService.cs`
 - `AiContentFlow.Domain/Models/Team.cs`
 - `AiContentFlow.Infrastructure/Identity/IdentityService.cs`
@@ -88,9 +94,27 @@ This document records the main foundation updates made to the AiContentFlow back
 - `AiContentFlow.Infrastructure/Persistence/Repositories/RefreshTokenRepository.cs`
 - `AiContentFlow.Infrastructure/Persistence/Repositories/TeamRepository.cs`
 - `AiContentFlow.Infrastructure/Services/JwtTokenGenerator.cs`
+- `AiContentFlow.Domain/Models/ContentEnums.cs`
+- `AiContentFlow.Domain/Models/ContentPost.cs`
+- `AiContentFlow.Domain/Models/PostVariant.cs`
+- `AiContentFlow.Application/Common/Interfaces/IContentPostRepository.cs`
+- `AiContentFlow.Application/Features/ContentPosts/*`
+- `AiContentFlow.Infrastructure/Persistence/Repositories/ContentPostRepository.cs`
+- `AiContentFlow.Infrastructure/Persistence/AppDbContext.cs`
+- `AiContentFlow.API/Controllers/ContentPostsController.cs`
+- `AiContentFlow.Infrastructure/Migrations/20260407120000_ReplacePostsWithContentPosts.cs`
+- `AiContentFlow.Infrastructure/Migrations/20260407120000_ReplacePostsWithContentPosts.Designer.cs`
+- `AiContentFlow.Infrastructure/Migrations/AppDbContextModelSnapshot.cs`
 
 ### Removed Files
 - `AiContentFlow.Domain/Models/User.cs`
+- `AiContentFlow.Domain/Models/Post.cs`
+- `AiContentFlow.Application/Common/Interfaces/IPostRepository.cs`
+- `AiContentFlow.Application/Features/Posts/`
+- `AiContentFlow.Infrastructure/Persistence/Repositories/PostRepository.cs`
+- `AiContentFlow.API/Controllers/PostsController.cs`
+- `AiContentFlow.Infrastructure/Migrations/20260406235209_AddPosts.cs`
+- `AiContentFlow.Infrastructure/Migrations/20260406235209_AddPosts.Designer.cs`
 
 ## Validation
 - The solution was built successfully after the changes.
