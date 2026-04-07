@@ -17,31 +17,39 @@ namespace AiContentFlow.Infrastructure.Identity
 
         
 
-        public Task<(bool Success, string UserId, IEnumerable<string> Errors)> RegisterAsync(string email, string password, string username)
+        public async Task<(bool Success, string UserId, string Email, string Username, IEnumerable<string> Errors)> RegisterAsync(string email, string password, string username)
         {
             var user = new ApplicationUser
             {
                 Email = email,
                 UserName = username
             };
-            var result = _userManager.CreateAsync(user, password);
 
-            if (!result.Result.Succeeded)
+            var result = await _userManager.CreateAsync(user, password);
+
+            if (!result.Succeeded)
             {
-                return Task.FromResult((false, string.Empty, result.Result.Errors.Select(e => e.Description)));
+                return (false, string.Empty, string.Empty, string.Empty, result.Errors.Select(e => e.Description));
             }
-            return Task.FromResult((true, user.Id, Enumerable.Empty<string>()));
 
+            return (true, user.Id, user.Email ?? string.Empty, user.UserName ?? string.Empty, Enumerable.Empty<string>());
         }
 
-        public async Task<(bool Success, string UserId, string Email)> LoginAsync(string email, string password)
+        public async Task<(bool Success, string UserId, string Email, string Username)> LoginAsync(string email, string password)
         {
             var user = await _userManager.FindByEmailAsync(email);
-            if (user == null) { return (false , null , null); }
+            if (user == null)
+            {
+                return (false, string.Empty, string.Empty, string.Empty);
+            }
 
             var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
-            if(!isPasswordValid) { return (false, null, null); }
-            return (true, user.Id, user.Email); 
+            if (!isPasswordValid)
+            {
+                return (false, string.Empty, string.Empty, string.Empty);
+            }
+
+            return (true, user.Id, user.Email ?? string.Empty, user.UserName ?? string.Empty);
         }
     }
 }

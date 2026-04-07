@@ -1,11 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Domain.Models;
+using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiContentFlow.Infrastructure.Repositories;
 
@@ -33,40 +30,32 @@ public class TeamRepository : ITeamRepository
     public async Task<int> CountOwnersAsync(Guid teamId)
         => await _context.UserTeams.CountAsync(ut => ut.TeamId == teamId && ut.Role == TeamRole.Owner);
 
-    // Fixed: projects ApplicationUser → domain User model to avoid leaking Identity into Application
-    public async Task<List<(UserTeam UserTeam, User User)>> GetTeamMembersAsync(Guid teamId)
+    public async Task<List<(UserTeam UserTeam, string UserId, string Username, string Email)>> GetTeamMembersAsync(Guid teamId)
     {
         return await _context.UserTeams
             .Where(ut => ut.TeamId == teamId)
             .Join(_context.Users,
                 ut => ut.UserId,
                 u => u.Id,
-                (ut, u) => new ValueTuple<UserTeam, User>(
+                (ut, u) => new ValueTuple<UserTeam, string, string, string>(
                     ut,
-                    new User          // project to domain model, not ApplicationUser
-                    {
-                        Id = u.Id,
-                        UserName = u.UserName ?? string.Empty,
-                        Email = u.Email ?? string.Empty
-                    }
-                ))
+                    u.Id,
+                    u.UserName ?? string.Empty,
+                    u.Email ?? string.Empty))
             .ToListAsync();
     }
 
-  
-    public async Task<User?> GetUserByUsernameOrEmailAsync(string value)
+    public async Task<(string UserId, string Username, string Email)?> GetUserByUsernameOrEmailAsync(string value)
     {
         var appUser = await _context.Users
             .FirstOrDefaultAsync(u => u.UserName == value || u.Email == value);
 
-        if (appUser is null) return null;
-
-        return new User
+        if (appUser is null)
         {
-            Id = appUser.Id,
-            UserName = appUser.UserName ?? string.Empty,
-            Email = appUser.Email ?? string.Empty
-        };
+            return null;
+        }
+
+        return (appUser.Id, appUser.UserName ?? string.Empty, appUser.Email ?? string.Empty);
     }
 
     public async Task AddTeamAsync(Team team)

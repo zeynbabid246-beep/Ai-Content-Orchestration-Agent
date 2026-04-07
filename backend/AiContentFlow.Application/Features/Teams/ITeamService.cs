@@ -8,7 +8,8 @@ namespace AiContentFlow.Application.Features.Teams;
 public interface ITeamService
 {
     Task<TeamResponseDto> CreateTeamAsync(string ownerId, CreateTeamDto dto);
-    Task<List<TeamMemberDto>> GetMembersAsync(Guid teamId, string requestUserId);  // Fixed: GetMembersAsync not GetMemberAsync
+    Task<List<TeamMemberDto>> GetMembersAsync(Guid teamId, string requestUserId);
     Task InviteUserAsync(Guid teamId, string requestingUserId, InviteUserDto dto);
     Task RemoveUserAsync(Guid teamId, string requestingUserId, string targetUserId);
+    Task UpdateMemberRoleAsync(Guid teamId, string requestingUserId, UpdateMemberRoleDto dto);
 }

@@ -13,11 +13,8 @@ public interface ITeamRepository
     Task<bool> IsUserMemberAsync(Guid teamId, string userId);
     Task<UserTeam?> GetUserMembershipAsync(Guid teamId, string userId);
     Task<int> CountOwnersAsync(Guid teamId);
-
-    Task<List<(UserTeam UserTeam, User User)>> GetTeamMembersAsync(Guid teamId);
-
-    Task<User?> GetUserByUsernameOrEmailAsync(string value);
-
+    Task<List<(UserTeam UserTeam, string UserId, string Username, string Email)>> GetTeamMembersAsync(Guid teamId);
+    Task<(string UserId, string Username, string Email)?> GetUserByUsernameOrEmailAsync(string value);
     Task AddTeamAsync(Team team);
     Task AddUserTeamAsync(UserTeam userTeam);
     Task RemoveUserTeamAsync(UserTeam userTeam);

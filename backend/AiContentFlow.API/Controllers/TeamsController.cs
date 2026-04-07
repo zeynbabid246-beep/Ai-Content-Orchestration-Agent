@@ -65,6 +65,18 @@ public class TeamController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{teamId:guid}/members/role")]
+    public async Task<IActionResult> UpdateMemberRole(Guid teamId, [FromBody] UpdateMemberRoleDto dto)
+    {
+        var requestingUserId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(requestingUserId))
+            return Unauthorized("User ID not found in token");
+
+        await _teamService.UpdateMemberRoleAsync(teamId, requestingUserId, dto);
+        return NoContent();
+    }
+
     private string GetCurrentUserId()
     {
         return User.FindFirst("sub")?.Value 

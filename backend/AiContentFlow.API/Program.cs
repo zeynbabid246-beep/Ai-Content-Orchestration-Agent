@@ -1,16 +1,18 @@
+using System.Text;
+using AiContentFlow.API.Middleware;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Auth;
+using AiContentFlow.Application.Features.Posts;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
 using AiContentFlow.Infrastructure.Persistence.Repositories;
+using AiContentFlow.Infrastructure.Repositories;
 using AiContentFlow.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using AiContentFlow.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,11 +20,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IPostService, PostService>();
 
 // Infrastructure Services
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
- builder.Services.AddScoped<ITeamRepository, TeamRepository>();
-builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<ITeamRepository, TeamRepository>();
+builder.Services.AddScoped<IPostRepository, PostRepository>();
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -49,6 +53,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
+        ClockSkew = TimeSpan.Zero,
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(
@@ -63,6 +68,7 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
+app.UseMiddleware<ExceptionMiddleware>();
 app.UseAuthentication();  
 app.UseAuthorization();   
 
