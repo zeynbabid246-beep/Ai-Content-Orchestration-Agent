@@ -1,8 +1,8 @@
 export const navbarMenu = [
   {
     id: 1,
-    title: "Overview",
-    link: "/overview",
+    title: "Home",
+    link: "/home",
   },
   
   {

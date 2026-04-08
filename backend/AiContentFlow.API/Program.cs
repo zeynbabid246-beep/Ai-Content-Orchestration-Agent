@@ -38,6 +38,17 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.SetIsOriginAllowed(origin => origin.StartsWith("http://localhost"))
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 
@@ -73,9 +84,16 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate();
 }
 
+
+
+
+
+
+
+app.UseCors("AllowFrontend");
 app.UseMiddleware<ExceptionMiddleware>();
-app.UseAuthentication();  
-app.UseAuthorization();   
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
