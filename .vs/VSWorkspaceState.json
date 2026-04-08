@@ -1,0 +1,16 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\.github\\workflows",
+    "\\backend",
+    "\\backend\\AiContentFlow.Application",
+    "\\backend\\AiContentFlow.Application\\Features",
+    "\\backend\\AiContentFlow.Application\\Features\\Auth",
+    "\\backend\\AiContentFlow.Application\\Features\\Posts",
+    "\\backend\\AiContentFlow.Infrastructure",
+    "\\backend\\AiContentFlow.Infrastructure\\Migrations"
+  ],
+  "SelectedNode": "\\backend\\AiContentFlow.Infrastructure\\Migrations\\20260407120000_ReplacePostsWithContentPosts.Designer.cs",
+  "PreviewInSolutionExplorer": false
+}
