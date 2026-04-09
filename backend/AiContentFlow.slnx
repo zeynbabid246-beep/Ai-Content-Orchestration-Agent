@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="AiContentFlow.API/AiContentFlow.API.csproj" />
+  <Project Path="AiContentFlow.Application.Tests/AiContentFlow.Application.Tests.csproj" />
   <Project Path="AiContentFlow.Application/AiContentFlow.Application.csproj" />
   <Project Path="AiContentFlow.Domain/AiContentFlow.Domain.csproj" />
   <Project Path="AiContentFlow.Infrastructure/AiContentFlow.Infrastructure.csproj" />

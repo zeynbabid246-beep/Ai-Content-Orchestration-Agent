@@ -27,4 +27,5 @@ public class ContentPost
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public ICollection<PostVariant> PostVariants { get; set; } = [];
+    public ICollection<CampaignContentPost> CampaignContentPosts { get; set; } = [];
 }

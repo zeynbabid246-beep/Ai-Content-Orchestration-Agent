@@ -126,3 +126,113 @@ This document records the main foundation updates made to the AiContentFlow back
 - Keep refresh tokens hashed in storage.
 - Keep controllers thin and business rules in application services.
 - Add social account, content workflow, and scheduling features on this foundation.
+
+---
+
+## Date
+- **2026-04-08**
+
+## What Was Done
+
+### 11) Strict `ContentPost` ownership validation was completed
+- Updated `ContentPostService` (`CreateAsync`, `UpdateAsync`) to enforce:
+  - `ChannelId` must exist in the same team.
+  - `SocialAccountId` must exist in the same team.
+  - `SocialAccount.ChannelId` must match `ContentPost.ChannelId`.
+- Kept ownership checks in `Application` service layer using repository abstractions.
+
+### 12) Error behavior was aligned to API status mapping
+- Missing team-scoped `Channel`/`SocialAccount` now produce not-found behavior (`404`).
+- Invalid cross-entity linkage now produces bad-request behavior (`400`).
+- Membership and role violations continue to produce forbidden behavior (`403`).
+
+### 13) Unit tests were added for critical content-post validation paths
+- Added `AiContentFlow.Application.Tests/Features/ContentPosts/ContentPostServiceTests.cs` covering:
+  - cross-team `ChannelId` rejection,
+  - cross-team `SocialAccountId` rejection,
+  - mismatched `ChannelId` vs `SocialAccount.ChannelId` rejection,
+  - valid same-team linkage acceptance.
+
+### 14) Documentation was updated to match runtime behavior
+- Updated `AiContentFlow_API_Endpoints.md` with `ContentPost` validation and error outcomes.
+- Updated `.github/copilot-instructions.md` implementation status and active priority.
+- Updated `AiContentFlow_App_Structure_and_Logic.md` for current ownership/linkage rules.
+
+## Validation
+- `dotnet test AiContentFlow.Application.Tests/AiContentFlow.Application.Tests.csproj` passed (`8/8`).
+- `dotnet build` passed.
+- NuGet vulnerability feed warnings may appear intermittently (`NU1900` / nuget.org connectivity), without blocking the validated run above.
+
+---
+
+## Date
+- **2026-04-09**
+
+## What Was Done
+
+### 15) Campaign vertical slice was implemented
+- Added `Campaign` with lifecycle `CampaignStatus` (`Draft`, `Active`, `Paused`, `Completed`, `Archived`).
+- Added `CampaignContentPost` join model for many-to-many links with `ContentPost`.
+- Added team-scoped campaign DTOs, service contract, service implementation, and repository contracts.
+- Added campaign API endpoints under `api/teams/{teamId}/campaigns`.
+
+### 16) Campaign tenant and authorization rules were enforced
+- Membership checks are required for campaign reads.
+- Owner/Admin role checks are required for campaign mutations and link/unlink operations.
+- Campaign and content post existence checks are enforced in team scope.
+- Duplicate campaign-content links are rejected as domain violations.
+
+### 17) Persistence and DI were extended for campaigns
+- Added EF Core mappings for `Campaign` and `CampaignContentPost` in `AppDbContext`.
+- Added campaign repository implementations in infrastructure.
+- Registered campaign services/repositories in API DI configuration.
+
+### 18) Campaign tests and documentation were added
+- Added `AiContentFlow.Application.Tests/Features/Campaigns/CampaignServiceTests.cs` for:
+  - cross-team access rejection,
+  - cross-team content-post link rejection,
+  - duplicate link rejection,
+  - valid same-team link/unlink.
+- Updated `AiContentFlow_API_Endpoints.md` with campaign routes and validation behavior.
+- Updated `.github/copilot-instructions.md` campaign status and traceability notes.
+
+---
+
+## Date
+- **2026-04-09**
+
+## What Was Done
+
+### 19) ContentPost lifecycle workflow was hardened
+- Added explicit lifecycle transition enforcement in `ContentPostService`.
+- Enforced forward-only workflow chain: `Draft -> Ready -> Scheduled -> Published`.
+- Rejected invalid transitions as domain violations (`InvalidOperationException` -> `400`).
+
+### 20) Scheduling and manual publish workflows were added
+- Added scheduling use case in `ContentPostService.ScheduleAsync`.
+- Enforced scheduling constraints:
+  - `ScheduledAt` must be UTC.
+  - `ScheduledAt` must be in the future.
+- Added manual publish use case in `ContentPostService.PublishAsync` with consistent `PublishedAt` update.
+
+### 21) ContentPost workflow API actions were added
+- Extended `ContentPostsController` with workflow endpoints under `api/teams/{teamId}/content-posts/{contentPostId}`:
+  - `POST /workflow/transition`
+  - `POST /workflow/schedule`
+  - `POST /workflow/publish`
+- Kept controllers thin and delegated orchestration to `Application` services.
+
+### 22) Team isolation and role permissions were aligned for workflow mutations
+- Enforced team-scoped existence and membership checks in workflow mutation paths.
+- Enforced `Owner/Admin` requirement consistently for content-post workflow mutations.
+- Preserved error mapping consistency:
+  - missing team-scoped resources -> `404`
+  - rule violations -> `400`
+  - membership/role violations -> `403`
+
+### 23) Focused ContentPost lifecycle tests were added
+- Extended `AiContentFlow.Application.Tests/Features/ContentPosts/ContentPostServiceTests.cs` with cases for:
+  - invalid transition rejection,
+  - cross-team scoped resource rejection (`404` behavior via exception type),
+  - role violation rejection,
+  - valid schedule/publish flow.

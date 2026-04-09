@@ -12,8 +12,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Team> Teams { get; set; }
     public DbSet<UserTeam> UserTeams { get; set; }
+    public DbSet<Channel> Channels { get; set; }
+    public DbSet<SocialAccount> SocialAccounts { get; set; }
     public DbSet<ContentPost> ContentPosts { get; set; }
     public DbSet<PostVariant> PostVariants { get; set; }
+    public DbSet<Campaign> Campaigns { get; set; }
+    public DbSet<CampaignContentPost> CampaignContentPosts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -84,6 +88,67 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                   .WithOne(pv => pv.ContentPost)
                   .HasForeignKey(pv => pv.ContentPostId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<Channel>()
+                  .WithMany()
+                  .HasForeignKey(cp => cp.ChannelId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne<SocialAccount>()
+                  .WithMany()
+                  .HasForeignKey(cp => cp.SocialAccountId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Channel>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
+            entity.Property(c => c.Description).HasMaxLength(500);
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+            entity.Property(c => c.IsDeleted).HasDefaultValue(false);
+            entity.HasIndex(c => new { c.TeamId, c.Name }).IsUnique();
+            entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
+
+            entity.HasOne(c => c.Team)
+                .WithMany(t => t.Channels)
+                .HasForeignKey(c => c.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(c => c.SocialAccounts)
+                .WithOne(sa => sa.Channel)
+                .HasForeignKey(sa => sa.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(c => !c.IsDeleted);
+        });
+
+        builder.Entity<SocialAccount>(entity =>
+        {
+            entity.HasKey(sa => sa.Id);
+            entity.Property(sa => sa.Platform).HasConversion<int>();
+            entity.Property(sa => sa.Status).HasConversion<int>();
+            entity.Property(sa => sa.AccountHandle).IsRequired().HasMaxLength(120);
+            entity.Property(sa => sa.DisplayName).HasMaxLength(150);
+            entity.Property(sa => sa.CreatedAt).IsRequired();
+            entity.Property(sa => sa.UpdatedAt).IsRequired();
+            entity.Property(sa => sa.IsDeleted).HasDefaultValue(false);
+            entity.HasIndex(sa => new { sa.TeamId, sa.ChannelId });
+            entity.HasIndex(sa => new { sa.TeamId, sa.Platform });
+            entity.HasIndex(sa => new { sa.TeamId, sa.ChannelId, sa.Platform, sa.AccountHandle }).IsUnique();
+
+            entity.HasOne(sa => sa.Team)
+                .WithMany(t => t.SocialAccounts)
+                .HasForeignKey(sa => sa.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(sa => sa.Channel)
+                .WithMany(c => c.SocialAccounts)
+                .HasForeignKey(sa => sa.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(sa => !sa.IsDeleted);
         });
 
         builder.Entity<PostVariant>(entity =>
@@ -100,6 +165,53 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(pv => pv.UpdatedAt).IsRequired();
             entity.Property(pv => pv.RetryCount).HasDefaultValue(0);
             entity.HasIndex(pv => new { pv.ContentPostId, pv.Platform }).IsUnique();
+        });
+
+        builder.Entity<Campaign>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Name).IsRequired().HasMaxLength(150);
+            entity.Property(c => c.Description).HasMaxLength(1000);
+            entity.Property(c => c.Status).HasConversion<int>();
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+            entity.Property(c => c.IsDeleted).HasDefaultValue(false);
+            entity.HasIndex(c => new { c.TeamId, c.Status });
+            entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
+            entity.HasIndex(c => new { c.TeamId, c.Name });
+
+            entity.HasOne(c => c.Team)
+                .WithMany(t => t.Campaigns)
+                .HasForeignKey(c => c.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(c => c.CampaignContentPosts)
+                .WithOne(ccp => ccp.Campaign)
+                .HasForeignKey(ccp => ccp.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(c => !c.IsDeleted);
+        });
+
+        builder.Entity<CampaignContentPost>(entity =>
+        {
+            entity.HasKey(ccp => new { ccp.CampaignId, ccp.ContentPostId });
+            entity.Property(ccp => ccp.LinkedAt).IsRequired();
+            entity.Property(ccp => ccp.LinkedByUserId).IsRequired();
+            entity.HasIndex(ccp => ccp.CampaignId);
+            entity.HasIndex(ccp => ccp.ContentPostId);
+
+            entity.HasOne(ccp => ccp.Campaign)
+                .WithMany(c => c.CampaignContentPosts)
+                .HasForeignKey(ccp => ccp.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ccp => ccp.ContentPost)
+                .WithMany(cp => cp.CampaignContentPosts)
+                .HasForeignKey(ccp => ccp.ContentPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(ccp => !ccp.Campaign!.IsDeleted);
         });
     }
 }

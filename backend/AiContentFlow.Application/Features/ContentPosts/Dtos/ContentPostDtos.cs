@@ -39,6 +39,19 @@ public record UpdateContentPostDto(
     IReadOnlyList<UpdatePostVariantDto>? PostVariants
 );
 
+public record TransitionContentPostStatusDto(
+    ContentStatus Status
+);
+
+public record ScheduleContentPostDto(
+    DateTime ScheduledAt
+);
+
+public record PublishContentPostDto(
+    string? PlatformPostId,
+    string? PlatformPostUrl
+);
+
 public record PostVariantResponseDto(
     int Id,
     int ContentPostId,

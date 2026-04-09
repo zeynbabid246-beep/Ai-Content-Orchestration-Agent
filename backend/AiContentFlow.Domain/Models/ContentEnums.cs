@@ -27,3 +27,18 @@ public enum SocialPlatform
     Threads = 4,
     TikTok = 5
 }
+
+public enum SocialAccountStatus
+{
+    Active = 0,
+    Disconnected = 1
+}
+
+public enum CampaignStatus
+{
+    Draft = 0,
+    Active = 1,
+    Paused = 2,
+    Completed = 3,
+    Archived = 4
+}
