@@ -16,7 +16,7 @@ const ResponsiveMenu = ({ open, setOpen }) => {
     { label: "Content Type", path: "/content-type" },
     { label: "Content Feed", path: "/content-feed" },
     { label: "Social Media", path: "/social-media" },
-    { label: "Publish", path: "/publish" },
+    { label: "Publish", path: "/quick-publish" },
   ];
 
   return (

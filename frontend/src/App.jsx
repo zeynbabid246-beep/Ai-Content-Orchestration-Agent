@@ -5,16 +5,23 @@ import Hero from './pages/Home/components/Hero/Hero';
 import Login from './pages/Loginpages/Login';
 import Register from './pages/Loginpages/Register';
 import Bodypage from './pages/Home/Bodypage/Bodypage';
-import Overview from './pages/Home/overview';
-import Interests from './pages/Home/interests';
-import ContentType from './pages/Home/content-type';
-import ContentFeed from './pages/Home/content-feed';
-import SocialMedia from './pages/Home/social-media';
-import Publish from './pages/Home/scheduler';
-import QuikPublish from './pages/Home/QuikPublish';
+import InviteUser from './pages/Home/invite-user';
+import ContentType from './pages/Home/Content-type';
+import ContentFeed from './pages/Home/ContentFeed';
+import SocialMedia from './pages/Home/Social-media';
+import Scheduler from './pages/Home/scheduler';
+import QuikPublish from './pages/Home/quick-publish';
+import Home from './pages/Home/Home';
+import Profile from './pages/Home/profile';
+import { Navigate } from 'react-router-dom';
 
+function PrivateRoute({ children }) {
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" replace />;
+}
 const App = () => {
   return (
+    
     <Routes>
       <Route
         path="/"
@@ -29,14 +36,17 @@ const App = () => {
 
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-     
-        <Route path="/overview" element={<Overview />} />
-        <Route path="/quick-publish" element={<QuikPublish />} />
-        <Route path="/content-type" element={<ContentType />} />
-        <Route path="/content-feed" element={<ContentFeed />} />
-        <Route path="/social-media" element={<SocialMedia />} />
-        <Route path="/publish" element={<Publish />} />
-      </Routes>
+      <Route path="/invite-user" element={<InviteUser />} />
+      <Route path="/quick-publish" element={<QuikPublish />} />
+      <Route path="/publish" element={<QuikPublish />} />
+      <Route path="/content-type" element={<ContentType />} />
+      <Route path="/content-feed" element={<ContentFeed />} />
+      <Route path="/social-media" element={<SocialMedia />} />
+      <Route path="/scheduler" element={<Scheduler />} />
+      <Route path="/home" element={<Home />} />
+       <Route path="/profile" element={<Profile />} />
+       
+    </Routes>
     
   );
 };

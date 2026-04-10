@@ -95,7 +95,8 @@ const Navbar = () => {
                                 flex items-center justify-center text-white text-sm">
                   <CgProfile />
                 </div>
-                <span className="hidden md:block text-sm font-medium">Account</span>
+                <button className="hidden md:block text-sm font-medium">Account</button>
+                
                 <svg
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
