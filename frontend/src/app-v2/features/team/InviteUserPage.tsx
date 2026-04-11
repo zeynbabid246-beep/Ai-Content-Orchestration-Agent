@@ -70,7 +70,7 @@ export function InviteUserPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>Team Members</Typography>
+        <Typography variant="h4" >Team Members</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
           INVITE AND MANAGE YOUR WORKSPACE COLLABORATORS
         </Typography>

@@ -32,7 +32,6 @@ const styles = `
 h2 {
   text-align: center;
   color: #f5efe8;
-  font-family: 'Cormorant Garamond', serif;
 }
 
 .register-subtitle {

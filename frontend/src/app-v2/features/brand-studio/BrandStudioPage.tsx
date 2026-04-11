@@ -17,7 +17,14 @@ import {
   Stack,
   InputAdornment,
   Collapse,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
 } from "@mui/material";
+
+import { useBrandsQuery, useCreateBrandMutation, useUpdateBrandMutation } from "../brands/brands.queries";
+import type { Brand } from "../../shared/types/domain";
 
 const UploadIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -58,6 +65,12 @@ const CheckIcon = () => (
     <polyline points="20 6 9 17 4 12" />
   </svg>
 );
+const PlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
 
 function Section({ title, subtitle, children, badge }: { title: string; subtitle?: string; children: React.ReactNode; badge?: string }) {
   return (
@@ -80,7 +93,7 @@ function Section({ title, subtitle, children, badge }: { title: string; subtitle
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: subtitle ? 0.5 : 2.5 }}>
-        <Typography sx={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 400, color: "text.primary", letterSpacing: "0.02em" }}>
+        <Typography sx={{fontSize: 18, fontWeight: 400, color: "text.primary", letterSpacing: "0.02em" }}>
           {title}
         </Typography>
         {badge && (
@@ -108,7 +121,7 @@ function Section({ title, subtitle, children, badge }: { title: string; subtitle
   );
 }
 
-function GoldButton({ children, onClick, disabled, loading, variant = "primary", size = "medium", startIcon }: any) {
+function GoldButton({ children, onClick, disabled, loading, variant = "primary", size = "medium", startIcon, fullWidth }: any) {
   const base = {
     primary: {
       background: "linear-gradient(135deg, #d4af7a 0%, #b8893e 100%)",
@@ -127,6 +140,7 @@ function GoldButton({ children, onClick, disabled, loading, variant = "primary",
     <Button
       onClick={onClick}
       disabled={disabled || loading}
+      fullWidth={fullWidth}
       startIcon={startIcon}
       sx={{
         ...(variant === "primary" ? base.primary : base.ghost),
@@ -145,33 +159,88 @@ function GoldButton({ children, onClick, disabled, loading, variant = "primary",
 
 export function BrandStudioPage() {
   const navigate = useNavigate();
-  const [websiteUrl, setWebsiteUrl] = useState("https://consultim-IT.com");
+  const { data: brands, isLoading: isBrandsLoading } = useBrandsQuery();
+  const createBrandMutation = useCreateBrandMutation();
+  const updateBrandMutation = useUpdateBrandMutation();
+
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+
+  // Form states
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [scraping, setScraping] = useState(false);
-  const [scraped, setScraped] = useState(true);
-  const [lastScraped] = useState("Apr 2, 2026");
+  const [scraped, setScraped] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [brandName, setBrandName] = useState("Acme");
-  const [slogan, setSlogan] = useState("Ship faster, break nothing");
-  const [description, setDescription] = useState("Acme is a CI/CD platform built for modern engineering teams.");
+  
+  const [brandName, setBrandName] = useState("");
+  const [slogan, setSlogan] = useState("");
+  const [description, setDescription] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#0F172A");
   const [secondaryColor, setSecondaryColor] = useState("#6366F1");
   const [fontFamily, setFontFamily] = useState("Inter");
   const [brandVoice, setBrandVoice] = useState("Professional");
-  const [contactEmail, setContactEmail] = useState("consutim-It@gmail.com");
-  const [website, setWebsite] = useState("https://consutim-IT.com");
+  const [contactEmail, setContactEmail] = useState("");
+  const [website, setWebsite] = useState("");
+  
   const [saved, setSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Handle default selection when brands load
+  useEffect(() => {
+    if (brands && brands.length > 0 && !selectedBrandId) {
+      handleSelectBrand(brands[0]);
+    }
+  }, [brands]);
+
+  const handleSelectBrand = (brand: Brand) => {
+    setSelectedBrandId(brand.id);
+    setBrandName(brand.name);
+    setWebsite(brand.website);
+    setWebsiteUrl(brand.website);
+    setPrimaryColor(brand.colors?.primary || "#0F172A");
+    setSecondaryColor(brand.colors?.secondary || "#6366F1");
+    setBrandVoice(brand.voice || "Professional");
+    setLogoPreview(brand.logoUrl || null);
+    
+    // reset other fields
+    setSlogan("");
+    setDescription("");
+    setContactEmail("");
+    setFontFamily("Inter");
+    setScraped(false);
+    setScraping(false);
+  };
+
+  const handleCreateNew = () => {
+    setSelectedBrandId(null);
+    setBrandName("");
+    setWebsite("");
+    setWebsiteUrl("");
+    setPrimaryColor("#0F172A");
+    setSecondaryColor("#6366F1");
+    setBrandVoice("Professional");
+    setLogoPreview(null);
+    setSlogan("");
+    setDescription("");
+    setContactEmail("");
+    setFontFamily("Inter");
+    setScraped(false);
+    setScraping(false);
+  };
+
   useEffect(() => {
     return () => {
-      if (logoPreview) URL.revokeObjectURL(logoPreview);
+      if (logoPreview && logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
     };
   }, [logoPreview]);
 
   const handleScrape = () => {
+    if (!websiteUrl) return;
     setScraping(true);
     setScraped(false);
     setTimeout(() => {
+      setBrandName("Extracted Brand");
+      setSlogan("Extracted slogan from website");
+      setDescription("This is an automatically generated description based on the provided website.");
       setScraping(false);
       setScraped(true);
     }, 2200);
@@ -180,26 +249,95 @@ export function BrandStudioPage() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    if (logoPreview && logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
     setLogoPreview(URL.createObjectURL(file));
   };
 
   const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2800);
+    if (!brandName.trim() || !website.trim()) return;
+
+    const payload = {
+      name: brandName,
+      website: website,
+      voice: brandVoice,
+      primaryColor,
+      secondaryColor,
+    };
+
+    if (selectedBrandId) {
+      updateBrandMutation.mutate(
+        { id: selectedBrandId, input: payload },
+        {
+          onSuccess: () => {
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2800);
+          },
+        }
+      );
+    } else {
+      createBrandMutation.mutate(payload, {
+        onSuccess: (newBrand) => {
+          setSelectedBrandId(newBrand.id);
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2800);
+        },
+      });
+    }
   };
 
   const fonts = ["Cormorant Garamond", "Inter", "DM Sans", "Playfair Display", "Syne", "Neue Haas Grotesk", "Libre Baskerville"];
   const voices = ["Professional", "Playful", "Luxurious", "Bold", "Minimalist", "Conversational", "Technical"];
 
   return (
-    <Box sx={{ py: 4, px: { xs: 2, sm: 3, md: 4 } }}>
-      <Box sx={{ maxWidth: 760, mx: "auto" }}>
+    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, minHeight: "100%", gap: 3, p: 3 }}>
+      {/* Sidebar: Brands List */}
+      <Box sx={{ width: { xs: "100%", md: 280 }, flexShrink: 0, borderRight: { md: "1px solid rgba(255,255,255,0.05)" }, pr: { md: 3 } }}>
+        <Typography variant="h6" sx={{mb: 2, color: "text.primary" }}>
+          Your Brands
+        </Typography>
+        <List sx={{ mb: 3 }}>
+          {isBrandsLoading ? (
+            <Typography variant="body2" color="text.secondary">Loading...</Typography>
+          ) : brands?.length ? (
+            brands.map((brand) => (
+              <ListItem disablePadding key={brand.id} sx={{ mb: 1 }}>
+                <ListItemButton 
+                  selected={selectedBrandId === brand.id} 
+                  onClick={() => handleSelectBrand(brand)}
+                  sx={{
+                    borderRadius: 2,
+                    border: "1px solid transparent",
+                    "&.Mui-selected": {
+                      background: "rgba(212,175,122,0.1)",
+                      borderColor: "rgba(212,175,122,0.3)",
+                      "&:hover": { background: "rgba(212,175,122,0.15)" }
+                    }
+                  }}
+                >
+                  <ListItemText 
+                    primary={brand.name} 
+                    secondary={brand.website} 
+                    primaryTypographyProps={{ sx: { fontWeight: selectedBrandId === brand.id ? 600 : 400, fontSize: '0.95rem' } }}
+                    secondaryTypographyProps={{ noWrap: true, sx: { fontSize: '0.75rem', opacity: 0.7 } }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))
+          ) : (
+            <Typography variant="body2" color="text.secondary">No brands found.</Typography>
+          )}
+        </List>
+        <GoldButton variant="ghost" fullWidth startIcon={<PlusIcon />} onClick={handleCreateNew}>
+          Add New Brand
+        </GoldButton>
+      </Box>
+
+      {/* Main Content: Brand Editor */}
+      <Box sx={{ flex: 1, maxWidth: 860 }}>
         <Box sx={{ mb: 4, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography
               sx={{
-                fontFamily: "'Cormorant Garamond', serif",
                 fontSize: { xs: 28, md: 32 },
                 fontWeight: 300,
                 color: "text.primary",
@@ -210,7 +348,7 @@ export function BrandStudioPage() {
               Brand Studio
             </Typography>
             <Typography sx={{ fontSize: 10, fontWeight: 200, letterSpacing: "0.24em", textTransform: "uppercase", color: "secondary.main", mt: 0.5, opacity: 0.7 }}>
-              Configure your brand identity
+              {selectedBrandId ? `Editing: ${brandName || 'Untitled Brand'}` : "Create a New Brand"}
             </Typography>
           </Box>
           <Collapse in={saved}>
@@ -268,7 +406,7 @@ export function BrandStudioPage() {
           {scraped && !scraping && (
             <Box sx={{ mt: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
               <Typography sx={{ fontSize: 10, color: "text.secondary", letterSpacing: "0.06em", opacity: 0.6 }}>
-                Last scraped {lastScraped} · Model: Gemini Flash ·
+                Content extracted · Model: Gemini Flash ·
               </Typography>
               <Typography
                 component="span"
@@ -465,12 +603,19 @@ export function BrandStudioPage() {
           </Stack>
         </Section>
 
-        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5, pt: 1, pb: 4 }}>
-          <GoldButton variant="ghost" size="small" onClick={() => navigate("/dashboard")}>
-            Discard
-          </GoldButton>
-          <GoldButton onClick={handleSave} size="small">
-            Save changes
+        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5, mt: 3, pb: 4 }}>
+          {selectedBrandId && (
+            <GoldButton variant="ghost" size="small" onClick={() => navigate("/dashboard")}>
+              Discard changes
+            </GoldButton>
+          )}
+          <GoldButton 
+            onClick={handleSave} 
+            size="small" 
+            loading={createBrandMutation.isPending || updateBrandMutation.isPending}
+            disabled={!brandName.trim() || !website.trim()}
+          >
+            {selectedBrandId ? "Save changes" : "Create brand"}
           </GoldButton>
         </Box>
       </Box>

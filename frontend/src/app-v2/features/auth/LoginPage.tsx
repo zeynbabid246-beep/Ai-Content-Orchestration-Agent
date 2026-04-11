@@ -28,7 +28,7 @@ export function LoginPage() {
     <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center" }}>
       <Paper sx={{ width: "100%", maxWidth: 450, p: 4 }}>
         <Stack spacing={2}>
-          <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>
+          <Typography variant="h4" >
             Sign in
           </Typography>
           <Typography variant="body2" color="text.secondary">

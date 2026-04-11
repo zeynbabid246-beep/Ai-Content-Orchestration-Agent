@@ -56,7 +56,7 @@ export function DashboardPage() {
   return (
     <Stack spacing={4}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 0.5 }}>
+        <Typography variant="h4" sx={{mb: 0.5 }}>
           {greeting()}, {username}
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
@@ -73,7 +73,7 @@ export function DashboardPage() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat.label}>
             <Paper sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                <Typography variant="h4" color="primary.main" sx={{ fontFamily: "Cormorant Garamond, serif" }}>
+                <Typography variant="h4" color="primary.main" >
                   {stat.val}
                 </Typography>
                 {stat.trend ? (
@@ -94,7 +94,7 @@ export function DashboardPage() {
       </Grid>
 
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif" }}>
+        <Typography variant="h6" >
           Recent Content
         </Typography>
         <Button onClick={() => navigate("/content-feed")}>View all</Button>
@@ -138,7 +138,7 @@ export function DashboardPage() {
       <Paper sx={{ p: 3, bgcolor: "background.paper" }}>
         <Stack direction={{ xs: "column", md: "row" }} alignItems={{ xs: "flex-start", md: "center" }} justifyContent="space-between" spacing={2}>
           <Box>
-            <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 0.5 }}>
+            <Typography variant="h6" sx={{mb: 0.5 }}>
               Ready to create new content?
             </Typography>
             <Typography variant="body2" color="text.secondary">

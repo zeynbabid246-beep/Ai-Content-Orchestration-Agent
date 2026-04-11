@@ -11,7 +11,7 @@ export const appTheme = createTheme({
     },
   },
   typography: {
-    fontFamily: "Jost, system-ui, sans-serif",
+    fontFamily: '"Outfit", system-ui, sans-serif',
   },
   components: {
     MuiPaper: {

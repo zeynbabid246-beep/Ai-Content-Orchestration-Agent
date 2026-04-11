@@ -62,14 +62,14 @@ export function SchedulerPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>Content Calendar</Typography>
+        <Typography variant="h4" >Content Calendar</Typography>
         <Typography variant="body2" color="text.secondary">Click any day to manage scheduled content</Typography>
       </Box>
 
       <Paper sx={{ p: 2.5 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Button variant="outlined" onClick={() => (viewMonth === 0 ? (setViewMonth(11), setViewYear((y) => y - 1)) : setViewMonth((m) => m - 1))}>Prev</Button>
-          <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif" }}>{MONTH_NAMES[viewMonth]} {viewYear}</Typography>
+          <Typography variant="h6" >{MONTH_NAMES[viewMonth]} {viewYear}</Typography>
           <Button variant="outlined" onClick={() => (viewMonth === 11 ? (setViewMonth(0), setViewYear((y) => y + 1)) : setViewMonth((m) => m + 1))}>Next</Button>
         </Stack>
 

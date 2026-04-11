@@ -96,7 +96,7 @@ export function AppShell() {
     <Stack sx={{ height: 1 }}>
       <Toolbar sx={{ justifyContent: collapsed && !isMobile ? "center" : "space-between", px: 1.5 }}>
         {(!collapsed || isMobile) ? (
-          <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif" }}>
+          <Typography variant="h6" >
             ContentFlow AI
           </Typography>
         ) : null}
@@ -228,7 +228,7 @@ export function AppShell() {
                     ≡
                   </IconButton>
                 ) : null}
-                <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif" }}>
+                <Typography variant="h6" >
                   Workspace
                 </Typography>
               </Stack>

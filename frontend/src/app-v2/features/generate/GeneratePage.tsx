@@ -56,7 +56,7 @@ export function GeneratePage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>AI Content Generator</Typography>
+        <Typography variant="h4" >AI Content Generator</Typography>
         <Typography variant="body2" color="text.secondary">Create platform-optimized content in seconds</Typography>
       </Box>
 

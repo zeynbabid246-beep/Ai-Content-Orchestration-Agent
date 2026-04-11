@@ -1,8 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../features/auth/LoginPage";
 import { RegisterPage } from "../features/auth/RegisterPage";
-import { BrandsListPage } from "../features/brands/BrandsListPage";
-import { CreateBrandPage } from "../features/brands/CreateBrandPage";
 import { AppShell } from "../shared/ui/AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { BrandStudioPage } from "../features/brand-studio/BrandStudioPage";
@@ -27,8 +25,6 @@ export default function AppV2Router() {
         <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/brand-studio" element={<BrandStudioPage />} />
-        <Route path="/brands" element={<BrandsListPage />} />
-        <Route path="/brands/new" element={<CreateBrandPage />} />
         <Route path="/scheduler" element={<SchedulerPage />} />
         <Route path="/generate" element={<GeneratePage />} />
         <Route path="/social-media" element={<SocialMediaPage />} />

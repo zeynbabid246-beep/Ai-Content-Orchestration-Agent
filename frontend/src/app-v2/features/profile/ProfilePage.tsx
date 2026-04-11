@@ -36,14 +36,14 @@ export function ProfilePage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>My Profile</Typography>
+      <Typography variant="h4" >My Profile</Typography>
 
       <Paper sx={{ p: 2.5 }}>
         <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "start", md: "center" }} spacing={2}>
           <Stack direction="row" spacing={2} alignItems="center">
             <Avatar sx={{ width: 64, height: 64, bgcolor: "primary.main", color: "background.default" }}>{initials}</Avatar>
             <Box>
-              <Typography variant="h5" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 0.5 }}>{name}</Typography>
+              <Typography variant="h5" sx={{mb: 0.5 }}>{name}</Typography>
               <Typography variant="body2" color="text.secondary">{role}</Typography>
             </Box>
           </Stack>
@@ -57,7 +57,7 @@ export function ProfilePage() {
         {STATS.map((stat) => (
           <Box key={stat.label}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h5" color="primary.main" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 0.5 }}>{stat.value}</Typography>
+              <Typography variant="h5" color="primary.main" sx={{mb: 0.5 }}>{stat.value}</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 1 }}>{stat.label}</Typography>
             </Paper>
           </Box>

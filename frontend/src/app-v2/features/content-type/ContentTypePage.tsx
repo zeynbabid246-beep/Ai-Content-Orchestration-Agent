@@ -14,7 +14,7 @@ export function ContentTypePage() {
   return (
     <Stack spacing={4}>
       <Box sx={{ textAlign: "center", py: 4 }}>
-        <Typography variant="h3" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 1 }}>
+        <Typography variant="h3" sx={{mb: 1 }}>
           Choose Content Type
         </Typography>
         <Typography variant="body1" color="text.secondary">
@@ -47,7 +47,7 @@ export function ContentTypePage() {
               }}>
                 {platform.icon}
               </Box>
-              <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 0.5 }}>
+              <Typography variant="h6" sx={{mb: 0.5 }}>
                 {platform.title}
               </Typography>
               <Typography variant="body2" color="text.secondary" mb={3}>

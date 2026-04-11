@@ -4,12 +4,12 @@ export function ContentFeedPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>Content Feed</Typography>
+        <Typography variant="h4" >Content Feed</Typography>
         <Typography variant="body2" color="text.secondary">Review all your scheduled and published content</Typography>
       </Box>
       
       <Paper sx={{ p: 4, textAlign: "center", mt: 4, bgcolor: "background.paper", borderStyle: "dashed" }}>
-        <Typography variant="h6" color="text.secondary" sx={{ fontFamily: "Cormorant Garamond, serif", mb: 1 }}>
+        <Typography variant="h6" color="text.secondary" sx={{mb: 1 }}>
           Your feed is empty
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>

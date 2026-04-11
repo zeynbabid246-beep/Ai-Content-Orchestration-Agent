@@ -30,7 +30,7 @@ export function SocialMediaPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontFamily: "Cormorant Garamond, serif" }}>Social Media</Typography>
+        <Typography variant="h4" >Social Media</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>MANAGE YOUR CONNECTED PLATFORMS</Typography>
       </Box>
 
@@ -45,7 +45,7 @@ export function SocialMediaPage() {
                       {platform.icon}
                     </Box>
                     <Box>
-                      <Typography variant="h6" sx={{ fontFamily: "Cormorant Garamond, serif" }}>{platform.name}</Typography>
+                      <Typography variant="h6" >{platform.name}</Typography>
                       <Typography variant="caption" color="text.secondary">{platform.sub}</Typography>
                     </Box>
                   </Stack>

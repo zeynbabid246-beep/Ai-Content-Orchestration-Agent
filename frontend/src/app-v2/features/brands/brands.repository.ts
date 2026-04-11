@@ -29,3 +29,23 @@ export async function createBrand(input: CreateBrandInput): Promise<Brand> {
   inMemoryBrands = [newBrand, ...inMemoryBrands];
   return Promise.resolve(newBrand);
 }
+
+export async function updateBrand(id: string, input: Partial<CreateBrandInput>): Promise<Brand> {
+  const index = inMemoryBrands.findIndex((b) => b.id === id);
+  if (index === -1) throw new Error("Brand not found");
+
+  const existing = inMemoryBrands[index];
+  const updatedBrand: Brand = {
+    ...existing,
+    ...(input.name && { name: input.name.trim() }),
+    ...(input.voice && { voice: input.voice }),
+    ...(input.website && { website: input.website.trim() }),
+    colors: {
+      primary: input.primaryColor || existing.colors.primary,
+      secondary: input.secondaryColor || existing.colors.secondary,
+    },
+  };
+
+  inMemoryBrands[index] = updatedBrand;
+  return Promise.resolve(updatedBrand);
+}
