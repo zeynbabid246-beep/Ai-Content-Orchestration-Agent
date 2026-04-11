@@ -3,6 +3,7 @@ using System;
 using AiContentFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AiContentFlow.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408143307_AddChannelAndSocialAccountSlice")]
+    partial class AddChannelAndSocialAccountSlice
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,78 +24,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TeamId", "CreatedAt");
-
-                    b.HasIndex("TeamId", "Name");
-
-                    b.HasIndex("TeamId", "Status");
-
-                    b.ToTable("Campaigns");
-                });
-
-            modelBuilder.Entity("AiContentFlow.Domain.Models.CampaignContentPost", b =>
-                {
-                    b.Property<int>("CampaignId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ContentPostId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("LinkedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LinkedByUserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("CampaignId", "ContentPostId");
-
-                    b.HasIndex("CampaignId");
-
-                    b.HasIndex("ContentPostId");
-
-                    b.ToTable("CampaignContentPosts");
-                });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
                 {
@@ -635,36 +566,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
-                {
-                    b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
-                        .WithMany("Campaigns")
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Team");
-                });
-
-            modelBuilder.Entity("AiContentFlow.Domain.Models.CampaignContentPost", b =>
-                {
-                    b.HasOne("AiContentFlow.Domain.Models.Campaign", "Campaign")
-                        .WithMany("CampaignContentPosts")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AiContentFlow.Domain.Models.ContentPost", "ContentPost")
-                        .WithMany("CampaignContentPosts")
-                        .HasForeignKey("ContentPostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Campaign");
-
-                    b.Navigation("ContentPost");
-                });
-
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
                 {
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
@@ -808,11 +709,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
-                {
-                    b.Navigation("CampaignContentPosts");
-                });
-
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
                 {
                     b.Navigation("SocialAccounts");
@@ -820,15 +716,11 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
-                    b.Navigation("CampaignContentPosts");
-
                     b.Navigation("PostVariants");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Team", b =>
                 {
-                    b.Navigation("Campaigns");
-
                     b.Navigation("Channels");
 
                     b.Navigation("ContentPosts");

@@ -7,24 +7,27 @@ namespace AiContentFlow.Application.Features.ContentPosts;
 public class ContentPostService : IContentPostService
 {
     private readonly IContentPostRepository _contentPostRepository;
+    private readonly IChannelRepository _channelRepository;
+    private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly ITeamRepository _teamRepository;
 
-    public ContentPostService(IContentPostRepository contentPostRepository, ITeamRepository teamRepository)
+    public ContentPostService(
+        IContentPostRepository contentPostRepository,
+        IChannelRepository channelRepository,
+        ISocialAccountRepository socialAccountRepository,
+        ITeamRepository teamRepository)
     {
         _contentPostRepository = contentPostRepository;
+        _channelRepository = channelRepository;
+        _socialAccountRepository = socialAccountRepository;
         _teamRepository = teamRepository;
     }
 
     public async Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto)
     {
-        _ = await _teamRepository.GetTeamByIdAsync(teamId)
-            ?? throw new KeyNotFoundException("Team not found");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can create content posts");
 
-        var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
-            ?? throw new UnauthorizedAccessException("Not a team member");
-
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can create content posts");
+        await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
 
         var contentPost = new ContentPost
         {
@@ -79,8 +82,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> UpdateAsync(Guid teamId, int contentPostId, string requestingUserId, UpdateContentPostDto dto)
     {
-        var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
-            ?? throw new UnauthorizedAccessException("Not a team member");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can update content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -88,17 +90,18 @@ public class ContentPostService : IContentPostService
         if (contentPost.Status == ContentStatus.Deleted)
             throw new KeyNotFoundException("Content post not found");
 
-        var canManage = membership.Role == TeamRole.Owner || membership.Role == TeamRole.Admin || contentPost.CreatedByUserId == requestingUserId;
-
-        if (!canManage)
-            throw new UnauthorizedAccessException("Not allowed to update this content post");
+        await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
 
         contentPost.ChannelId = dto.ChannelId;
         contentPost.SocialAccountId = dto.SocialAccountId;
         contentPost.Title = Normalize(dto.Title);
         contentPost.ContentType = dto.ContentType;
         contentPost.ContentJson = dto.ContentJson.Trim();
-        contentPost.Status = dto.Status;
+        if (dto.Status == ContentStatus.Deleted)
+            throw new InvalidOperationException("Use delete endpoint to delete content posts");
+
+        if (dto.Status != contentPost.Status)
+            ApplyLifecycleTransition(contentPost, dto.Status);
         contentPost.Prompt = Normalize(dto.Prompt);
         contentPost.AiModel = Normalize(dto.AiModel);
         contentPost.AiTokens = dto.AiTokens;
@@ -118,18 +121,77 @@ public class ContentPostService : IContentPostService
         return Map(contentPost);
     }
 
-    public async Task DeleteAsync(Guid teamId, int contentPostId, string requestingUserId)
+    public async Task<ContentPostResponseDto> TransitionStatusAsync(Guid teamId, int contentPostId, string requestingUserId, TransitionContentPostStatusDto dto)
     {
-        var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
-            ?? throw new UnauthorizedAccessException("Not a team member");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can transition content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        var canManage = membership.Role == TeamRole.Owner || membership.Role == TeamRole.Admin || contentPost.CreatedByUserId == requestingUserId;
+        if (dto.Status == ContentStatus.Scheduled)
+            throw new InvalidOperationException("Use schedule endpoint to move content post to Scheduled");
 
-        if (!canManage)
-            throw new UnauthorizedAccessException("Not allowed to delete this content post");
+        if (dto.Status == ContentStatus.Published)
+            throw new InvalidOperationException("Use publish endpoint to move content post to Published");
+
+        if (dto.Status == ContentStatus.Deleted)
+            throw new InvalidOperationException("Use delete endpoint to delete content posts");
+
+        if (dto.Status != contentPost.Status)
+            ApplyLifecycleTransition(contentPost, dto.Status);
+
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task<ContentPostResponseDto> ScheduleAsync(Guid teamId, int contentPostId, string requestingUserId, ScheduleContentPostDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can schedule content posts");
+
+        if (dto.ScheduledAt.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("ScheduledAt must be in UTC");
+
+        if (dto.ScheduledAt <= DateTime.UtcNow)
+            throw new InvalidOperationException("ScheduledAt must be in the future");
+
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
+
+        ApplyLifecycleTransition(contentPost, ContentStatus.Scheduled);
+        contentPost.ScheduledAt = dto.ScheduledAt;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task<ContentPostResponseDto> PublishAsync(Guid teamId, int contentPostId, string requestingUserId, PublishContentPostDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can publish content posts");
+
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
+
+        ApplyLifecycleTransition(contentPost, ContentStatus.Published);
+        contentPost.PublishedAt = DateTime.UtcNow;
+        contentPost.PlatformPostId = Normalize(dto.PlatformPostId);
+        contentPost.PlatformPostUrl = Normalize(dto.PlatformPostUrl);
+        contentPost.UpdatedAt = DateTime.UtcNow;
+
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task DeleteAsync(Guid teamId, int contentPostId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can delete content posts");
+
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
 
         contentPost.Status = ContentStatus.Deleted;
         contentPost.UpdatedAt = DateTime.UtcNow;
@@ -224,5 +286,72 @@ public class ContentPostService : IContentPostService
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static void ApplyLifecycleTransition(ContentPost contentPost, ContentStatus targetStatus)
+    {
+        EnsureValidLifecycleTransition(contentPost.Status, targetStatus);
+
+        contentPost.Status = targetStatus;
+
+        if (targetStatus == ContentStatus.Ready)
+        {
+            contentPost.ScheduledAt = null;
+            contentPost.PublishedAt = null;
+            contentPost.PlatformPostId = null;
+            contentPost.PlatformPostUrl = null;
+            return;
+        }
+
+        if (targetStatus == ContentStatus.Scheduled)
+        {
+            contentPost.PublishedAt = null;
+            contentPost.PlatformPostId = null;
+            contentPost.PlatformPostUrl = null;
+        }
+    }
+
+    private static void EnsureValidLifecycleTransition(ContentStatus currentStatus, ContentStatus targetStatus)
+    {
+        if (currentStatus == ContentStatus.Deleted)
+            throw new InvalidOperationException("Deleted content posts cannot be transitioned");
+
+        if (targetStatus == ContentStatus.Deleted)
+            throw new InvalidOperationException("Deleted status can only be set through delete operation");
+
+        if (currentStatus == targetStatus)
+            return;
+
+        var isValidTransition =
+            (currentStatus == ContentStatus.Draft && targetStatus == ContentStatus.Ready) ||
+            (currentStatus == ContentStatus.Ready && targetStatus == ContentStatus.Scheduled) ||
+            (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Published);
+
+        if (!isValidTransition)
+            throw new InvalidOperationException($"Invalid content post status transition: {currentStatus} -> {targetStatus}");
+    }
+
+    private async Task EnsureCanMutateAsync(Guid teamId, string requestingUserId, string permissionErrorMessage)
+    {
+        _ = await _teamRepository.GetTeamByIdAsync(teamId)
+            ?? throw new KeyNotFoundException("Team not found");
+
+        var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
+            ?? throw new UnauthorizedAccessException("Not a team member");
+
+        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException(permissionErrorMessage);
+    }
+
+    private async Task ValidateChannelAndSocialAccountAsync(Guid teamId, int channelId, int socialAccountId)
+    {
+        _ = await _channelRepository.GetByIdAsync(teamId, channelId)
+            ?? throw new KeyNotFoundException("Channel not found");
+
+        var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
+            ?? throw new KeyNotFoundException("Social account not found");
+
+        if (socialAccount.ChannelId != channelId)
+            throw new InvalidOperationException("Social account does not belong to the specified channel");
     }
 }

@@ -1,0 +1,10 @@
+register:200
+login:200
+createTeam:201
+getMembers:200
+createContentPost:201
+listContentPosts:200
+getContentPost:200
+updateContentPost:200
+deleteContentPost:204
+refresh:200

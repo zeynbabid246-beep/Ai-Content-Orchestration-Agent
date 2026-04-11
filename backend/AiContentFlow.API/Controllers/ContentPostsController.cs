@@ -65,6 +65,42 @@ public class ContentPostsController : ControllerBase
         return Ok(updated);
     }
 
+    [HttpPost("{contentPostId:int}/workflow/transition")]
+    public async Task<ActionResult<ContentPostResponseDto>> TransitionStatus(Guid teamId, int contentPostId, [FromBody] TransitionContentPostStatusDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.TransitionStatusAsync(teamId, contentPostId, userId, dto);
+        return Ok(updated);
+    }
+
+    [HttpPost("{contentPostId:int}/workflow/schedule")]
+    public async Task<ActionResult<ContentPostResponseDto>> Schedule(Guid teamId, int contentPostId, [FromBody] ScheduleContentPostDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.ScheduleAsync(teamId, contentPostId, userId, dto);
+        return Ok(updated);
+    }
+
+    [HttpPost("{contentPostId:int}/workflow/publish")]
+    public async Task<ActionResult<ContentPostResponseDto>> Publish(Guid teamId, int contentPostId, [FromBody] PublishContentPostDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.PublishAsync(teamId, contentPostId, userId, dto);
+        return Ok(updated);
+    }
+
     [HttpDelete("{contentPostId:int}")]
     public async Task<IActionResult> Delete(Guid teamId, int contentPostId)
     {
