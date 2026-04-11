@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../Home/components/Navbar/Navbar";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Jost:wght@200;300;400&display=swap');
@@ -308,7 +307,6 @@ export default function Login() {
   return (
     <>
       <style>{styles}</style>
-      <Navbar />
       <div className="login-container">
         <div className="login-box">
           <h2>Ai_content‑flow</h2>

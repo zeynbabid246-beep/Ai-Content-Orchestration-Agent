@@ -42,7 +42,7 @@ export function GeneratePage() {
       setTimeout(() => setProgress(50), 350);
       setTimeout(() => setProgress(85), 900);
       setTimeout(() => {
-        setOutput(`Generated ${platform} content in ${language} for: ${topic}${audience ? \`\\nAudience: \${audience}\` : ""}`);
+        setOutput(`Generated ${platform} content in ${language} for: ${topic}${audience ? `\nAudience: ${audience}` : ""}`);
         setProgress(100);
         setLoading(false);
       }, 1300);
