@@ -1,37 +1,7 @@
-export type UserRole = "owner" | "admin" | "editor" | "viewer";
-
-export interface User {
-  id: string;
-  email: string;
-  displayName: string;
-  roles: UserRole[];
-}
-
-export interface Brand {
-  id: string;
-  name: string;
-  logoUrl?: string;
-  voice: string;
-  colors: {
-    primary: string;
-    secondary: string;
-  };
-  website: string;
-  createdAt: string;
-  ownerId: string;
-}
-
-export type PostStatus = "draft" | "scheduled" | "published";
-
-export interface Post {
-  id: string;
-  platformTargets: string[];
-  status: PostStatus;
-  scheduledAt?: string;
-  publishedAt?: string;
-  metrics?: {
-    impressions?: number;
-    clicks?: number;
-    engagementRate?: number;
-  };
-}
+/**
+ * Barrel re-export for all domain types.
+ * Import from here: `import type { Brand, User, Post } from "../../shared/types/domain";`
+ */
+export type { UserRole, User } from "./user";
+export type { Brand } from "./brand";
+export type { PostStatus, Post } from "./post";

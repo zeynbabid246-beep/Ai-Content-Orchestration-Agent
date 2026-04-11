@@ -23,6 +23,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers: finalHeaders,
   });
 
+  // Handle 401 — attempt token refresh or force logout
+  if (response.status === 401 && requiresAuth) {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) {
+      // Retry the original request with the new token
+      const retryHeaders = new Headers(finalHeaders);
+      const newToken = authStorage.getAccessToken();
+      if (newToken) retryHeaders.set("Authorization", `Bearer ${newToken}`);
+      const retryResponse = await fetch(`${env.apiBaseUrl}${path}`, { ...rest, headers: retryHeaders });
+      return handleResponse<T>(retryResponse);
+    } else {
+      // Refresh failed — force logout
+      authStorage.clear();
+      window.location.href = "/app/login";
+      throw new Error("Session expired. Please log in again.");
+    }
+  }
+
+  return handleResponse<T>(response);
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
   let data: unknown = null;
   try {
     data = await response.json();
@@ -39,4 +61,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return data as T;
+}
+
+async function attemptTokenRefresh(): Promise<boolean> {
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (!refreshToken) return false;
+
+  try {
+    const response = await fetch(`${env.apiBaseUrl}/Auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ RefreshToken: refreshToken }),
+    });
+
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    if (data?.AccessToken) {
+      authStorage.setTokens(data.AccessToken, data.RefreshToken);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }

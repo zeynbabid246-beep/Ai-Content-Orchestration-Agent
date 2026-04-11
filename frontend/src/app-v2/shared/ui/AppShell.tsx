@@ -21,6 +21,7 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { authStorage } from "../lib/storage";
+import { ROUTES } from "../lib/routes";
 
 const SIDEBAR_COLLAPSE_KEY = "app.sidebar.collapsed";
 const DRAWER_WIDTH_EXPANDED = 264;
@@ -41,26 +42,25 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Workspace",
     items: [
-      { label: "Dashboard", path: "/app/dashboard", glyph: "D" },
-      { label: "Brands", path: "/app/brands", glyph: "B" },
-      { label: "Brand Studio", path: "/app/brand-studio", glyph: "S" },
-      { label: "Generate", path: "/app/generate", glyph: "G" },
-      { label: "Scheduler", path: "/app/scheduler", glyph: "S" },
+      { label: "Dashboard", path: ROUTES.dashboard, glyph: "D" },
+      { label: "Brand Studio", path: ROUTES.brandStudio, glyph: "S" },
+      { label: "Generate", path: ROUTES.generate, glyph: "G" },
+      { label: "Scheduler", path: ROUTES.scheduler, glyph: "S" },
     ],
   },
   {
     title: "Platforms",
     items: [
-      { label: "Social Media", path: "/app/social-media", glyph: "P" },
-      { label: "Content Feed", path: "/app/content-feed", glyph: "F" },
-      { label: "Content Types", path: "/app/content-type", glyph: "T" },
+      { label: "Social Media", path: ROUTES.socialMedia, glyph: "P" },
+      { label: "Content Feed", path: ROUTES.contentFeed, glyph: "F" },
+      { label: "Content Types", path: ROUTES.contentType, glyph: "T" },
     ],
   },
   {
     title: "Team",
     items: [
-      { label: "Team Members", path: "/app/invite-user", glyph: "M" },
-      { label: "Profile", path: "/app/profile", glyph: "U" },
+      { label: "Team Members", path: ROUTES.inviteUser, glyph: "M" },
+      { label: "Profile", path: ROUTES.profile, glyph: "U" },
     ],
   },
 ];
@@ -89,7 +89,7 @@ export function AppShell() {
 
   const handleLogout = () => {
     authStorage.clear();
-    navigate("/app/login");
+    navigate(ROUTES.login);
   };
 
   const renderDrawerContent = (

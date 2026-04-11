@@ -11,6 +11,7 @@ import { InviteUserPage } from "../features/team/InviteUserPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { ContentTypePage } from "../features/content-type/ContentTypePage";
 import { ContentFeedPage } from "../features/content-feed/ContentFeedPage";
+import { ROUTES } from "../shared/lib/routes";
 
 export default function AppV2Router() {
   return (
@@ -22,7 +23,7 @@ export default function AppV2Router() {
       {/* </Route> */}
 
       <Route element={<AppShell />}>
-        <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/" element={<Navigate to={ROUTES.dashboard} replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/brand-studio" element={<BrandStudioPage />} />
         <Route path="/scheduler" element={<SchedulerPage />} />
@@ -35,7 +36,7 @@ export default function AppV2Router() {
       </Route>
       {/* </Route> */}
 
-      <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+      <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
     </Routes>
   );
 }
