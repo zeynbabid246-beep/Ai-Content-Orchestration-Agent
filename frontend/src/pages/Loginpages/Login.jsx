@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../Home/components/Navbar/Navbar";
-import InviteUser from "../Home/invite-user";
+
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Jost:wght@200;300;400&display=swap');
- 
+
   .login-container {
     min-height: 100vh;
     background-color: #1a0f1e;
@@ -19,7 +19,7 @@ const styles = `
     position: relative;
     overflow: hidden;
   }
- 
+
   .login-container::before,
   .login-container::after {
     content: '';
@@ -32,7 +32,7 @@ const styles = `
   }
   .login-container::before { top: -80px; left: -80px; }
   .login-container::after  { bottom: -80px; right: -80px; }
- 
+
   .login-box {
     background: linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%);
     border: 1px solid rgba(212,175,122,0.18);
@@ -46,12 +46,12 @@ const styles = `
     box-shadow: 0 0 0 1px rgba(74,44,79,0.4), 0 32px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
     animation: cardRise 0.7s cubic-bezier(0.22,1,0.36,1) both;
   }
- 
+
   @keyframes cardRise {
     from { opacity: 0; transform: translateY(28px); }
     to   { opacity: 1; transform: translateY(0); }
   }
- 
+
   .login-box::before {
     content: '';
     position: absolute;
@@ -59,7 +59,7 @@ const styles = `
     height: 1px;
     background: linear-gradient(90deg, transparent, #d4af7a, transparent);
   }
- 
+
   .login-box h2 {
     font-family: 'Cormorant Garamond', serif;
     font-weight: 300;
@@ -70,7 +70,7 @@ const styles = `
     line-height: 1.15;
     margin: 0 0 0.5rem;
   }
- 
+
   .login-subtitle {
     font-family: 'Jost', sans-serif;
     font-weight: 200;
@@ -81,11 +81,11 @@ const styles = `
     text-align: center;
     margin: 0 0 2.5rem;
   }
- 
+
   .login-box input {
     display: block;
     width: 100%;
-    margin-bottom: 1rem;
+    margin-bottom: 0.35rem;
     padding: 0.85rem 1.1rem;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(212,175,122,0.2);
@@ -99,15 +99,30 @@ const styles = `
     outline: none;
     box-sizing: border-box;
   }
- 
+
+  .login-box input.input-error {
+    border-color: rgba(220, 80, 80, 0.7);
+    background: rgba(220,80,80,0.04);
+  }
+
   .login-box input::placeholder { color: rgba(197,160,204,0.45); font-weight: 200; letter-spacing: 0.06em; }
   .login-box input:focus {
     border-color: #d4af7a;
     background: rgba(212,175,122,0.05);
     box-shadow: 0 0 0 3px rgba(212,175,122,0.08);
   }
-  .login-box input:last-of-type { margin-bottom: 1.75rem; }
- 
+
+  .field-error {
+    font-family: 'Jost', sans-serif;
+    font-size: 0.7rem;
+    color: rgba(240, 120, 120, 0.9);
+    letter-spacing: 0.03em;
+    margin-bottom: 0.75rem;
+    padding-left: 0.25rem;
+    display: block;
+    min-height: 1rem;
+  }
+
   .login-btn {
     display: block;
     width: 100%;
@@ -124,21 +139,50 @@ const styles = `
     cursor: pointer;
     transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
     box-shadow: 0 4px 18px rgba(212,175,122,0.25);
+    margin-top: 0.5rem;
     margin-bottom: 1.75rem;
     box-sizing: border-box;
   }
- 
+
   .login-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(212,175,122,0.35); }
   .login-btn:active:not(:disabled) { transform: translateY(0); opacity: 0.85; }
   .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
- 
+
+  .error-banner {
+    font-family: 'Jost', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    color: rgba(240, 120, 120, 0.95);
+    background: rgba(220, 80, 80, 0.08);
+    border: 1px solid rgba(220, 80, 80, 0.25);
+    border-radius: 2px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+  }
+
+  .success-banner {
+    font-family: 'Jost', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    color: rgba(130, 215, 160, 0.95);
+    background: rgba(80, 180, 120, 0.08);
+    border: 1px solid rgba(80, 180, 120, 0.25);
+    border-radius: 2px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+  }
+
   .divider {
     display: flex;
     align-items: center;
     gap: 0.85rem;
     margin-bottom: 1.25rem;
   }
- 
+
   .divider::before,
   .divider::after {
     content: '';
@@ -146,7 +190,7 @@ const styles = `
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(212,175,122,0.2), transparent);
   }
- 
+
   .divider span {
     font-family: 'Jost', sans-serif;
     font-weight: 200;
@@ -156,13 +200,13 @@ const styles = `
     color: rgba(197,160,204,0.5);
     white-space: nowrap;
   }
- 
+
   .social-buttons {
     display: flex;
     gap: 0.65rem;
     margin-bottom: 1.75rem;
   }
- 
+
   .social-btn {
     flex: 1;
     display: flex;
@@ -181,10 +225,10 @@ const styles = `
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
   }
- 
+
   .social-btn:hover { background: rgba(212,175,122,0.07); border-color: rgba(212,175,122,0.35); color: #f5efe8; transform: translateY(-1px); }
   .social-btn:active { transform: translateY(0); }
- 
+
   .register-link {
     font-family: 'Jost', sans-serif;
     font-weight: 200;
@@ -194,7 +238,7 @@ const styles = `
     letter-spacing: 0.04em;
     margin: 0;
   }
- 
+
   .register-link span {
     color: #e8cfa0;
     cursor: pointer;
@@ -203,45 +247,64 @@ const styles = `
     text-decoration-color: rgba(212,175,122,0.4);
     transition: color 0.2s, text-decoration-color 0.2s;
   }
- 
+
   .register-link span:hover { color: #d4af7a; text-decoration-color: #d4af7a; }
 `;
- 
+
 export default function Login() {
   const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
- 
+
+  const validate = () => {
+    const e = {};
+    if (!email.trim()) e.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Enter a valid email address";
+    if (!password) e.password = "Password is required";
+    return e;
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      alert("Please enter both email and password");
-      return;
-    }
+    setApiError("");
+    const e = validate();
+    setErrors(e);
+    if (Object.keys(e).length > 0) return;
+
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5073/api/auth/login", {
+      const response = await fetch("http://localhost:5073/api/Auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ Email: email.trim(), Password: password }),
       });
+
       const data = await response.json();
+
       if (response.ok) {
-        localStorage.setItem("token", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        alert("Login successful!");
-        navigate("/invite-user");
+        localStorage.setItem("accessToken", data.AccessToken);
+        localStorage.setItem("refreshToken", data.RefreshToken);
+        localStorage.setItem("userId", data.UserId);
+        localStorage.setItem("username", data.Username);
+        navigate("/home");
       } else {
-        alert("Login failed: " + (data.message || data.title || "Check your credentials"));
+        setApiError(data?.message || data?.error || `Error ${response.status}: Invalid credentials`);
       }
     } catch (error) {
       console.error("Network error:", error);
-      alert("Cannot connect to server. Please check if the backend is running.");
+      setApiError("Cannot connect to server. Is the backend running on port 5073?");
     } finally {
       setIsLoading(false);
     }
   };
- 
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleLogin();
+  };
+
   return (
     <>
       <style>{styles}</style>
@@ -250,28 +313,37 @@ export default function Login() {
         <div className="login-box">
           <h2>Ai_content‑flow</h2>
           <p className="login-subtitle">Sign in to your account</p>
- 
+
+          {apiError && <div className="error-banner">{apiError}</div>}
+
           <input
             type="email"
             placeholder="Email address"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+            onKeyDown={handleKeyDown}
+            className={errors.email ? "input-error" : ""}
+            autoComplete="email"
           />
+          <span className="field-error">{errors.email || ""}</span>
+
           <input
             type="password"
             placeholder="Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
+            onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
+            onKeyDown={handleKeyDown}
+            className={errors.password ? "input-error" : ""}
+            autoComplete="current-password"
           />
- 
+          <span className="field-error">{errors.password || ""}</span>
+
           <button className="login-btn" onClick={handleLogin} disabled={isLoading}>
             {isLoading ? "Signing in…" : "Sign in"}
           </button>
- 
+
           <div className="divider"><span>or continue with</span></div>
- 
+
           <div className="social-buttons">
             <button className="social-btn google">
               <svg width="15" height="15" viewBox="0 0 48 48">
@@ -295,7 +367,7 @@ export default function Login() {
               Facebook
             </button>
           </div>
- 
+
           <p className="register-link">
             Don't have an account?{" "}
             <span onClick={() => navigate("/register")}>Register</span>
