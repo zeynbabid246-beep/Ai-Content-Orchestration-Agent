@@ -16,7 +16,7 @@ namespace AiContentFlow.API.Controllers
         }
         [HttpPost("register")]
 
-        public async Task<IActionResult> Register(RegisterRequestDto request)
+        public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
             var result = await _authService.RegisterAsync(request);
             return Ok(result);
@@ -24,7 +24,7 @@ namespace AiContentFlow.API.Controllers
 
         [HttpPost("login")]
 
-        public async Task<IActionResult> Login(LoginRequestDto request)
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
             var result = await _authService.LoginAsync(request);
             return Ok(result);
@@ -32,7 +32,7 @@ namespace AiContentFlow.API.Controllers
 
 
         [HttpPost("refresh")]
-        public async Task<IActionResult> Refresh(RefreshRequestDto request)
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequestDto request)
         {
             var result = await _authService.RefreshAsync(request);
             return Ok(result);
