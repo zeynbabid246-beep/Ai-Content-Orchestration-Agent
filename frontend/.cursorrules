@@ -1,0 +1,214 @@
+# Cursor Rules for React + MUI Project
+
+## Project Context
+- Framework: React 18+
+- Language: TypeScript (strict mode)
+- Build Tool: Vite
+- UI Library: Material UI (MUI) v6
+- Routing: React Router v6
+- State Management: Context API (default unless specified)
+- Styling: MUI `sx` prop + `styled()` — Tailwind is NOT used in this project
+
+---
+
+##  UI Library Rules
+
+### MUI is the ONLY UI library
+- Do NOT use Tailwind, Chakra, Ant Design, or any other UI/CSS library
+- Do NOT write plain CSS files unless absolutely unavoidable (e.g., third-party widget reset)
+- If a UI element exists in MUI, use it — do NOT recreate it manually
+
+### Imports
+- Always import from `@mui/material` or `@mui/icons-material`
+- Use MUI v6 Grid2 for layouts: import from `@mui/material/Grid2`
+- Avoid deep imports unless the component is not re-exported from the top level
+- ✅ `import { Button } from '@mui/material'`
+- ❌ `import Button from '@mui/material/Button'` (only if needed for tree-shaking in edge cases)
+
+### Styling Priority (in order)
+1. MUI `sx` prop (preferred for one-off styles)
+2. `styled()` API (preferred for reusable styled variants)
+3. Theme overrides via `components` key in `createTheme`
+4. Inline style objects (only for truly dynamic values like JS-computed pixel values)
+
+### Theme
+- ALL color, spacing, typography, and breakpoint values must come from the MUI theme
+- Never hardcode hex colors, font sizes, or spacing values — use `theme.palette.*`, `theme.spacing()`, `theme.typography.*`
+- ThemeProvider must wrap the app at the root level
+- Custom theme lives in `src/theme/index.ts`
+- Define custom palette, typography scale, shape, and component overrides there
+
+### MUI Component Usage
+Prefer these MUI components for common patterns:
+
+| Need | Use |
+|---|---|
+| Layout | `Box`, `Container`, `Stack`, `Grid2` |
+| Text input | `TextField` (includes label + error state) |
+| Select | `Select` + `MenuItem` inside `FormControl` |
+| Buttons | `Button`, `IconButton`, `LoadingButton` (from `@mui/lab`) |
+| Feedback | `Snackbar` + `Alert`, `CircularProgress`, `Skeleton` |
+| Navigation | `AppBar`, `Drawer`, `Tabs`, `Breadcrumbs` |
+| Data display | `Table`, `List`, `Chip`, `Avatar` |
+| Overlay | `Dialog`, `Tooltip`, `Popover` |
+
+### Icons
+- Use `@mui/icons-material` for standard icons
+- Use custom SVGs only when no MUI icon fits — wrap in `SvgIcon` for consistency
+- Always pass `fontSize` and `color` as props, not via CSS
+
+---
+
+## Project Structure
+src/
+components/     # Reusable UI components (no page-specific logic)
+pages/          # Route-level components (thin — delegate to components/hooks)
+hooks/          # Custom React hooks
+services/       # API calls and external integrations
+utils/          # Pure helper functions (no React)
+types/          # TypeScript types and interfaces
+theme/          # MUI theme config (index.ts + any sub-files)
+context/        # React Context definitions and providers
+Rules:
+- Do NOT mix responsibilities across folders
+- `pages/` components should be thin — business logic goes into hooks, UI into components
+- `services/` functions must be pure async functions with no React dependencies
+- `context/` contains Provider + hook (e.g., `useAuth`) — not raw `useContext` calls in components
+
+---
+
+## TypeScript Rules
+- Strict mode must be enabled in `tsconfig.json`
+- NEVER use `any` — use `unknown` and narrow, or define proper types
+- Always type component props explicitly with an interface
+- Use `React.FC` sparingly — prefer explicit return type annotations
+- Co-locate types with the component if they're component-specific; move to `src/types/` if shared
+- Use discriminated unions for state that has multiple modes (loading/error/success)
+
+```ts
+// ✅ Good
+interface UserCardProps {
+  user: User;
+  onSelect: (id: string) => void;
+}
+
+// ❌ Bad
+const UserCard = ({ user, onSelect }: any) => { ... }
+```
+
+---
+
+## React Rules
+- Functional components ONLY — no class components
+- Use hooks — never replicate hook behavior inline
+- Destructure props in the function signature
+- Avoid `useEffect` for derived state — compute it inline or with `useMemo`
+- Use `useEffect` only for true side effects (subscriptions, DOM manipulation, syncing external systems)
+- Use `useCallback` only when passing callbacks to memoized children or as `useEffect` deps — not by default
+- Use `useMemo` only for genuinely expensive computations — not as a default
+
+---
+
+## Async & Data Fetching
+- Use `async/await` — no `.then()` chains
+- All API calls live in `src/services/`
+- Handle three states explicitly: loading, error, success — use `Skeleton` or `CircularProgress` for loading, `Alert` for errors
+- Use early returns to handle error/loading before the happy path
+
+```ts
+// ✅ Good pattern
+if (loading) return <Skeleton />;
+if (error) return <Alert severity="error">{error.message}</Alert>;
+return <DataView data={data} />;
+```
+
+---
+
+## Forms
+- Use `react-hook-form` for all forms unless the form has a single field
+- Pair with MUI `TextField` via the `Controller` component
+- Never manage form field state manually with `useState` arrays
+- Always define a Zod schema for validation — use `@hookform/resolvers/zod`
+- ASK before introducing a different form library
+
+---
+
+## Code Style
+- Arrow functions for components and utilities
+- `const` over `let`; never `var`
+- Single quotes
+- Semicolons required
+- 2-space indentation
+- Meaningful, intention-revealing variable names
+- Early returns to reduce nesting
+
+---
+
+## Accessibility
+- All interactive elements must be keyboard-accessible (MUI handles most of this by default)
+- Always provide `aria-label` on `IconButton` — it has no visible text
+- Use semantic HTML inside MUI components (`component` prop: e.g., `<Box component="nav">`)
+- Images need `alt` text; decorative images get `alt=""`
+- Form fields must always have an associated label (use MUI `TextField` which handles this)
+
+---
+
+## Component Design
+- Keep components focused on a single responsibility
+- Prefer composition over configuration (multiple small components over one giant one with many props)
+- Split a component when it exceeds ~200 lines OR when it handles more than one concern
+- Extract reusable logic into custom hooks in `src/hooks/`
+- Do NOT duplicate logic — if you write it twice, extract it
+
+---
+
+## Refactoring Rules
+- Improve readability without changing behavior
+- Break large components by responsibility, not by arbitrary line count
+- Extract logic into hooks when it's reusable or when it clutters the JSX
+- After refactoring, verify the component renders identically
+
+---
+
+## AI Behavior Rules
+- ALWAYS explain your approach BEFORE writing code
+- NEVER modify files unrelated to the task
+- ALWAYS follow existing patterns found in the codebase (patterns override these rules)
+- ASK before:
+  - Adding any new npm dependency
+  - Introducing global state or a new Context
+  - Restructuring folders or renaming files
+  - Using a non-MUI styling solution
+  - Adding a new form library or data-fetching abstraction
+- Prefer simple solutions — if a simpler approach exists, suggest it
+- When generating UI, default to MUI components
+- If unsure whether a pattern exists in the codebase, ask rather than guess
+
+---
+
+## Prompt Interpretation
+| User says | AI does |
+|---|---|
+| "create component" | Typed interface + MUI components + clean JSX + co-located types |
+| "fix bug" | Minimal change, preserve surrounding logic, explain root cause |
+| "refactor" | Improve structure/readability, no behavior change, explain what changed and why |
+| "add form" | `react-hook-form` + Zod + MUI `Controller` pattern |
+| "add page" | Thin page component + new route entry + delegate logic to hooks |
+
+---
+
+## Hard Constraints (never violate)
+- No class components
+- No `any` in TypeScript
+- No new libraries without approval
+- No hardcoded colors, spacing, or font sizes (use theme tokens)
+- No recreating MUI components from scratch
+- No over-engineering (YAGNI)
+- No logic duplication
+
+---
+
+## Priority Order
+1. Existing codebase patterns
+2. These rules
+3. General React/TypeScript best practices

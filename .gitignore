@@ -1,0 +1,10 @@
+.vscode/settings.json
+.vscode/settings.json
+backend/AiContentFlow.API/appsettings.json
+.vscode/settings.json
+.vscode/settings.json
+backend/AiContentFlow.API/appsettings.json
+
+# Exclude node_modules
+node_modules/
+**/node_modules/

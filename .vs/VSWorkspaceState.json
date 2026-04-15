@@ -1,0 +1,17 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\.github\\workflows",
+    "\\backend",
+    "\\backend\\AiContentFlow.API",
+    "\\backend\\AiContentFlow.Application",
+    "\\backend\\AiContentFlow.Application\\Features",
+    "\\backend\\AiContentFlow.Application\\Features\\Auth",
+    "\\backend\\AiContentFlow.Application\\Features\\Posts",
+    "\\backend\\AiContentFlow.Infrastructure",
+    "\\backend\\AiContentFlow.Infrastructure\\Migrations"
+  ],
+  "SelectedNode": "\\.github\\copilot-instructions.md",
+  "PreviewInSolutionExplorer": false
+}
