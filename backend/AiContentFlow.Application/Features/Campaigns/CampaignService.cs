@@ -1,5 +1,6 @@
 using AiContentFlow.Application.Common.Interfaces;
-using AiContentFlow.Application.Features.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Domain.Models;
 
 namespace AiContentFlow.Application.Features.Campaigns;

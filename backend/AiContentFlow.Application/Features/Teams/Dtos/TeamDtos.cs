@@ -1,5 +1,3 @@
-using System;
-
 namespace AiContentFlow.Application.Features.Teams.Dtos;
 
 public record CreateTeamDto(string Name);
@@ -13,7 +11,7 @@ public record TeamResponseDto(
 
 public record TeamMemberDto(
     string UserId,
-    string Username,   
+    string Username,
     string Role,
     DateTime JoinedAt
 );

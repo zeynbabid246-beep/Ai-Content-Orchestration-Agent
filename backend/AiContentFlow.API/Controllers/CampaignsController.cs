@@ -1,5 +1,5 @@
-using AiContentFlow.Application.Features.Campaigns;
-using AiContentFlow.Application.Features.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,6 +26,9 @@ public class CampaignsController : ControllerBase
             return Unauthorized("User ID not found in token");
 
         var result = await _campaignService.CreateAsync(teamId, userId, dto);
+        //var result = await createaCampaignFeature.ExecuteAsync(do);
+
+        //application : create feature folder : ICreateCampaignFeature + Its implementation
         return CreatedAtAction(nameof(GetById), new { teamId, campaignId = result.Id }, result);
     }
 

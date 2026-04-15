@@ -12,6 +12,6 @@
     "\\backend\\AiContentFlow.Infrastructure",
     "\\backend\\AiContentFlow.Infrastructure\\Migrations"
   ],
-  "SelectedNode": "\\.github\\copilot-instructions.md",
+  "SelectedNode": "\\backend\\AiContentFlow.API\\Program.cs",
   "PreviewInSolutionExplorer": false
 }

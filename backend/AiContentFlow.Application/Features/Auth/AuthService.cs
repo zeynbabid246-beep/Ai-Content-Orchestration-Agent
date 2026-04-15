@@ -1,7 +1,5 @@
 ﻿using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Auth.Dtos;
-using System;
-using System.Threading.Tasks;
 namespace AiContentFlow.Application.Features.Auth
 {
     public class AuthService : IAuthService
@@ -21,11 +19,11 @@ namespace AiContentFlow.Application.Features.Auth
 
         }
 
-        
+
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
         {
-         var result = await _identityService.RegisterAsync(request.Email, request.Password, request.Username);
+            var result = await _identityService.RegisterAsync(request.Email, request.Password, request.Username);
 
             if (!result.Success)
             {
@@ -56,8 +54,9 @@ namespace AiContentFlow.Application.Features.Auth
 
         public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request)
         {
-            var result = await _identityService.LoginAsync(request.Email, request.Password); 
-            if (!result.Success) { 
+            var result = await _identityService.LoginAsync(request.Email, request.Password);
+            if (!result.Success)
+            {
                 throw new UnauthorizedAccessException("Invalid credentials");
             }
 

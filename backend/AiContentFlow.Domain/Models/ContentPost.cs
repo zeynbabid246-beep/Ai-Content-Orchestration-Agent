@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace AiContentFlow.Domain.Models;
 
 public class ContentPost

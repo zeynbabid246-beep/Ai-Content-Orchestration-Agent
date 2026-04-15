@@ -1,6 +1,5 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Campaigns;
-using AiContentFlow.Application.Features.Campaigns.Dtos;
 using AiContentFlow.Domain.Models;
 using Moq;
 using Xunit;

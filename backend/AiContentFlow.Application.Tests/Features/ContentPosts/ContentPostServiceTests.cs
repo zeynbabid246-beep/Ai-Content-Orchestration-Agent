@@ -209,6 +209,52 @@ public class ContentPostServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_WhenStatusIsScheduled_ThrowsInvalidOperationException()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var socialRepo = new Mock<ISocialAccountRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        var existing = new ContentPost
+        {
+            Id = 101,
+            TeamId = teamId,
+            ChannelId = 7,
+            SocialAccountId = 11,
+            ContentJson = "{}",
+            ContentType = ContentType.LinkedInPost,
+            Status = ContentStatus.Ready,
+            CreatedByUserId = "owner-1",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "owner-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "owner-1", Role = TeamRole.Owner, JoinedAt = DateTime.UtcNow });
+        contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 101)).ReturnsAsync(existing);
+        channelRepo.Setup(x => x.GetByIdAsync(teamId, 7)).ReturnsAsync(new Channel { Id = 7, TeamId = teamId, Name = "Main", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        socialRepo.Setup(x => x.GetByIdAsync(teamId, 11)).ReturnsAsync(new SocialAccount { Id = 11, TeamId = teamId, ChannelId = 7, AccountHandle = "@brand", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+
+        var dto = new UpdateContentPostDto(
+            7,
+            11,
+            "Updated",
+            ContentType.LinkedInPost,
+            "{\"text\":\"updated\"}",
+            ContentStatus.Scheduled,
+            null,
+            null,
+            null,
+            null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateAsync(teamId, 101, "owner-1", dto));
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenLinkageIsValid_CreatesContentPost()
     {
         var contentPostRepo = new Mock<IContentPostRepository>();
