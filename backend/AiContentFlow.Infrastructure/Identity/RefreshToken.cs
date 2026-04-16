@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace AiContentFlow.Infrastructure.Identity;
+﻿namespace AiContentFlow.Infrastructure.Identity;
 
 public class RefreshToken
 {

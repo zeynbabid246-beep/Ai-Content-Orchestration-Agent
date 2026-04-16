@@ -1,5 +1,3 @@
-using System;
-
 namespace AiContentFlow.Domain.Models;
 
 public class PostVariant

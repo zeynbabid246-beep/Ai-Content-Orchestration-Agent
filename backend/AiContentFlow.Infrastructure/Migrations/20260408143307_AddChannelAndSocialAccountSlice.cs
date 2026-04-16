@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -107,6 +106,39 @@ namespace AiContentFlow.Infrastructure.Migrations
                 name: "IX_SocialAccounts_TeamId_Platform",
                 table: "SocialAccounts",
                 columns: new[] { "TeamId", "Platform" });
+
+            migrationBuilder.Sql("""
+                INSERT INTO "Channels" ("TeamId", "Name", "Description", "IsDeleted", "DeletedAt", "CreatedAt", "UpdatedAt")
+                SELECT DISTINCT cp."TeamId", '__migrated_default_channel__', 'Auto-created during Channel/SocialAccount migration', FALSE, NULL::timestamp with time zone, NOW(), NOW()
+                FROM "ContentPosts" cp
+                ON CONFLICT ("TeamId", "Name") DO NOTHING;
+                """);
+
+            migrationBuilder.Sql("""
+                INSERT INTO "SocialAccounts" ("TeamId", "ChannelId", "Platform", "Status", "AccountHandle", "DisplayName", "IsDeleted", "DeletedAt", "CreatedAt", "UpdatedAt")
+                SELECT c."TeamId", c."Id", 1, 0, '__migrated_default_account__', 'Migrated Default Account', FALSE, NULL::timestamp with time zone, NOW(), NOW()
+                FROM "Channels" c
+                WHERE c."Name" = '__migrated_default_channel__'
+                ON CONFLICT ("TeamId", "ChannelId", "Platform", "AccountHandle") DO NOTHING;
+                """);
+
+            migrationBuilder.Sql("""
+                UPDATE "ContentPosts" cp
+                SET "ChannelId" = c."Id"
+                FROM "Channels" c
+                WHERE c."TeamId" = cp."TeamId"
+                  AND c."Name" = '__migrated_default_channel__';
+                """);
+
+            migrationBuilder.Sql("""
+                UPDATE "ContentPosts" cp
+                SET "SocialAccountId" = sa."Id"
+                FROM "SocialAccounts" sa
+                INNER JOIN "Channels" c ON c."Id" = sa."ChannelId"
+                WHERE sa."TeamId" = cp."TeamId"
+                  AND c."Name" = '__migrated_default_channel__'
+                  AND sa."AccountHandle" = '__migrated_default_account__';
+                """);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_ContentPosts_Channels_ChannelId",

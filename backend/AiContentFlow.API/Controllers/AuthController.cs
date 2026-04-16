@@ -18,7 +18,7 @@ namespace AiContentFlow.API.Controllers
 
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
-            var result = await _authService.RegisterAsync(request); 
+            var result = await _authService.RegisterAsync(request);
             return Ok(result);
         }
 

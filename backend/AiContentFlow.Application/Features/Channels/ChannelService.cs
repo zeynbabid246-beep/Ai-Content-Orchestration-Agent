@@ -34,10 +34,11 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage channels");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage channels");
 
-        var normalizedName = NormalizeRequired(dto.Name);
+        var name = NormalizeRequired(dto.Name);
+        var normalizedName = NormalizeKey(name);
 
         if (await _channelRepository.ExistsByNameAsync(teamId, normalizedName))
             throw new InvalidOperationException("Channel name already exists for this team");
@@ -45,7 +46,8 @@ public class ChannelService : IChannelService
         var channel = new Channel
         {
             TeamId = teamId,
-            Name = normalizedName,
+            Name = name,
+            NormalizedName = normalizedName,
             Description = Normalize(dto.Description),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -90,18 +92,20 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage channels");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage channels");
 
         var channel = await _channelRepository.GetByIdAsync(teamId, channelId)
             ?? throw new KeyNotFoundException("Channel not found");
 
-        var normalizedName = NormalizeRequired(dto.Name);
+        var name = NormalizeRequired(dto.Name);
+        var normalizedName = NormalizeKey(name);
 
         if (await _channelRepository.ExistsByNameAsync(teamId, normalizedName, channelId))
             throw new InvalidOperationException("Channel name already exists for this team");
 
-        channel.Name = normalizedName;
+        channel.Name = name;
+        channel.NormalizedName = normalizedName;
         channel.Description = Normalize(dto.Description);
         channel.UpdatedAt = DateTime.UtcNow;
 
@@ -115,8 +119,8 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage channels");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage channels");
 
         var channel = await _channelRepository.GetByIdAsync(teamId, channelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -146,6 +150,11 @@ public class ChannelService : IChannelService
             throw new InvalidOperationException("Channel name is required");
 
         return normalized;
+    }
+
+    private static string NormalizeKey(string value)
+    {
+        return value.Trim().ToUpperInvariant();
     }
 
     private static string? Normalize(string? value)

@@ -18,10 +18,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PostVariant> PostVariants { get; set; }
     public DbSet<Campaign> Campaigns { get; set; }
     public DbSet<CampaignContentPost> CampaignContentPosts { get; set; }
-
+    // change on model creating to IENTITYTYPECONFIGURATION
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // This line replaces the manual "builder.Entity<ContentPost>..." block
+        // It will automatically find ContentPostConfiguration and any others you add later
+        builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
         builder.Entity<RefreshToken>(entity =>
         {
@@ -41,6 +44,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(t => t.Id);
             entity.Property(t => t.Name).IsRequired().HasMaxLength(100);
+            entity.Property(t => t.IsNameSetupRequired).HasDefaultValue(false);
         });
 
         builder.Entity<UserTeam>(entity =>
@@ -60,55 +64,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<ContentPost>(entity =>
-        {
-            entity.HasKey(cp => cp.Id);
-            entity.Property(cp => cp.Title).HasMaxLength(200);
-            entity.Property(cp => cp.ContentJson).IsRequired().HasColumnType("jsonb");
-            entity.Property(cp => cp.ContentType).HasConversion<int>();
-            entity.Property(cp => cp.Status).HasConversion<int>();
-            entity.Property(cp => cp.Prompt).HasMaxLength(4000);
-            entity.Property(cp => cp.AiModel).HasMaxLength(100);
-            entity.Property(cp => cp.PlatformPostId).HasMaxLength(200);
-            entity.Property(cp => cp.PlatformPostUrl).HasMaxLength(500);
-            entity.Property(cp => cp.LastError).HasMaxLength(4000);
-            entity.Property(cp => cp.CreatedByUserId).IsRequired();
-            entity.Property(cp => cp.CreatedAt).IsRequired();
-            entity.Property(cp => cp.UpdatedAt).IsRequired();
-            entity.Property(cp => cp.RetryCount).HasDefaultValue(0);
-            entity.HasIndex(cp => new { cp.TeamId, cp.CreatedAt });
-            entity.HasIndex(cp => new { cp.ChannelId, cp.SocialAccountId });
-
-            entity.HasOne(cp => cp.Team)
-                  .WithMany(t => t.ContentPosts)
-                  .HasForeignKey(cp => cp.TeamId)
-                  .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(cp => cp.PostVariants)
-                  .WithOne(pv => pv.ContentPost)
-                  .HasForeignKey(pv => pv.ContentPostId)
-                  .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne<Channel>()
-                  .WithMany()
-                  .HasForeignKey(cp => cp.ChannelId)
-                  .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne<SocialAccount>()
-                  .WithMany()
-                  .HasForeignKey(cp => cp.SocialAccountId)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
-
         builder.Entity<Channel>(entity =>
         {
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
+            entity.Property(c => c.NormalizedName).IsRequired().HasMaxLength(100);
             entity.Property(c => c.Description).HasMaxLength(500);
             entity.Property(c => c.CreatedAt).IsRequired();
             entity.Property(c => c.UpdatedAt).IsRequired();
             entity.Property(c => c.IsDeleted).HasDefaultValue(false);
-            entity.HasIndex(c => new { c.TeamId, c.Name }).IsUnique();
+            entity.HasIndex(c => new { c.TeamId, c.NormalizedName }).IsUnique();
             entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
 
             entity.HasOne(c => c.Team)
@@ -178,6 +143,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(c => c.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(c => new { c.TeamId, c.Status });
             entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
+            entity.HasIndex(c => new { c.TeamId, c.ChannelId });
             entity.HasIndex(c => new { c.TeamId, c.Name });
 
             entity.HasOne(c => c.Team)
@@ -189,6 +155,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithOne(ccp => ccp.Campaign)
                 .HasForeignKey(ccp => ccp.CampaignId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.Channel)
+                .WithMany()
+                .HasForeignKey(c => c.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(c => !c.IsDeleted);
         });

@@ -16,7 +16,7 @@ namespace AiContentFlow.Infrastructure.Migrations
             migrationBuilder.Sql("ALTER TABLE \"RefreshTokens\" ADD COLUMN IF NOT EXISTS \"ReplacedByTokenHash\" text;");
             migrationBuilder.Sql("ALTER TABLE \"RefreshTokens\" ADD COLUMN IF NOT EXISTS \"RevokedAt\" timestamp with time zone;");
 
-            migrationBuilder.Sql("UPDATE \"RefreshTokens\" SET \"TokenHash\" = COALESCE(\"TokenHash\", CONCAT('legacy-', \"Id\"::text)) WHERE \"TokenHash\" IS NULL OR \"TokenHash\" = '';" );
+            migrationBuilder.Sql("UPDATE \"RefreshTokens\" SET \"TokenHash\" = COALESCE(\"TokenHash\", CONCAT('legacy-', \"Id\"::text)) WHERE \"TokenHash\" IS NULL OR \"TokenHash\" = '';");
             migrationBuilder.Sql("DELETE FROM \"RefreshTokens\" WHERE \"UserId\" IS NULL;");
             migrationBuilder.Sql("DELETE FROM \"RefreshTokens\" rt WHERE NOT EXISTS (SELECT 1 FROM \"AspNetUsers\" u WHERE u.\"Id\" = rt.\"UserId\");");
 

@@ -158,13 +158,6 @@ This document records the main foundation updates made to the AiContentFlow back
 - Updated `.github/copilot-instructions.md` implementation status and active priority.
 - Updated `AiContentFlow_App_Structure_and_Logic.md` for current ownership/linkage rules.
 
-## Validation
-- `dotnet test AiContentFlow.Application.Tests/AiContentFlow.Application.Tests.csproj` passed (`8/8`).
-- `dotnet build` passed.
-- NuGet vulnerability feed warnings may appear intermittently (`NU1900` / nuget.org connectivity), without blocking the validated run above.
-
----
-
 ## Date
 - **2026-04-09**
 
@@ -178,7 +171,7 @@ This document records the main foundation updates made to the AiContentFlow back
 
 ### 16) Campaign tenant and authorization rules were enforced
 - Membership checks are required for campaign reads.
-- Owner/Admin role checks are required for campaign mutations and link/unlink operations.
+- Admin/Editor role checks are required for campaign mutations and link/unlink operations.
 - Campaign and content post existence checks are enforced in team scope.
 - Duplicate campaign-content links are rejected as domain violations.
 
@@ -195,8 +188,6 @@ This document records the main foundation updates made to the AiContentFlow back
   - valid same-team link/unlink.
 - Updated `AiContentFlow_API_Endpoints.md` with campaign routes and validation behavior.
 - Updated `.github/copilot-instructions.md` campaign status and traceability notes.
-
----
 
 ## Date
 - **2026-04-09**
@@ -224,7 +215,7 @@ This document records the main foundation updates made to the AiContentFlow back
 
 ### 22) Team isolation and role permissions were aligned for workflow mutations
 - Enforced team-scoped existence and membership checks in workflow mutation paths.
-- Enforced `Owner/Admin` requirement consistently for content-post workflow mutations.
+- Enforced `Admin` requirement consistently for content-post workflow mutations.
 - Preserved error mapping consistency:
   - missing team-scoped resources -> `404`
   - rule violations -> `400`
@@ -236,3 +227,69 @@ This document records the main foundation updates made to the AiContentFlow back
   - cross-team scoped resource rejection (`404` behavior via exception type),
   - role violation rejection,
   - valid schedule/publish flow.
+
+---
+
+## Date
+- **2026-04-16**
+
+## What Was Done
+
+### 24) Team-first onboarding backend was fully implemented
+- `AuthService.RegisterAsync` now creates identity user + team + admin membership + refresh token in one transaction boundary.
+- Registration now supports:
+  - direct team name (`teamName` provided),
+  - temporary default team name (`teamName` omitted).
+- `AuthResponseDto` now includes:
+  - `TeamId`
+  - `TeamRole`
+  - `IsTeamNameSetupRequired`
+- Added `PUT /api/Team/{teamId}/name` to complete onboarding naming when temporary team name is used.
+
+### 25) Team role model was extended with `Editor`
+- Added `Editor` in `TeamRole` enum.
+- Campaign mutation policy now allows `Admin/Editor`.
+
+### 26) Channel uniqueness was hardened with normalized keys
+- Added `Channel.NormalizedName`.
+- Added unique index on `(TeamId, NormalizedName)`.
+- `ChannelService` now normalizes channel names (`ToUpperInvariant`) for uniqueness checks.
+
+### 27) Campaign channel scoping was added
+- Added optional `Campaign.ChannelId` relation.
+- Create/update campaign now validate optional `ChannelId` in team scope.
+- Campaign DTO contracts now carry `channelId`.
+
+### 28) Content post optional linkage was implemented
+- `ContentPost.ChannelId` and `ContentPost.SocialAccountId` are now nullable.
+- Standalone content post create/schedule/publish is supported.
+- If links are provided, service enforces team ownership and channel/social consistency.
+
+### 29) Persistence and migration updates were delivered
+- Updated EF model configuration in `AppDbContext` and `ContentPostConfiguration`.
+- Added migration:
+  - `20260416094812_TeamFirstOnboardingScopedCampaignsOptionalContent`
+- Migration includes backfill for `Channels.NormalizedName` before unique index enforcement.
+
+### 30) Tests were expanded for critical new rules
+- Added `AuthServiceTests` for register onboarding/team-admin creation behavior.
+- Added `TeamServiceTests` for onboarding team-name setup flow and role checks.
+- Added channel uniqueness case-insensitive test.
+- Added standalone content post tests and invalid optional-link combination test.
+- Updated campaign tests for `Editor` campaign mutation permission.
+
+### 31) Role model was simplified to Admin/Editor/Viewer
+- Removed `Owner` from `TeamRole`.
+- Treated `Admin` as owner-equivalent role.
+- Added data migration to map old role values:
+  - previous `Owner (2)` -> `Admin (1)`
+  - previous `Editor (3)` -> `Editor (2)`
+- Added migration:
+  - `20260416102043_SimplifyTeamRolesToAdminEditorViewer`
+
+## Validation
+- `dotnet build -v minimal` succeeded.
+- `AiContentFlow.Application.Tests` run succeeded: `25 passed, 0 failed`.
+
+## Notes
+- Existing `NU1510`/nullable warnings remain from prior configuration and were not expanded in scope.

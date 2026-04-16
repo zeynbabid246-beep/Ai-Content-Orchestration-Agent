@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Application.Features.Teams.Dtos;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AiContentFlow.API.Controllers;
 
@@ -29,11 +29,23 @@ public class TeamController : ControllerBase
         return CreatedAtAction(nameof(GetTeamMembers), new { teamId = result.Id }, result);
     }
 
+    [HttpPut("{teamId:guid}/name")]
+    public async Task<ActionResult<TeamResponseDto>> SetTeamName(Guid teamId, [FromBody] SetTeamNameDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _teamService.SetTeamNameAsync(teamId, userId, dto);
+        return Ok(result);
+    }
+
     [HttpGet("{teamId:guid}/members")]
     public async Task<ActionResult<List<TeamMemberDto>>> GetTeamMembers(Guid teamId)
     {
         var requestUserId = GetCurrentUserId();
-        
+
         if (string.IsNullOrEmpty(requestUserId))
             return Unauthorized("User ID not found in token");
 
@@ -45,7 +57,7 @@ public class TeamController : ControllerBase
     public async Task<IActionResult> InviteUser(Guid teamId, [FromBody] InviteUserDto dto)
     {
         var requestingUserId = GetCurrentUserId();
-        
+
         if (string.IsNullOrEmpty(requestingUserId))
             return Unauthorized("User ID not found in token");
 
@@ -57,7 +69,7 @@ public class TeamController : ControllerBase
     public async Task<IActionResult> RemoveUser(Guid teamId, string targetUserId)
     {
         var requestingUserId = GetCurrentUserId();
-        
+
         if (string.IsNullOrEmpty(requestingUserId))
             return Unauthorized("User ID not found in token");
 
@@ -79,7 +91,7 @@ public class TeamController : ControllerBase
 
     private string GetCurrentUserId()
     {
-        return User.FindFirst("sub")?.Value 
+        return User.FindFirst("sub")?.Value
             ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     }
 }

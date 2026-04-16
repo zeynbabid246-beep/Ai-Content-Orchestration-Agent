@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace AiContentFlow.Application.Features.Auth.Dtos
+﻿namespace AiContentFlow.Application.Features.Auth.Dtos
 {
     public class RegisterRequestDto
-    {   public required string Username {get;set;}
+    {
+        public required string Username { get; set; }
         public required string Email { get; set; }
         public required string Password { get; set; }
+        public string? TeamName { get; set; }
     }
 }

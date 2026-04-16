@@ -15,8 +15,8 @@ public record UpdatePostVariantDto(
 );
 
 public record CreateContentPostDto(
-    int ChannelId,
-    int SocialAccountId,
+    int? ChannelId,
+    int? SocialAccountId,
     string? Title,
     ContentType ContentType,
     string ContentJson,
@@ -27,8 +27,8 @@ public record CreateContentPostDto(
 );
 
 public record UpdateContentPostDto(
-    int ChannelId,
-    int SocialAccountId,
+    int? ChannelId,
+    int? SocialAccountId,
     string? Title,
     ContentType ContentType,
     string ContentJson,
@@ -72,8 +72,8 @@ public record PostVariantResponseDto(
 public record ContentPostResponseDto(
     int Id,
     Guid TeamId,
-    int ChannelId,
-    int SocialAccountId,
+    int? ChannelId,
+    int? SocialAccountId,
     string? Title,
     ContentType ContentType,
     string ContentJson,

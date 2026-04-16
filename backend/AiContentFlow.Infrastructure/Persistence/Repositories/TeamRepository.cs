@@ -1,6 +1,5 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Domain.Models;
-using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,8 +26,8 @@ public class TeamRepository : ITeamRepository
     public async Task<UserTeam?> GetUserMembershipAsync(Guid teamId, string userId)
         => await _context.UserTeams.FirstOrDefaultAsync(ut => ut.TeamId == teamId && ut.UserId == userId);
 
-    public async Task<int> CountOwnersAsync(Guid teamId)
-        => await _context.UserTeams.CountAsync(ut => ut.TeamId == teamId && ut.Role == TeamRole.Owner);
+    public async Task<int> CountAdminsAsync(Guid teamId)
+        => await _context.UserTeams.CountAsync(ut => ut.TeamId == teamId && ut.Role == TeamRole.Admin);
 
     public async Task<List<(UserTeam UserTeam, string UserId, string Username, string Email)>> GetTeamMembersAsync(Guid teamId)
     {
@@ -56,6 +55,22 @@ public class TeamRepository : ITeamRepository
         }
 
         return (appUser.Id, appUser.UserName ?? string.Empty, appUser.Email ?? string.Empty);
+    }
+
+    public async Task<(UserTeam UserTeam, Team Team)?> GetPrimaryMembershipAsync(string userId)
+    {
+        var membership = await _context.UserTeams
+            .Include(x => x.Team)
+            .Where(x => x.UserId == userId)
+            .OrderBy(x => x.JoinedAt)
+            .FirstOrDefaultAsync();
+
+        if (membership is null || membership.Team is null)
+        {
+            return null;
+        }
+
+        return (membership, membership.Team);
     }
 
     public async Task AddTeamAsync(Team team)

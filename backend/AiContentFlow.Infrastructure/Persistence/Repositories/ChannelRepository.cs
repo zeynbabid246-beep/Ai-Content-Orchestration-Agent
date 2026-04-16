@@ -38,7 +38,7 @@ public class ChannelRepository : IChannelRepository
         return await _context.Channels.AnyAsync(c =>
             c.TeamId == teamId
             && !c.IsDeleted
-            && c.Name.ToLower() == normalizedName.ToLower()
+            && c.NormalizedName == normalizedName
             && (!excludeChannelId.HasValue || c.Id != excludeChannelId.Value));
     }
 

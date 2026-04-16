@@ -30,6 +30,9 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ChannelId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -60,6 +63,10 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.HasIndex("TeamId", "ChannelId");
 
                     b.HasIndex("TeamId", "CreatedAt");
 
@@ -122,6 +129,11 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<Guid>("TeamId")
                         .HasColumnType("uuid");
 
@@ -132,7 +144,7 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.HasIndex("TeamId", "CreatedAt");
 
-                    b.HasIndex("TeamId", "Name")
+                    b.HasIndex("TeamId", "NormalizedName")
                         .IsUnique();
 
                     b.ToTable("Channels");
@@ -153,7 +165,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<int?>("AiTokens")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ChannelId")
+                    b.Property<int?>("ChannelId")
                         .HasColumnType("integer");
 
                     b.Property<string>("ContentJson")
@@ -197,7 +209,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<DateTime?>("ScheduledAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("SocialAccountId")
+                    b.Property<int?>("SocialAccountId")
                         .HasColumnType("integer");
 
                     b.Property<int>("Status")
@@ -215,11 +227,13 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ChannelId");
+
                     b.HasIndex("SocialAccountId");
 
-                    b.HasIndex("ChannelId", "SocialAccountId");
-
                     b.HasIndex("TeamId", "CreatedAt");
+
+                    b.HasIndex("TeamId", "ChannelId", "SocialAccountId");
 
                     b.ToTable("ContentPosts");
                 });
@@ -351,6 +365,11 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsNameSetupRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -637,11 +656,18 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
                 {
+                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithMany("Campaigns")
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Channel");
 
                     b.Navigation("Team");
                 });
@@ -681,14 +707,12 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.HasOne("AiContentFlow.Domain.Models.Channel", null)
                         .WithMany()
                         .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AiContentFlow.Domain.Models.SocialAccount", null)
                         .WithMany()
                         .HasForeignKey("SocialAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithMany("ContentPosts")

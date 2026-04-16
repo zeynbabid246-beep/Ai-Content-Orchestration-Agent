@@ -189,7 +189,7 @@ public class ContentPostServiceTests
 
         teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
         teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "owner-1"))
-            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "owner-1", Role = TeamRole.Owner, JoinedAt = DateTime.UtcNow });
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "owner-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
         contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 10)).ReturnsAsync(contentPost);
 
         var scheduledAt = DateTime.UtcNow.AddHours(2);
@@ -206,6 +206,52 @@ public class ContentPostServiceTests
         Assert.Equal("https://social.example/post/123", published.PlatformPostUrl);
 
         contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenStatusIsScheduled_ThrowsInvalidOperationException()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var socialRepo = new Mock<ISocialAccountRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        var existing = new ContentPost
+        {
+            Id = 101,
+            TeamId = teamId,
+            ChannelId = 7,
+            SocialAccountId = 11,
+            ContentJson = "{}",
+            ContentType = ContentType.LinkedInPost,
+            Status = ContentStatus.Ready,
+            CreatedByUserId = "owner-1",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "owner-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "owner-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
+        contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 101)).ReturnsAsync(existing);
+        channelRepo.Setup(x => x.GetByIdAsync(teamId, 7)).ReturnsAsync(new Channel { Id = 7, TeamId = teamId, Name = "Main", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        socialRepo.Setup(x => x.GetByIdAsync(teamId, 11)).ReturnsAsync(new SocialAccount { Id = 11, TeamId = teamId, ChannelId = 7, AccountHandle = "@brand", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+
+        var dto = new UpdateContentPostDto(
+            7,
+            11,
+            "Updated",
+            ContentType.LinkedInPost,
+            "{\"text\":\"updated\"}",
+            ContentStatus.Scheduled,
+            null,
+            null,
+            null,
+            null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateAsync(teamId, 101, "owner-1", dto));
     }
 
     [Fact]
@@ -245,6 +291,59 @@ public class ContentPostServiceTests
         contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Once);
     }
 
+    [Fact]
+    public async Task CreateAsync_WhenChannelAndSocialAreMissing_CreatesStandaloneContentPost()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var socialRepo = new Mock<ISocialAccountRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "user-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "user-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
+
+        ContentPost? captured = null;
+        contentPostRepo
+            .Setup(x => x.AddAsync(It.IsAny<ContentPost>()))
+            .Callback<ContentPost>(cp => captured = cp)
+            .Returns(Task.CompletedTask);
+
+        var dto = CreateDto(channelId: null, socialAccountId: null);
+
+        var result = await service.CreateAsync(teamId, "user-1", dto);
+
+        Assert.NotNull(captured);
+        Assert.Null(captured!.ChannelId);
+        Assert.Null(captured.SocialAccountId);
+        Assert.Null(result.ChannelId);
+        Assert.Null(result.SocialAccountId);
+
+        channelRepo.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+        socialRepo.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSocialAccountProvidedWithoutChannel_ThrowsInvalidOperationException()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var socialRepo = new Mock<ISocialAccountRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "user-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "user-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
+
+        var dto = CreateDto(channelId: null, socialAccountId: 11);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(teamId, "user-1", dto));
+    }
+
     private static ContentPostService CreateService(
         Mock<IContentPostRepository> contentPostRepo,
         Mock<IChannelRepository> channelRepo,
@@ -254,7 +353,7 @@ public class ContentPostServiceTests
         return new ContentPostService(contentPostRepo.Object, channelRepo.Object, socialRepo.Object, teamRepo.Object);
     }
 
-    private static CreateContentPostDto CreateDto(int channelId, int socialAccountId)
+    private static CreateContentPostDto CreateDto(int? channelId, int? socialAccountId)
     {
         return new CreateContentPostDto(
             channelId,

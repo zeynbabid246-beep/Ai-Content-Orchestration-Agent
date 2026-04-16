@@ -1,5 +1,6 @@
 using AiContentFlow.Application.Common.Interfaces;
-using AiContentFlow.Application.Features.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Domain.Models;
 
 namespace AiContentFlow.Application.Features.Campaigns;
@@ -10,17 +11,20 @@ public class CampaignService : ICampaignService
     private readonly ICampaignContentPostRepository _campaignContentPostRepository;
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ITeamRepository _teamRepository;
+    private readonly IChannelRepository _channelRepository;
 
     public CampaignService(
         ICampaignRepository campaignRepository,
         ICampaignContentPostRepository campaignContentPostRepository,
         IContentPostRepository contentPostRepository,
-        ITeamRepository teamRepository)
+        ITeamRepository teamRepository,
+        IChannelRepository channelRepository)
     {
         _campaignRepository = campaignRepository;
         _campaignContentPostRepository = campaignContentPostRepository;
         _contentPostRepository = contentPostRepository;
         _teamRepository = teamRepository;
+        _channelRepository = channelRepository;
     }
 
     public async Task<CampaignResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateCampaignDto dto)
@@ -35,11 +39,18 @@ public class CampaignService : ICampaignService
         if (await _campaignRepository.ExistsByNameAsync(teamId, normalizedName))
             throw new InvalidOperationException("Campaign name already exists for this team");
 
+        if (dto.ChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+        }
+
         var campaign = new Campaign
         {
             TeamId = teamId,
             Name = normalizedName,
             Description = Normalize(dto.Description),
+            ChannelId = dto.ChannelId,
             Status = dto.Status,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -89,8 +100,15 @@ public class CampaignService : ICampaignService
         if (await _campaignRepository.ExistsByNameAsync(teamId, normalizedName, campaignId))
             throw new InvalidOperationException("Campaign name already exists for this team");
 
+        if (dto.ChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+        }
+
         campaign.Name = normalizedName;
         campaign.Description = Normalize(dto.Description);
+        campaign.ChannelId = dto.ChannelId;
         campaign.Status = dto.Status;
         campaign.UpdatedAt = DateTime.UtcNow;
 
@@ -161,8 +179,8 @@ public class CampaignService : ICampaignService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage campaigns");
+        if (membership.Role != TeamRole.Admin && membership.Role != TeamRole.Editor)
+            throw new UnauthorizedAccessException("Only Admin/Editor can manage campaigns");
     }
 
     private static CampaignResponseDto Map(Campaign campaign)
@@ -174,6 +192,7 @@ public class CampaignService : ICampaignService
         return new CampaignResponseDto(
             campaign.Id,
             campaign.TeamId,
+            campaign.ChannelId,
             campaign.Name,
             campaign.Description,
             campaign.Status,
