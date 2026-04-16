@@ -16,7 +16,7 @@ const PLATFORMS: Platform[] = [
   { id: "linkedin", name: "LinkedIn", sub: "Professional network", icon: "in", stats: { posts: "24", reach: "8.4k" }, connected: true },
   { id: "instagram", name: "Instagram", sub: "Photo & video sharing", icon: "IG", stats: { posts: "41", reach: "12.1k" }, connected: true },
   { id: "facebook", name: "Facebook", sub: "Social engagement", icon: "f", stats: { posts: "17", reach: "5.2k" }, connected: false },
-  { id: "twitter", name: "Twitter / X", sub: "Microblogging", icon: "X", stats: { posts: "0", reach: "0" }, connected: false },
+  
 ];
 
 export function SocialMediaPage() {
@@ -65,7 +65,7 @@ export function SocialMediaPage() {
                         </Box>
                       </Stack>
                       <Stack direction="row" spacing={1} mt={1}>
-                        <Button variant="contained" fullWidth onClick={() => navigate("/generate")}>Create Post</Button>
+                        <Button variant="contained" fullWidth onClick={() => navigate("/generate")}>connect</Button>
                         <Button variant="outlined" fullWidth onClick={() => toggleConnect(platform.id)}>Disconnect</Button>
                       </Stack>
                     </>

@@ -27,7 +27,6 @@ import { ROUTES } from "../../shared/lib/routes";
 const FONTS = ["Cormorant Garamond", "Inter", "DM Sans", "Playfair Display", "Syne", "Neue Haas Grotesk", "Libre Baskerville"];
 const VOICES = ["Professional", "Playful", "Luxurious", "Bold", "Minimalist", "Conversational", "Technical"];
 
-// --- Helper Component for the Color Boxes ---
 function ColorPickerBox({ value, onChange }: { value: string, onChange: (v: string) => void }) {
   return (
     <Box
@@ -68,7 +67,7 @@ export function BrandStudioPage() {
   const updateMutation = useUpdateBrandMutation();
   const form = useBrandForm();
 
-  // FIX: Define the Ref here in the component to avoid the "Cannot access ref during render" error
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,7 +106,6 @@ export function BrandStudioPage() {
       />
 
       <Box sx={{ flex: 1, maxWidth: 860 }}>
-        {/* Header */}
         <Box sx={{ mb: 4, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography sx={{ fontSize: { xs: 28, md: 32 }, fontWeight: 300, color: "text.primary", lineHeight: 1.1, letterSpacing: "0.01em" }}>
@@ -125,7 +123,6 @@ export function BrandStudioPage() {
           </Collapse>
         </Box>
 
-        {/* Auto-fill */}
         <Section title="Auto-fill from website" subtitle="Let AI scrape your website and populate your brand settings automatically">
           <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
             <TextField

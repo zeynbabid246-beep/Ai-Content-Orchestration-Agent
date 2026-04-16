@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import {
   Avatar,
   Box,
@@ -20,14 +21,14 @@ type Member = {
   id: number;
   name: string;
   email: string;
-  role: "Editor" | "Viewer" | "Admin" | "Commenter";
+  role: "Editor" | "Viewer" | "Admin" ;
   status: "Accepted" | "Pending";
   initials: string;
   customColor: string;
 };
 
 const AVATAR_COLORS = ["primary.main", "secondary.main", "info.main", "warning.main"] as const;
-const ROLE_COLOR = { Editor: "primary", Viewer: "secondary", Admin: "info", Commenter: "warning" } as const;
+const ROLE_COLOR = { Editor: "primary", Viewer: "secondary", Admin: "info" } as const;
 
 const INITIAL_MEMBERS: Member[] = [
   { id: 1, name: "Siwar Attia", email: "siwar@acme.io", role: "Editor", status: "Accepted", initials: "SA", customColor: AVATAR_COLORS[0] },
