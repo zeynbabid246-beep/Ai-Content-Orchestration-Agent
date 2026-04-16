@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Brand } from "../../../shared/types/domain";
 
 const DEFAULTS = {
@@ -14,13 +14,23 @@ const DEFAULTS = {
   websiteUrl: "",
 };
 
+const PRIMARY_COUNT = 3;
+const SECONDARY_COUNT = 3;
+
 export function useBrandForm() {
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [brandName, setBrandName] = useState(DEFAULTS.brandName);
   const [slogan, setSlogan] = useState(DEFAULTS.slogan);
   const [description, setDescription] = useState(DEFAULTS.description);
-  const [primaryColor, setPrimaryColor] = useState(DEFAULTS.primaryColor);
-  const [secondaryColor, setSecondaryColor] = useState(DEFAULTS.secondaryColor);
+
+  // Multi-color state (Arrays of 3)
+  const [primaryColors, setPrimaryColors] = useState<string[]>(
+    Array(PRIMARY_COUNT).fill(DEFAULTS.primaryColor)
+  );
+  const [secondaryColors, setSecondaryColors] = useState<string[]>(
+    Array(SECONDARY_COUNT).fill(DEFAULTS.secondaryColor)
+  );
+
   const [fontFamily, setFontFamily] = useState(DEFAULTS.fontFamily);
   const [brandVoice, setBrandVoice] = useState(DEFAULTS.brandVoice);
   const [contactEmail, setContactEmail] = useState(DEFAULTS.contactEmail);
@@ -30,11 +40,30 @@ export function useBrandForm() {
   const [scraping, setScraping] = useState(false);
   const [scraped, setScraped] = useState(false);
   const [saved, setSaved] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
+  // Helper functions to update specific color slots
+  const updatePrimaryColor = useCallback((index: number, value: string) => {
+    setPrimaryColors((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
+
+  const updateSecondaryColor = useCallback((index: number, value: string) => {
+    setSecondaryColors((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
+
+  // Handle Logo Revocation (Memory cleanup)
   useEffect(() => {
     return () => {
-      if (logoPreview && logoPreview.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+      if (logoPreview && logoPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreview);
+      }
     };
   }, [logoPreview]);
 
@@ -43,8 +72,13 @@ export function useBrandForm() {
     setBrandName(brand.name);
     setWebsite(brand.website);
     setWebsiteUrl(brand.website);
-    setPrimaryColor(brand.colors?.primary || DEFAULTS.primaryColor);
-    setSecondaryColor(brand.colors?.secondary || DEFAULTS.secondaryColor);
+    
+    // Fill arrays based on the brand's primary/secondary color
+    const pColor = brand.colors?.primary || DEFAULTS.primaryColor;
+    const sColor = brand.colors?.secondary || DEFAULTS.secondaryColor;
+    setPrimaryColors(Array(PRIMARY_COUNT).fill(pColor));
+    setSecondaryColors(Array(SECONDARY_COUNT).fill(sColor));
+
     setBrandVoice(brand.voice || DEFAULTS.brandVoice);
     setLogoPreview(brand.logoUrl || null);
     setSlogan(DEFAULTS.slogan);
@@ -60,8 +94,8 @@ export function useBrandForm() {
     setBrandName(DEFAULTS.brandName);
     setWebsite(DEFAULTS.website);
     setWebsiteUrl(DEFAULTS.websiteUrl);
-    setPrimaryColor(DEFAULTS.primaryColor);
-    setSecondaryColor(DEFAULTS.secondaryColor);
+    setPrimaryColors(Array(PRIMARY_COUNT).fill(DEFAULTS.primaryColor));
+    setSecondaryColors(Array(SECONDARY_COUNT).fill(DEFAULTS.secondaryColor));
     setBrandVoice(DEFAULTS.brandVoice);
     setLogoPreview(null);
     setSlogan(DEFAULTS.slogan);
@@ -79,21 +113,17 @@ export function useBrandForm() {
     setTimeout(() => {
       setBrandName("Extracted Brand");
       setSlogan("Extracted slogan from website");
-      setDescription("This is an automatically generated description based on the provided website.");
+      setDescription("Automatically generated description.");
       setScraping(false);
       setScraped(true);
     }, 2200);
   }, [websiteUrl]);
 
-  const handleLogoUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (logoPreview && logoPreview.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
-      setLogoPreview(URL.createObjectURL(file));
-    },
-    [logoPreview],
-  );
+  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoPreview(URL.createObjectURL(file));
+  }, []);
 
   const showSaved = useCallback(() => {
     setSaved(true);
@@ -104,39 +134,28 @@ export function useBrandForm() {
     name: brandName,
     website,
     voice: brandVoice,
-    primaryColor,
-    secondaryColor,
+    primaryColors, // Array of 3
+    secondaryColors, // Array of 3
   });
 
   const isValid = brandName.trim().length > 0 && website.trim().length > 0;
 
   return {
-    // Selection
-    selectedBrandId,
-    setSelectedBrandId,
-    selectBrand,
-    resetForm,
-
-    // Form fields
+    selectedBrandId, setSelectedBrandId,
+    selectBrand, resetForm,
     brandName, setBrandName,
     slogan, setSlogan,
     description, setDescription,
-    primaryColor, setPrimaryColor,
-    secondaryColor, setSecondaryColor,
+    primaryColors, updatePrimaryColor,
+    secondaryColors, updateSecondaryColor,
     fontFamily, setFontFamily,
     brandVoice, setBrandVoice,
     contactEmail, setContactEmail,
     website, setWebsite,
     websiteUrl, setWebsiteUrl,
     logoPreview, setLogoPreview,
-
-    // Scraping
     scraping, scraped, handleScrape,
-
-    // Logo
-    fileRef, handleLogoUpload,
-
-    // Save
+    handleLogoUpload,
     saved, showSaved, getPayload, isValid,
   };
 }
