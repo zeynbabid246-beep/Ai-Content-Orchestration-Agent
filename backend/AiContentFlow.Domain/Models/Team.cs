@@ -4,6 +4,7 @@ public class Team
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
+    public bool IsNameSetupRequired { get; set; }
     public DateTime CreatedAt { get; set; }
     public ICollection<UserTeam> UserTeams { get; set; } = [];
     public ICollection<ContentPost> ContentPosts { get; set; } = [];

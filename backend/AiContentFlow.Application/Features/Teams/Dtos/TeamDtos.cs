@@ -19,3 +19,5 @@ public record TeamMemberDto(
 public record InviteUserDto(string Username, string Role);
 
 public record UpdateMemberRoleDto(string TargetUserId, string Role);
+
+public record SetTeamNameDto(string Name);

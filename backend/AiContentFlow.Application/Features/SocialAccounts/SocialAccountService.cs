@@ -37,8 +37,8 @@ public class SocialAccountService : ISocialAccountService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage social accounts");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
 
         _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -99,8 +99,8 @@ public class SocialAccountService : ISocialAccountService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage social accounts");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
 
         _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -130,8 +130,8 @@ public class SocialAccountService : ISocialAccountService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Owner/Admin can manage social accounts");
+        if (membership.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
 
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");

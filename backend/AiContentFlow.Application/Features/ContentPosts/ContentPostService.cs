@@ -25,7 +25,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can create content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can create content posts");
 
         await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
 
@@ -82,7 +82,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> UpdateAsync(Guid teamId, int contentPostId, string requestingUserId, UpdateContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can update content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can update content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -129,7 +129,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> TransitionStatusAsync(Guid teamId, int contentPostId, string requestingUserId, TransitionContentPostStatusDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can transition content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can transition content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -154,7 +154,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> ScheduleAsync(Guid teamId, int contentPostId, string requestingUserId, ScheduleContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can schedule content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can schedule content posts");
 
         if (dto.ScheduledAt.Kind != DateTimeKind.Utc)
             throw new InvalidOperationException("ScheduledAt must be in UTC");
@@ -176,7 +176,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> PublishAsync(Guid teamId, int contentPostId, string requestingUserId, PublishContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can publish content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can publish content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -194,7 +194,7 @@ public class ContentPostService : IContentPostService
 
     public async Task DeleteAsync(Guid teamId, int contentPostId, string requestingUserId)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Owner/Admin can delete content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can delete content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -345,19 +345,30 @@ public class ContentPostService : IContentPostService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Owner && membership.Role != TeamRole.Admin)
+        if (membership.Role != TeamRole.Admin)
             throw new UnauthorizedAccessException(permissionErrorMessage);
     }
 
-    private async Task ValidateChannelAndSocialAccountAsync(Guid teamId, int channelId, int socialAccountId)
+    private async Task ValidateChannelAndSocialAccountAsync(Guid teamId, int? channelId, int? socialAccountId)
     {
-        _ = await _channelRepository.GetByIdAsync(teamId, channelId)
-            ?? throw new KeyNotFoundException("Channel not found");
+        if (socialAccountId.HasValue && !channelId.HasValue)
+            throw new InvalidOperationException("ChannelId is required when SocialAccountId is provided");
 
-        var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
+        if (channelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, channelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+        }
+
+        if (!socialAccountId.HasValue)
+        {
+            return;
+        }
+
+        var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId.Value)
             ?? throw new KeyNotFoundException("Social account not found");
 
-        if (socialAccount.ChannelId != channelId)
+        if (channelId.HasValue && socialAccount.ChannelId != channelId.Value)
             throw new InvalidOperationException("Social account does not belong to the specified channel");
     }
 }

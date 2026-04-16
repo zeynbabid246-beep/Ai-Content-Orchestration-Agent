@@ -5,8 +5,8 @@ public class ContentPost
     public int Id { get; set; }
     public Guid TeamId { get; set; }
     public Team? Team { get; set; }
-    public int ChannelId { get; set; }
-    public int SocialAccountId { get; set; }
+    public int? ChannelId { get; set; }
+    public int? SocialAccountId { get; set; }
     public string? Title { get; set; }
     public ContentType ContentType { get; set; }
     public string ContentJson { get; set; } = string.Empty;

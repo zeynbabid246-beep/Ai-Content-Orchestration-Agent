@@ -2,18 +2,13 @@
 
 ## Base URL
 - Local HTTP: `http://localhost:5073`
-- If using `--no-launch-profile`, ASP.NET may use `http://localhost:5000`
 
 ## Authentication Overview
-1. Register a user with `POST /api/Auth/register`
-2. Login with `POST /api/Auth/login`
-3. Copy `accessToken`
-4. In Swagger, click **Authorize** and set:
-   - `Bearer <accessToken>`
-5. Use protected endpoints (`/api/Team/*`, `/api/teams/{teamId}/channels/*`, `/api/teams/{teamId}/social-accounts/*`, `/api/teams/{teamId}/content-posts/*`, `/api/teams/{teamId}/campaigns/*`)
+1. Register with `POST /api/Auth/register`
+2. Use `accessToken` with `Bearer <token>` in protected routes
+3. Refresh with `POST /api/Auth/refresh`
 
 ## Standard Error Shape
-From global exception middleware:
 ```json
 {
   "message": "Error message",
@@ -21,84 +16,73 @@ From global exception middleware:
 }
 ```
 
+## Permission Matrix (Team Scope)
+- `Admin`: full team mutation rights
+- `Editor`: campaign mutations (create/update/delete/link/unlink)
+- `Viewer`: read-only
+
 ---
 
 ## 1) Auth Endpoints
 Route base: `api/Auth`
 
 ### `POST /api/Auth/register`
-Create a user account.
+Registers user, creates a team, and creates admin membership.
 
 Request:
 ```json
 {
   "username": "ousse",
   "email": "ousse@example.com",
-  "password": "P@ssw0rd123"
+  "password": "P@ssw0rd123",
+  "teamName": "Product and Growth"
 }
 ```
 
-Response: `200 OK` (`AuthResponseDto`)
+`teamName` is optional:
+- if provided: team is created with that name, `isTeamNameSetupRequired=false`
+- if omitted: temporary team name is created, `isTeamNameSetupRequired=true`
+
+Response `200 OK`:
 ```json
 {
   "userId": "...",
   "username": "ousse",
   "email": "ousse@example.com",
+  "teamId": "...guid...",
+  "teamRole": "Admin",
+  "isTeamNameSetupRequired": false,
   "accessToken": "...",
   "refreshToken": "..."
 }
 ```
 
 ### `POST /api/Auth/login`
-Login with email + password.
-
-Request:
-```json
-{
-  "email": "ousse@example.com",
-  "password": "P@ssw0rd123"
-}
-```
-
-Response: `200 OK` (`AuthResponseDto`)
+Response returns same `AuthResponseDto` including `teamId`, `teamRole`, and `isTeamNameSetupRequired`.
 
 ### `POST /api/Auth/refresh`
-Refresh access token using refresh token.
-
-Request:
-```json
-{
-  "refreshToken": "..."
-}
-```
-
-Response: `200 OK` (`AuthResponseDto`)
+Response returns rotated token pair and same team context metadata.
 
 ---
 
 ## 2) Team Endpoints
-Route base: `api/Team` (from `TeamController`)
+Route base: `api/Team`
 Authorization: required
 
 ### `POST /api/Team`
-Create a team.
+Create a team manually (`Admin` membership).
 
-Request (`CreateTeamDto`):
+### `PUT /api/Team/{teamId}/name`
+Set/rename team name (used for onboarding completion when temporary name exists).
+
+Request:
 ```json
 {
-  "name": "Marketing Team"
+  "name": "Product Team"
 }
 ```
 
-Response: `201 Created` (`TeamResponseDto`)
-```json
-{
-  "id": "...guid...",
-  "name": "Marketing Team",
-  "createdAt": "2026-04-08T10:00:00Z",
-  "memberCount": 1
-}
-```
+Response: `200 OK` (`TeamResponseDto`)
 
 ### `GET /api/Team/{teamId}/members`
 Get team members.
@@ -109,14 +93,14 @@ Response: `200 OK` (`List<TeamMemberDto>`)
   {
     "userId": "...",
     "username": "ousse",
-    "role": "Owner",
+    "role": "Admin",
     "joinedAt": "2026-04-08T10:00:00Z"
   }
 ]
 ```
 
 ### `POST /api/Team/{teamId}/invite`
-Invite/add user to team.
+Invite user with role `Viewer` or `Editor` (`Admin` assignment blocked by invite endpoint).
 
 Request (`InviteUserDto`):
 ```json
@@ -128,100 +112,21 @@ Request (`InviteUserDto`):
 
 Response: `204 No Content`
 
----
-
-## 6) Campaign Endpoints
-Route base: `api/teams/{teamId}/campaigns`
-Authorization: required
-
-### `CampaignStatus` enum
-- `0` Draft
-- `1` Active
-- `2` Paused
-- `3` Completed
-- `4` Archived
-
-### `POST /api/teams/{teamId}/campaigns`
-Create campaign.
-
-Request (`CreateCampaignDto`):
-```json
-{
-  "name": "Q2 Product Launch",
-  "description": "Cross-channel launch campaign",
-  "status": 0
-}
-```
-
-Response: `201 Created` (`CampaignResponseDto`)
-
-### `GET /api/teams/{teamId}/campaigns`
-List team campaigns.
-
-Response: `200 OK` (`List<CampaignResponseDto>`)
-
-### `GET /api/teams/{teamId}/campaigns/{campaignId}`
-Get campaign by id.
-
-Response: `200 OK` (`CampaignResponseDto`)
-
-### `PUT /api/teams/{teamId}/campaigns/{campaignId}`
-Update campaign.
-
-Request (`UpdateCampaignDto`):
-```json
-{
-  "name": "Q2 Product Launch Updated",
-  "description": "Updated description",
-  "status": 1
-}
-```
-
-Response: `200 OK` (`CampaignResponseDto`)
-
-### `DELETE /api/teams/{teamId}/campaigns/{campaignId}`
-Soft-delete campaign.
-
-Response: `204 No Content`
-
-### `POST /api/teams/{teamId}/campaigns/{campaignId}/content-post-links`
-Link a content post to campaign.
-
-Request (`LinkCampaignContentPostDto`):
-```json
-{
-  "contentPostId": 1
-}
-```
-
-Response: `204 No Content`
-
-### `DELETE /api/teams/{teamId}/campaigns/{campaignId}/content-post-links/{contentPostId}`
-Unlink a content post from campaign.
-
-Response: `204 No Content`
-
-Validation behavior:
-- `403 Forbidden`: requester is not a team member or lacks Owner/Admin role for mutation endpoints.
-- `404 Not Found`: campaign does not exist in provided team scope.
-- `404 Not Found`: content post does not exist in provided team scope.
-- `400 Bad Request`: duplicate campaign-content post link attempt.
-
 ### `PUT /api/Team/{teamId}/members/role`
-Update member role.
+Update team member role.
 
 Request (`UpdateMemberRoleDto`):
 ```json
 {
   "targetUserId": "<user-id>",
-  "role": "Admin"
+  "role": "Editor"
 }
 ```
 
 Response: `204 No Content`
 
 ### `DELETE /api/Team/{teamId}/members/{targetUserId}`
-Remove member from team.
+Remove team member.
 
 Response: `204 No Content`
 
@@ -359,8 +264,8 @@ Create content post.
 Request (`CreateContentPostDto`):
 ```json
 {
-  "channelId": 1,
-  "socialAccountId": 1,
+  "channelId": null,
+  "socialAccountId": null,
   "title": "AI launch post",
   "contentType": 2,
   "contentJson": "{\"text\":\"Hello LinkedIn\"}",
@@ -378,6 +283,11 @@ Request (`CreateContentPostDto`):
 ```
 
 Response: `201 Created` (`ContentPostResponseDto`)
+
+Notes:
+- `channelId` and `socialAccountId` are optional.
+- If `socialAccountId` is provided, `channelId` must also be provided.
+- If both are provided, they must belong to the same team and the social account must belong to the specified channel.
 
 Validation behavior for create/update:
 - `403 Forbidden`: requester is not a member of the team or lacks required role to create/update.
@@ -478,7 +388,7 @@ Publish rules:
 - `platformPostId` / `platformPostUrl` are optional metadata fields.
 
 Workflow error behavior:
-- `403 Forbidden`: requester is not team member or lacks `Owner/Admin` role for workflow mutations.
+- `403 Forbidden`: requester is not team member or lacks `Admin` role for workflow mutations.
 - `404 Not Found`: team-scoped content post does not exist.
 - `400 Bad Request`: invalid lifecycle transition or invalid scheduling input.
 
@@ -489,14 +399,98 @@ Response: `204 No Content`
 
 ---
 
+## 6) Campaign Endpoints
+Route base: `api/teams/{teamId}/campaigns`
+Authorization: required
+
+### `CampaignStatus` enum
+- `0` Draft
+- `1` Active
+- `2` Paused
+- `3` Completed
+- `4` Archived
+
+### `POST /api/teams/{teamId}/campaigns`
+Create campaign.
+
+Request (`CreateCampaignDto`):
+```json
+{
+  "name": "Q2 Product Launch",
+  "description": "Cross-channel launch campaign",
+  "channelId": 12,
+  "status": 0
+}
+```
+
+Response: `201 Created` (`CampaignResponseDto`)
+
+`channelId` is optional. Set `null` to create a campaign with no channel association.
+
+### `GET /api/teams/{teamId}/campaigns`
+List team campaigns.
+
+Response: `200 OK` (`List<CampaignResponseDto>`)
+
+### `GET /api/teams/{teamId}/campaigns/{campaignId}`
+Get campaign by id.
+
+Response: `200 OK` (`CampaignResponseDto`)
+
+### `PUT /api/teams/{teamId}/campaigns/{campaignId}`
+Update campaign.
+
+Request (`UpdateCampaignDto`):
+```json
+{
+  "name": "Q2 Product Launch Updated",
+  "description": "Updated description",
+  "channelId": 12,
+  "status": 1
+}
+```
+
+Response: `200 OK` (`CampaignResponseDto`)
+
+### `DELETE /api/teams/{teamId}/campaigns/{campaignId}`
+Soft-delete campaign.
+
+Response: `204 No Content`
+
+### `POST /api/teams/{teamId}/campaigns/{campaignId}/content-post-links`
+Link a content post to campaign.
+
+Request (`LinkCampaignContentPostDto`):
+```json
+{
+  "contentPostId": 1
+}
+```
+
+Response: `204 No Content`
+
+### `DELETE /api/teams/{teamId}/campaigns/{campaignId}/content-post-links/{contentPostId}`
+Unlink a content post from campaign.
+
+Response: `204 No Content`
+
+Validation behavior:
+- `403 Forbidden`: requester is not a team member or lacks Admin/Editor role for mutation endpoints.
+- `404 Not Found`: campaign does not exist in provided team scope.
+- `404 Not Found`: provided `channelId` does not exist in provided team scope.
+- `404 Not Found`: content post does not exist in provided team scope.
+- `400 Bad Request`: duplicate campaign-content post link attempt.
+
+---
+
 ## Manual Test Flow (Swagger)
 1. Run API.
 2. Open Swagger (`/swagger`).
 3. Register user.
 4. Login and copy `accessToken`.
 5. Authorize with `Bearer <accessToken>`.
-6. Create team via `POST /api/Team`.
-7. Copy `teamId` from response.
+6. Copy `teamId` from auth response.
+7. (Optional) complete onboarding name via `PUT /api/Team/{teamId}/name` if `isTeamNameSetupRequired=true`.
 8. Create a channel via `POST /api/teams/{teamId}/channels`.
 9. Create a social account via `POST /api/teams/{teamId}/social-accounts`.
 10. Create content post via `POST /api/teams/{teamId}/content-posts`.
@@ -506,7 +500,7 @@ Response: `204 No Content`
 14. Schedule with `POST /api/teams/{teamId}/content-posts/{id}/workflow/schedule`.
 15. Publish with `POST /api/teams/{teamId}/content-posts/{id}/workflow/publish`.
 16. Delete content post and verify it no longer appears in list.
-17. Create campaign via `POST /api/teams/{teamId}/campaigns`.
+17. Create campaign via `POST /api/teams/{teamId}/campaigns` (optionally include `channelId`).
 18. Link/unlink a content post using campaign link endpoints.
 
 ## Database Verification
@@ -525,4 +519,3 @@ Check these tables in PostgreSQL:
 For migration state:
 ```sql
 SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";
-```

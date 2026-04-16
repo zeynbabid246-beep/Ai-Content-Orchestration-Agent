@@ -1,287 +1,157 @@
 # AiContentFlow App Structure and Logic
 
 ## Overview
-`AiContentFlow` is a modular monolith built with Clean Architecture to support multi-tenant social content operations. The application allows teams to manage channels, connect social accounts, create and evolve content posts through a controlled lifecycle, group posts into campaigns, and enforce tenant-safe access with role-based permissions.
+`AiContentFlow` is a modular monolith using Clean Architecture (`Domain`, `Application`, `Infrastructure`, `API`) with strict team-first multi-tenancy.
 
-Core behavior is organized around these principles:
-- strict `TeamId` tenant boundaries,
-- thin API controllers,
-- business orchestration in `Application` services,
-- EF Core and Identity concerns isolated in `Infrastructure`.
+Core principles:
+- every user belongs to at least one team,
+- tenant isolation enforced by `TeamId`,
+- thin controllers with orchestration in application services,
+- EF Core + Identity isolated in infrastructure,
+- role-based authorization inside application services.
 
 ---
 
-## Layered Architecture
+## Layer Responsibilities
 
 ### `AiContentFlow.Domain`
-Holds core entities, enums, and relationship intent.
-
-Main entities:
-- `Team`
-- `UserTeam`
-- `Channel`
-- `SocialAccount`
-- `ContentPost`
-- `PostVariant`
-- `Campaign`
-- `CampaignContentPost`
-
-Main enums:
-- `TeamRole` (`Owner`, `Admin`, `Viewer`)
-- `ContentType`
-- `ContentStatus` (`Draft`, `Ready`, `Scheduled`, `Published`, `Deleted`)
-- `SocialPlatform`
-- `SocialAccountStatus`
-- `CampaignStatus`
+Defines core models and enums:
+- `Team`, `UserTeam`, `Channel`, `SocialAccount`, `ContentPost`, `PostVariant`, `Campaign`, `CampaignContentPost`
+- `TeamRole`: `Viewer`, `Admin`, `Editor`
+- content and campaign lifecycle enums
 
 ### `AiContentFlow.Application`
-Implements use-case logic and contracts.
-
-Contains:
-- service interfaces and services,
-- request/response DTOs,
-- repository interfaces,
-- validation and domain-rule enforcement.
-
-This is the policy layer where authorization and workflow rules are enforced.
+Defines and enforces use-cases:
+- auth onboarding flow,
+- team membership and role checks,
+- channel/social/content/campaign business rules,
+- DTO contracts and repository abstractions,
+- transaction abstraction (`IApplicationTransaction`) for atomic onboarding.
 
 ### `AiContentFlow.Infrastructure`
-Implements technical concerns.
-
-Contains:
-- `AppDbContext` model configuration,
+Implements persistence and identity:
+- `AppDbContext` entity configuration,
 - repository implementations,
-- ASP.NET Identity integration,
-- JWT/refresh-token persistence,
+- identity registration/login,
+- JWT + refresh token persistence,
 - EF migrations.
 
 ### `AiContentFlow.API`
-HTTP boundary.
-
-Contains:
-- controllers,
-- authentication/authorization middleware pipeline,
-- exception middleware,
-- DI registration for services and repositories.
-
-Controllers do not contain business rules; they delegate to application services.
+HTTP boundary:
+- controller routing and model binding,
+- JWT auth pipeline,
+- exception middleware mapping to `400/401/403/404/500`.
 
 ---
 
-## Entity Model and Relationships
+## Team-First Onboarding Flow
 
-### Tenant and Membership
-- `Team` is the tenant root.
-- `UserTeam` links Identity users to teams and stores team role.
-- A user can belong to multiple teams.
+1. User calls `POST /api/Auth/register`.
+2. `AuthService` executes registration in a transaction scope.
+3. System creates:
+   - identity user,
+   - team,
+   - `UserTeam` admin membership,
+   - refresh token record.
+4. Response includes:
+   - `teamId`,
+   - `teamRole`,
+   - `isTeamNameSetupRequired`.
+
+Supported onboarding paths:
+- direct onboarding: request includes `teamName`
+- deferred naming: request omits `teamName`, backend creates temporary team name and sets `isTeamNameSetupRequired=true`
+
+Team name completion endpoint:
+- `PUT /api/Team/{teamId}/name`
+
+---
+
+## Entity Relationships and Scoping
+
+### Team and Membership
+- `Team` is tenant root.
+- `UserTeam` stores `UserId`, `TeamId`, and role.
+- all scoped reads/writes verify membership against route `teamId`.
 
 ### Channel and Social Account
-- `Channel` belongs to one `Team`.
-- `SocialAccount` belongs to one `Team` and references one `Channel`.
-- `Channel` and `SocialAccount` are soft-deletable (`IsDeleted`, `DeletedAt`).
+- `Channel` is team-scoped.
+- `Channel.NormalizedName` enforces case-insensitive uniqueness within team.
+- `SocialAccount` is team-scoped and linked to channel.
 
-### Content Post Aggregate
-- `ContentPost` belongs to one `Team`.
-- `ContentPost` references:
-  - one `Channel` (`ChannelId`),
-  - one `SocialAccount` (`SocialAccountId`).
-- `PostVariant` is a one-to-many child of `ContentPost` for platform-specific variants.
+### Campaign
+- `Campaign` is team-scoped and soft-deletable.
+- campaign optionally references `ChannelId` for channel-context planning.
+- `CampaignContentPost` is many-to-many join to `ContentPost`.
 
-### Campaign Aggregate
-- `Campaign` belongs to one `Team` and is soft-deletable.
-- `CampaignContentPost` is a join entity implementing many-to-many between `Campaign` and `ContentPost`.
-- Campaign linking is team-scoped and duplicate-link protected.
-
----
-
-## End-to-End Request Communication Flow
-
-1. Client calls API endpoint.
-2. JWT middleware authenticates the user.
-3. Controller extracts `userId` from claims (`sub`/name identifier).
-4. Controller passes `teamId`, `userId`, and DTO to service.
-5. Service executes business checks:
-   - team existence,
-   - membership,
-   - role authorization,
-   - cross-entity tenant consistency,
-   - lifecycle/domain rules.
-6. Service calls repository interfaces.
-7. Infrastructure repositories execute EF Core queries/updates.
-8. Service maps entities to response DTOs.
-9. Controller returns HTTP response.
-
-Error communication path:
-- service throws typed exceptions,
-- `ExceptionMiddleware` maps to status codes:
-  - `KeyNotFoundException` -> `404`,
-  - `InvalidOperationException`/validation/argument errors -> `400`,
-  - `UnauthorizedAccessException` -> `403` (or `401` for auth routes).
+### Content Post
+- `ContentPost` is team-scoped.
+- `ChannelId` and `SocialAccountId` are optional.
+- standalone posts are valid and support full lifecycle.
+- when optional links are provided, service validates same-team ownership and channel-social consistency.
 
 ---
 
-## Authorization and Tenant Isolation Logic
+## Authorization Logic
 
-### Membership
-All team-scoped read/write operations validate that requester belongs to the target `teamId`.
+Role policies:
+- `Admin`: channels, social accounts, content post mutations, team management
+- `Editor`: campaign mutations (`create/update/delete/link/unlink`)
+- `Viewer`: read-only
 
-### Role Enforcement
-- `Owner`/`Admin`: required for mutation-heavy operations (channels, social accounts, campaigns, content workflow mutations).
-- `Viewer`: read-only for team-scoped resources.
-
-### Team-Scoped Data Integrity
-Application services enforce that referenced entities belong to the same team before mutation:
-- `ContentPost.ChannelId` must exist in same team.
-- `ContentPost.SocialAccountId` must exist in same team.
-- `SocialAccount.ChannelId` must match `ContentPost.ChannelId`.
+Cross-entity tenant guards:
+- channel/social lookup is always `teamId` scoped
+- campaign-content links are allowed only when both resources exist in same team scope
 
 ---
 
-## Content Workflow Logic
+## Content Lifecycle Logic
 
-### Creation and Update
-`ContentPostService` handles create/get/update/delete with role and tenant checks.
-
-Update rules include:
-- cannot set `Deleted` through update (must use delete endpoint),
-- cannot set `Scheduled` directly through update,
-- cannot set `Published` directly through update.
-
-This ensures lifecycle actions happen through dedicated workflow endpoints.
-
-### Lifecycle State Machine
-Allowed forward transitions:
+Allowed transitions:
 - `Draft -> Ready`
 - `Ready -> Scheduled`
 - `Scheduled -> Published`
 
-Invalid transitions are rejected as `400` domain violations.
+Scheduling rules:
+- UTC required
+- future timestamp required
 
-### Scheduling Use Case
-`ScheduleAsync` enforces:
-- `Owner`/`Admin` permission,
-- existing team-scoped content post,
-- `ScheduledAt` is UTC,
-- `ScheduledAt` is in the future,
-- valid transition `Ready -> Scheduled`.
+Publish rules:
+- transition must be valid
+- sets `PublishedAt` consistently
 
-Result:
-- `Status = Scheduled`,
-- `ScheduledAt` stored,
-- `UpdatedAt` refreshed.
-
-### Manual Publish Use Case
-`PublishAsync` enforces:
-- `Owner`/`Admin` permission,
-- existing team-scoped content post,
-- valid transition `Scheduled -> Published`.
-
-Result:
-- `Status = Published`,
-- `PublishedAt` stamped,
-- optional platform metadata stored (`PlatformPostId`, `PlatformPostUrl`),
-- `UpdatedAt` refreshed.
+Standalone post behavior:
+- create/schedule/publish works with `channelId=null` and `socialAccountId=null`
 
 ---
 
 ## Campaign Logic
 
-`CampaignService` supports create/read/update/delete/link/unlink.
-
-Business rules:
-- campaign mutations require `Owner`/`Admin`,
-- reads require membership,
-- linked content posts must be in same team,
-- duplicate links are rejected,
-- delete is soft-delete.
+Campaign mutation rules:
+- membership required
+- mutation role required: `Admin/Editor`
+- optional `ChannelId` must resolve within same team
+- duplicate content link blocked with domain violation (`400`)
 
 ---
 
-## API Endpoint Surface
+## Persistence Notes
 
-### Auth
-Base: `api/Auth`
-- `POST /register`
-- `POST /login`
-- `POST /refresh`
+Recent model updates:
+- `Teams.IsNameSetupRequired`
+- `Channels.NormalizedName` + unique index (`TeamId`, `NormalizedName`)
+- nullable `ContentPosts.ChannelId` and `ContentPosts.SocialAccountId`
+- optional `Campaigns.ChannelId` + index (`TeamId`, `ChannelId`)
 
-### Team
-Base: `api/Team`
-- `POST /api/Team`
-- `GET /api/Team/{teamId}/members`
-- `POST /api/Team/{teamId}/invite`
-- `PUT /api/Team/{teamId}/members/role`
-- `DELETE /api/Team/{teamId}/members/{targetUserId}`
-
-### Channels
-Base: `api/teams/{teamId}/channels`
-- `POST /`
-- `GET /`
-- `GET /{channelId}`
-- `PUT /{channelId}`
-- `DELETE /{channelId}`
-
-### Social Accounts
-Base: `api/teams/{teamId}/social-accounts`
-- `POST /`
-- `GET /`
-- `GET /{socialAccountId}`
-- `PUT /{socialAccountId}`
-- `DELETE /{socialAccountId}`
-
-### Content Posts
-Base: `api/teams/{teamId}/content-posts`
-- `POST /`
-- `GET /`
-- `GET /{contentPostId}`
-- `PUT /{contentPostId}`
-- `DELETE /{contentPostId}`
-- `POST /{contentPostId}/workflow/transition`
-- `POST /{contentPostId}/workflow/schedule`
-- `POST /{contentPostId}/workflow/publish`
-
-### Campaigns
-Base: `api/teams/{teamId}/campaigns`
-- `POST /`
-- `GET /`
-- `GET /{campaignId}`
-- `PUT /{campaignId}`
-- `DELETE /{campaignId}`
-- `POST /{campaignId}/content-post-links`
-- `DELETE /{campaignId}/content-post-links/{contentPostId}`
+Migration:
+- `20260416094812_TeamFirstOnboardingScopedCampaignsOptionalContent`
 
 ---
 
-## Typical Business Workflow Example
+## Error Mapping
 
-1. User registers/logs in -> receives JWT + refresh token.
-2. User creates a team (becomes `Owner`).
-3. Owner creates a `Channel`.
-4. Owner creates a `SocialAccount` under that channel.
-5. Owner creates a `ContentPost` in `Draft`.
-6. Owner moves post to `Ready`.
-7. Owner schedules post with future UTC time (`Scheduled`).
-8. Owner triggers manual publish (`Published`).
-9. Owner creates a `Campaign` and links/unlinks content posts.
-
-At every step, team scoping and role checks are enforced before persistence.
-
----
-
-## Security and Operational Notes
-
-- Identity source of truth is ASP.NET Identity (`ApplicationUser`).
-- JWT used for API authentication.
-- Refresh tokens are stored hashed and rotated.
-- Sensitive tokens/secrets are not returned in logs by design.
-- Exception responses use consistent JSON shape from middleware.
-
----
-
-## Why the Current Design Works
-
-- Keeps domain policies centralized in application services.
-- Preserves clean dependency direction.
-- Makes controllers predictable and thin.
-- Keeps tenant boundaries explicit and testable.
-- Supports incremental expansion (new workflow modules, analytics, background jobs) without architectural drift.
+`ExceptionMiddleware` maps:
+- `InvalidOperationException` / validation errors -> `400`
+- `UnauthorizedAccessException` -> `403` (or `401` on auth routes)
+- `KeyNotFoundException` -> `404`
+- unknown exceptions -> `500`

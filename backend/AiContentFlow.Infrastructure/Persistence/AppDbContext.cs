@@ -44,6 +44,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(t => t.Id);
             entity.Property(t => t.Name).IsRequired().HasMaxLength(100);
+            entity.Property(t => t.IsNameSetupRequired).HasDefaultValue(false);
         });
 
         builder.Entity<UserTeam>(entity =>
@@ -67,11 +68,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
+            entity.Property(c => c.NormalizedName).IsRequired().HasMaxLength(100);
             entity.Property(c => c.Description).HasMaxLength(500);
             entity.Property(c => c.CreatedAt).IsRequired();
             entity.Property(c => c.UpdatedAt).IsRequired();
             entity.Property(c => c.IsDeleted).HasDefaultValue(false);
-            entity.HasIndex(c => new { c.TeamId, c.Name }).IsUnique();
+            entity.HasIndex(c => new { c.TeamId, c.NormalizedName }).IsUnique();
             entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
 
             entity.HasOne(c => c.Team)
@@ -141,6 +143,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(c => c.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(c => new { c.TeamId, c.Status });
             entity.HasIndex(c => new { c.TeamId, c.CreatedAt });
+            entity.HasIndex(c => new { c.TeamId, c.ChannelId });
             entity.HasIndex(c => new { c.TeamId, c.Name });
 
             entity.HasOne(c => c.Team)
@@ -152,6 +155,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithOne(ccp => ccp.Campaign)
                 .HasForeignKey(ccp => ccp.CampaignId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.Channel)
+                .WithMany()
+                .HasForeignKey(c => c.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(c => !c.IsDeleted);
         });

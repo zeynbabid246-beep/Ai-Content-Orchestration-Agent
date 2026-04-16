@@ -26,7 +26,7 @@ public class ContentPostConfiguration : IEntityTypeConfiguration<ContentPost>
 
         // Indexes
         builder.HasIndex(cp => new { cp.TeamId, cp.CreatedAt });
-        builder.HasIndex(cp => new { cp.ChannelId, cp.SocialAccountId });
+        builder.HasIndex(cp => new { cp.TeamId, cp.ChannelId, cp.SocialAccountId });
 
         // Relationships
         builder.HasOne(cp => cp.Team)
@@ -42,11 +42,13 @@ public class ContentPostConfiguration : IEntityTypeConfiguration<ContentPost>
         builder.HasOne<Channel>()
               .WithMany()
               .HasForeignKey(cp => cp.ChannelId)
+              .IsRequired(false)
               .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<SocialAccount>()
               .WithMany()
               .HasForeignKey(cp => cp.SocialAccountId)
+              .IsRequired(false)
               .OnDelete(DeleteBehavior.Restrict);
     }
 }

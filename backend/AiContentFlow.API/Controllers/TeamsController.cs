@@ -29,6 +29,18 @@ public class TeamController : ControllerBase
         return CreatedAtAction(nameof(GetTeamMembers), new { teamId = result.Id }, result);
     }
 
+    [HttpPut("{teamId:guid}/name")]
+    public async Task<ActionResult<TeamResponseDto>> SetTeamName(Guid teamId, [FromBody] SetTeamNameDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _teamService.SetTeamNameAsync(teamId, userId, dto);
+        return Ok(result);
+    }
+
     [HttpGet("{teamId:guid}/members")]
     public async Task<ActionResult<List<TeamMemberDto>>> GetTeamMembers(Guid teamId)
     {

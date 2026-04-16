@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
         services.AddScoped<ICampaignRepository, CampaignRepository>();
         services.AddScoped<ICampaignContentPostRepository, CampaignContentPostRepository>();
+        services.AddScoped<IApplicationTransaction, EfCoreApplicationTransaction>();
 
         // 3. Application Services
         services.AddScoped<IAuthService, AuthService>();

@@ -42,6 +42,22 @@ public class ChannelServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.CreateAsync(teamId, "user-1", dto));
     }
 
+    [Fact]
+    public async Task CreateAsync_WhenNameAlreadyExistsCaseInsensitive_ThrowsInvalidOperationException()
+    {
+        var channelRepo = new Mock<IChannelRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(channelRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "admin-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "admin-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
+        channelRepo.Setup(x => x.ExistsByNameAsync(teamId, "PRODUCT AND GROWTH", null)).ReturnsAsync(true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(teamId, "admin-1", new CreateChannelDto("product and growth", null)));
+    }
+
     private static ChannelService CreateService(Mock<IChannelRepository> channelRepo, Mock<ITeamRepository> teamRepo)
     {
         IValidator<CreateChannelDto> createValidator = new CreateChannelDtoValidator();
