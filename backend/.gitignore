@@ -1,0 +1,38 @@
+# =========================
+# .NET
+# =========================
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Config / Secrets
+# =========================
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+
+
+# =========================
+# Misc
+# =========================
+coverage/
+*.tmp
+*.temp
+node_modules/
