@@ -72,7 +72,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const username = authStorage.getUsername() ?? "User";
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1");
+  const [collapsed, setCollapsed] = useState(() =>
+    localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1"
+  );
 
   const drawerWidth = useMemo(() => {
     if (isMobile) return DRAWER_WIDTH_EXPANDED;
@@ -94,12 +96,16 @@ export function AppShell() {
 
   const renderDrawerContent = (
     <Stack sx={{ height: 1 }}>
-      <Toolbar sx={{ justifyContent: collapsed && !isMobile ? "center" : "space-between", px: 1.5 }}>
+      <Toolbar
+        sx={{
+          justifyContent: collapsed && !isMobile ? "center" : "space-between",
+          px: 1.5,
+        }}
+      >
         {(!collapsed || isMobile) ? (
-          <Typography variant="h6" >
-            ContentFlow AI
-          </Typography>
+          <Typography variant="h6">ContentFlow AI</Typography>
         ) : null}
+
         <IconButton
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           onClick={isMobile ? () => setMobileOpen(false) : toggleCollapsed}
@@ -109,6 +115,7 @@ export function AppShell() {
           {isMobile ? "×" : collapsed ? "›" : "‹"}
         </IconButton>
       </Toolbar>
+
       <Divider />
 
       <Box sx={{ py: 1, overflowY: "auto", flex: 1 }}>
@@ -118,7 +125,14 @@ export function AppShell() {
             disablePadding
             subheader={
               (!collapsed || isMobile) ? (
-                <ListSubheader sx={{ bgcolor: "transparent", color: "text.secondary", typography: "caption", letterSpacing: 1 }}>
+            <ListSubheader
+                  sx={{
+                    bgcolor: "transparent",
+                    color: "text.secondary",
+                    typography: "caption",
+                    letterSpacing: 1,
+                  }}
+                >
                   {section.title}
                 </ListSubheader>
               ) : undefined
@@ -126,6 +140,7 @@ export function AppShell() {
           >
             {section.items.map((item) => {
               const active = location.pathname === item.path;
+
               const button = (
                 <ListItemButton
                   selected={active}
@@ -138,7 +153,8 @@ export function AppShell() {
                     mb: 0.5,
                     borderRadius: 1,
                     minHeight: 44,
-                    justifyContent: collapsed && !isMobile ? "center" : "flex-start",
+                    justifyContent:
+                      collapsed && !isMobile ? "center" : "flex-start",
                     "&.Mui-selected": {
                       bgcolor: alpha(theme.palette.primary.main, 0.18),
                       color: "primary.main",
@@ -148,7 +164,12 @@ export function AppShell() {
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: collapsed && !isMobile ? "auto" : 36, color: "inherit" }}>
+                  <ListItemIcon
+                    sx={{
+                      minWidth: collapsed && !isMobile ? "auto" : 36,
+                      color: "inherit",
+                    }}
+                  >
                     <Box
                       sx={{
                         width: 24,
@@ -165,7 +186,10 @@ export function AppShell() {
                       {item.glyph}
                     </Box>
                   </ListItemIcon>
-                  {(!collapsed || isMobile) ? <ListItemText primary={item.label} /> : null}
+
+                  {(!collapsed || isMobile) ? (
+                    <ListItemText primary={item.label} />
+                  ) : null}
                 </ListItemButton>
               );
 
@@ -176,6 +200,7 @@ export function AppShell() {
                   </Tooltip>
                 );
               }
+
               return <Box key={item.path}>{button}</Box>;
             })}
           </List>
@@ -183,9 +208,23 @@ export function AppShell() {
       </Box>
 
       <Divider />
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: 1.5 }}>
-        {(!collapsed || isMobile) ? <Typography variant="body2">{username}</Typography> : null}
-        <Button variant="outlined" color="inherit" size="small" onClick={handleLogout}>
+
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ p: 1.5 }}
+      >
+        {(!collapsed || isMobile) ? (
+          <Typography variant="body2">{username}</Typography>
+        ) : null}
+
+        <Button
+          variant="outlined"
+          color="inherit"
+          size="small"
+          onClick={handleLogout}
+        >
           Log out
         </Button>
       </Stack>
@@ -219,21 +258,39 @@ export function AppShell() {
       </Drawer>
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <AppBar position="sticky" color="transparent" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider", backdropFilter: "blur(8px)" }}>
+        <AppBar
+          position="sticky"
+          color="transparent"
+          elevation={0}
+          sx={{
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            backdropFilter: "blur(8px)",
+          }}
+        >
           <Container maxWidth={false}>
-            <Toolbar disableGutters sx={{ justifyContent: "space-between", px: { xs: 1, md: 2 } }}>
+            <Toolbar
+              disableGutters
+              sx={{ justifyContent: "space-between", px: { xs: 1, md: 2 } }}
+            >
               <Stack direction="row" spacing={1} alignItems="center">
                 {isMobile ? (
-                  <IconButton aria-label="Open sidebar" color="inherit" onClick={() => setMobileOpen(true)}>
+                  <IconButton
+                    aria-label="Open sidebar"
+                    color="inherit"
+                    onClick={() => setMobileOpen(true)}
+                  >
                     ≡
                   </IconButton>
                 ) : null}
-                <Typography variant="h6" >
-                  Workspace
-                </Typography>
+
+                <Typography variant="h6">Workspace</Typography>
               </Stack>
+
               <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="body2" color="text.secondary">{username}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {authStorage.getUsername() ?? ""}
+                </Typography>
               </Stack>
             </Toolbar>
           </Container>

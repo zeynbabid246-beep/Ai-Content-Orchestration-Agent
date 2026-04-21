@@ -97,17 +97,20 @@ public class ContentPostService : IContentPostService
         contentPost.Title = Normalize(dto.Title);
         contentPost.ContentType = dto.ContentType;
         contentPost.ContentJson = dto.ContentJson.Trim();
-        if (dto.Status == ContentStatus.Deleted)
-            throw new InvalidOperationException("Use delete endpoint to delete content posts");
+        if (dto.Status != contentPost.Status)
+        {
+            if (dto.Status == ContentStatus.Deleted)
+                throw new InvalidOperationException("Use delete endpoint to delete content posts");
 
-        if (dto.Status == ContentStatus.Scheduled)
-            throw new InvalidOperationException("Use schedule endpoint to move content post to Scheduled");
+            if (dto.Status == ContentStatus.Scheduled)
+                throw new InvalidOperationException("Use schedule endpoint to move content post to Scheduled");
 
-        if (dto.Status == ContentStatus.Published)
-            throw new InvalidOperationException("Use publish endpoint to move content post to Published");
+            if (dto.Status == ContentStatus.Published)
+                throw new InvalidOperationException("Use publish endpoint to move content post to Published");
 
         if (dto.Status != contentPost.Status)
             ApplyLifecycleTransition(contentPost, dto.Status);
+        }
         contentPost.Prompt = Normalize(dto.Prompt);
         contentPost.AiModel = Normalize(dto.AiModel);
         contentPost.AiTokens = dto.AiTokens;

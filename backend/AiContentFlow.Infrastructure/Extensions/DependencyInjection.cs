@@ -1,4 +1,5 @@
 ﻿using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Application.Features.Campaigns;
 using AiContentFlow.Application.Features.Channels;
@@ -57,6 +58,10 @@ public static class DependencyInjection
         services.AddScoped<IChannelService, ChannelService>();
         services.AddScoped<ISocialAccountService, SocialAccountService>();
         services.AddScoped<ICampaignService, CampaignService>();
+
+        // Email Service Configuration
+        services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+        services.AddScoped<IEmailService, SmtpEmailService>();
 
         // 4. FluentValidation (Scans the Application assembly for all validators)
         // Pass a type from your Application layer so it knows which assembly to scan

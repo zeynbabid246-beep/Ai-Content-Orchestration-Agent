@@ -33,6 +33,7 @@ The platform supports:
 
 ## Roles and Permissions
 Roles:
+- `Owner`
 - `Admin`
 - `Editor`
 - `Viewer`

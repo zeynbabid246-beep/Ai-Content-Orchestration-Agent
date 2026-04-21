@@ -1,6 +1,7 @@
 export type EventStatus = "pending" | "progress" | "done";
 
 export interface SchedulerEvent {
+  id?: number | string;
   title: string;
   time: string;
   status: EventStatus;
