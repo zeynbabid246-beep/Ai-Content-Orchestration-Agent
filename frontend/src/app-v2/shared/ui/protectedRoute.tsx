@@ -1,4 +1,4 @@
-// src/app-v2/shared/ui/ProtectedRoute.tsx
+
 import { Navigate, Outlet } from "react-router-dom";
 import { authStorage } from "../lib/storage";
 

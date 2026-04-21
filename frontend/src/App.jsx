@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppV2Entry from './app-v2/app/AppV2Entry';
 

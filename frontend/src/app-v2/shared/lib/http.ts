@@ -23,18 +23,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers: finalHeaders,
   });
 
-  // Handle 401 — attempt token refresh or force logout
   if (response.status === 401 && requiresAuth) {
     const refreshed = await attemptTokenRefresh();
     if (refreshed) {
-      // Retry the original request with the new token
       const retryHeaders = new Headers(finalHeaders);
       const newToken = authStorage.getAccessToken();
       if (newToken) retryHeaders.set("Authorization", `Bearer ${newToken}`);
       const retryResponse = await fetch(`${env.apiBaseUrl}${path}`, { ...rest, headers: retryHeaders });
       return handleResponse<T>(retryResponse);
     } else {
-      // Refresh failed — force logout
       authStorage.clear();
       window.location.href = "/app/login";
       throw new Error("Session expired. Please log in again.");
@@ -45,6 +42,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
+  // 204 No Content — nothing to parse
+  if (response.status === 204) {
+    return null as T;
+  }
+
   let data: unknown = null;
   try {
     data = await response.json();
@@ -68,17 +70,19 @@ async function attemptTokenRefresh(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
+    // env.apiBaseUrl already includes /api, so just append /Auth/refresh
     const response = await fetch(`${env.apiBaseUrl}/Auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ RefreshToken: refreshToken }),
+      body: JSON.stringify({ refreshToken: refreshToken }),
     });
 
     if (!response.ok) return false;
 
     const data = await response.json();
-    if (data?.AccessToken) {
-      authStorage.setTokens(data.AccessToken, data.RefreshToken);
+    // Backend returns camelCase JSON
+    if (data?.accessToken) {
+      authStorage.setTokens(data.accessToken, data.refreshToken);
       return true;
     }
     return false;

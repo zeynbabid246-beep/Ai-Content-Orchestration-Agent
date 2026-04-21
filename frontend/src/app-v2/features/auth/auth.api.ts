@@ -10,8 +10,11 @@ export async function login(payload: LoginRequest) {
       Password: payload.password,
     }),
   });
-  authStorage.setTokens(response.AccessToken, response.RefreshToken);
-  authStorage.setUser(response.UserId, response.Username);
+
+  // Backend returns camelCase JSON
+  authStorage.setTokens(response.accessToken, response.refreshToken);
+  authStorage.setUser(String(response.userId), response.username);
+  authStorage.setTeam(String(response.teamId), response.teamRole);
   return response;
 }
 
@@ -24,7 +27,10 @@ export async function register(payload: RegisterRequest) {
       Password: payload.password,
     }),
   });
-  authStorage.setTokens(response.AccessToken, response.RefreshToken);
-  authStorage.setUser(response.UserId, response.Username);
+
+  // Backend returns camelCase JSON
+  authStorage.setTokens(response.accessToken, response.refreshToken);
+  authStorage.setUser(String(response.userId), response.username);
+  authStorage.setTeam(String(response.teamId), response.teamRole);
   return response;
 }

@@ -3,9 +3,6 @@ import {
   Avatar,
   Box,
   Chip,
-  Collapse,
-  Divider,
-  IconButton,
   Paper,
   Stack,
   Table,
@@ -16,25 +13,16 @@ import {
   Typography,
   TextField,
   MenuItem,
-  Select,
   FormControl,
   InputLabel,
+  Select,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
-import { useMembersQuery } from "./members.queries";
-import type { Member, MemberActivity } from "./member.types";
+import { useTeamMembersQuery } from "./teams.queries";
+import type { TeamMember } from "./teams.type";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(date?: string) {
-  if (!date) return "—";
-  return new Date(date).toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function timeAgo(date?: string) {
   if (!date) return "Never";
@@ -47,278 +35,46 @@ function timeAgo(date?: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ─── Configs ──────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<string, { color: "success" | "warning" | "error" | "default" | "info" }> = {
-  Accepted:  { color: "success" },
-  Invited:   { color: "warning" },
-  Rejected:  { color: "error"   },
-  Suspended: { color: "default" },
-};
-
 const ROLE_COLOR: Record<string, "primary" | "secondary" | "info" | "warning"> = {
   Admin:  "info",
   Editor: "primary",
   Viewer: "secondary",
 };
 
-const PLATFORM_COLOR: Record<string, string> = {
-  LinkedIn:  "#0A66C2",
-  Instagram: "#E1306C",
-  Facebook:  "#1877F2",
-};
+const AVATAR_COLORS = [
+  "#7c3aed", "#0891b2", "#059669", "#d97706", "#db2777",
+];
 
-const ACTIVITY_ICON: Record<string, string> = {
-  LOGIN:          "→",
-  LOGOUT:         "←",
-  POST_CREATED:   "✎",
-  POST_PUBLISHED: "➤",
-  INVITE_SENT:    "✉",
-};
-
-const ACTIVITY_COLOR: Record<string, string> = {
-  LOGIN:          "#22c55e",
-  LOGOUT:         "#94a3b8",
-  POST_CREATED:   "#a78bfa",
-  POST_PUBLISHED: "#f59e0b",
-  INVITE_SENT:    "#38bdf8",
-};
-
-// ─── Platform chips ───────────────────────────────────────────────────────────
-
-function PlatformChips({ platforms }: { platforms: string[] }) {
-  if (platforms.length === 0)
-    return <Typography variant="caption" color="text.disabled">None</Typography>;
-  return (
-    <Stack direction="row" spacing={0.5} flexWrap="wrap">
-      {platforms.map((p) => (
-        <Chip
-          key={p}
-          size="small"
-          label={p}
-          sx={{
-            fontSize: "0.65rem",
-            height: 20,
-            bgcolor: `${PLATFORM_COLOR[p] ?? "#888"}22`,
-            color: PLATFORM_COLOR[p] ?? "#888",
-            border: `1px solid ${PLATFORM_COLOR[p] ?? "#888"}44`,
-            borderRadius: 1,
-          }}
-        />
-      ))}
-    </Stack>
-  );
+function getInitials(username: string) {
+  return username
+    .replace(/[._@]/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "??";
 }
 
-// ─── Activity timeline item ───────────────────────────────────────────────────
-
-function ActivityItem({ activity, isLast }: { activity: MemberActivity; isLast: boolean }) {
-  const icon  = ACTIVITY_ICON[activity.type]  ?? "•";
-  const color = ACTIVITY_COLOR[activity.type] ?? "#94a3b8";
-
-  return (
-    <Stack direction="row" spacing={2}>
-      <Stack alignItems="center">
-        <Box
-          sx={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            bgcolor: `${color}18`,
-            border: `1.5px solid ${color}55`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.7rem",
-            color,
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </Box>
-        {!isLast && (
-          <Box sx={{ width: 1.5, flex: 1, bgcolor: "rgba(255,255,255,0.07)", minHeight: 16 }} />
-        )}
-      </Stack>
-
-      <Box pb={isLast ? 0 : 2} flex={1}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-          <Stack spacing={0.3}>
-            <Typography variant="body2" fontWeight={500}>
-              {activity.description}
-            </Typography>
-            {activity.platform && (
-              <Chip
-                size="small"
-                label={activity.platform}
-                sx={{
-                  width: "fit-content",
-                  fontSize: "0.6rem",
-                  height: 18,
-                  bgcolor: `${PLATFORM_COLOR[activity.platform] ?? "#888"}18`,
-                  color: PLATFORM_COLOR[activity.platform] ?? "#888",
-                  borderRadius: 0.75,
-                }}
-              />
-            )}
-          </Stack>
-          <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0, ml: 2, mt: 0.2 }}>
-            {formatDate(activity.timestamp)}
-          </Typography>
-        </Stack>
-      </Box>
-    </Stack>
-  );
-}
-
-// ─── Member row ───────────────────────────────────────────────────────────────
-
-function MemberRow({ member }: { member: Member }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <TableRow
-        hover
-        sx={{
-          "& td": { borderBottom: open ? "none" : undefined },
-          bgcolor: open ? "rgba(255,255,255,0.02)" : undefined,
-        }}
-      >
-        <TableCell>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar
-              sx={{
-                bgcolor: member.customColor,
-                width: 38,
-                height: 38,
-                fontSize: "0.75rem",
-                fontWeight: 700,
-              }}
-            >
-              {member.initials}
-            </Avatar>
-            <Box>
-              <Typography variant="body2" fontWeight={600}>
-                {member.name}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {member.email}
-              </Typography>
-            </Box>
-          </Stack>
-        </TableCell>
-
-        <TableCell>
-          <Chip
-            size="small"
-            label={member.role}
-            color={ROLE_COLOR[member.role] ?? "default"}
-            sx={{ borderRadius: 1, fontSize: "0.7rem" }}
-          />
-        </TableCell>
-
-        <TableCell>
-          <Chip
-            size="small"
-            label={member.status}
-            color={STATUS_CONFIG[member.status]?.color ?? "default"}
-            sx={{ borderRadius: 1, fontSize: "0.7rem" }}
-          />
-        </TableCell>
-
-        <TableCell>
-          <Typography variant="body2">{formatDate(member.invitedAt)}</Typography>
-        </TableCell>
-
-        <TableCell>
-          <Stack spacing={0.2}>
-            <Typography variant="body2">{timeAgo(member.lastActiveAt)}</Typography>
-            {member.lastActiveAt && (
-              <Typography variant="caption" color="text.disabled">
-                {formatDate(member.lastActiveAt)}
-              </Typography>
-            )}
-          </Stack>
-        </TableCell>
-
-        <TableCell>
-          <PlatformChips platforms={member.platformsConnected} />
-        </TableCell>
-
-        <TableCell align="right">
-          <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
-            <Chip
-              size="small"
-              label={`${member.activity.length} events`}
-              sx={{ fontSize: "0.65rem", height: 20, bgcolor: "rgba(255,255,255,0.06)", borderRadius: 1 }}
-            />
-            <IconButton
-              size="small"
-              onClick={() => setOpen(!open)}
-              sx={{
-                fontSize: "0.75rem",
-                color: open ? "primary.main" : "text.secondary",
-                transition: "transform 0.2s",
-                transform: open ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              ▼
-            </IconButton>
-          </Stack>
-        </TableCell>
-      </TableRow>
-
-      <TableRow>
-        <TableCell colSpan={7} sx={{ p: 0, border: "none" }}>
-          <Collapse in={open} timeout="auto" unmountOnExit>
-            <Box
-              sx={{
-                px: 3,
-                py: 2.5,
-                bgcolor: "rgba(255,255,255,0.015)",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Activity History
-                </Typography>
-                <Typography variant="caption" color="text.disabled">
-                  {member.activity.length} recorded event{member.activity.length !== 1 ? "s" : ""}
-                </Typography>
-              </Stack>
-
-              <Stack spacing={0}>
-                {member.activity.map((a, i) => (
-                  <ActivityItem
-                    key={a.id}
-                    activity={a}
-                    isLast={i === member.activity.length - 1}
-                  />
-                ))}
-              </Stack>
-            </Box>
-          </Collapse>
-        </TableCell>
-      </TableRow>
-    </>
-  );
+function getAvatarColor(userId: string) {
+  let hash = 0;
+  for (const char of userId) hash += char.charCodeAt(0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 // ─── Summary stats bar ────────────────────────────────────────────────────────
 
-function SummaryBar({ members }: { members: Member[] }) {
-  const total     = members.length;
-  const accepted  = members.filter((m) => m.status === "Accepted").length;
-  const pending   = members.filter((m) => m.status === "Invited").length;
-  const suspended = members.filter((m) => m.status === "Suspended").length;
+function SummaryBar({ members }: { members: TeamMember[] }) {
+  const total  = members.length;
+  const admins  = members.filter((m) => m.role === "Admin").length;
+  const editors = members.filter((m) => m.role === "Editor").length;
+  const viewers = members.filter((m) => m.role === "Viewer").length;
 
   const stats = [
-    { label: "Total Invited", value: total,     color: "#a78bfa" },
-    { label: "Accepted",      value: accepted,  color: "#22c55e" },
-    { label: "Pending",       value: pending,   color: "#f59e0b" },
-    { label: "Suspended",     value: suspended, color: "#94a3b8" },
+    { label: "Total Members", value: total,   color: "#a78bfa" },
+    { label: "Admins",        value: admins,   color: "#38bdf8" },
+    { label: "Editors",       value: editors,  color: "#22c55e" },
+    { label: "Viewers",       value: viewers,  color: "#f59e0b" },
   ];
 
   return (
@@ -340,28 +96,38 @@ function SummaryBar({ members }: { members: Member[] }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function MembersHistoryPage() {
-  const { data: members = [] } = useMembersQuery();
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [roleFilter,   setRoleFilter]   = useState("All");
+  const { data: members = [], isLoading, isError } = useTeamMembersQuery();
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("All");
 
   const filtered = members.filter((m) => {
     const matchSearch =
-      m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "All" || m.status === statusFilter;
-    const matchRole   = roleFilter   === "All" || m.role   === roleFilter;
-    return matchSearch && matchStatus && matchRole;
+      m.username.toLowerCase().includes(search.toLowerCase()) ||
+      m.userId.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "All" || m.role === roleFilter;
+    return matchSearch && matchRole;
   });
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" py={6}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isError) {
+    return <Alert severity="error">Failed to load team activity data.</Alert>;
+  }
 
   return (
     <Stack spacing={3}>
       <Box>
         <Typography variant="h4" fontWeight={700}>
-          Invited Users History
+          Team Activity
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
-          TRACK INVITES, LOGINS, AND SOCIAL PLATFORM ACTIVITY
+          TRACK TEAM MEMBERS AND THEIR PARTICIPATION
         </Typography>
       </Box>
 
@@ -370,23 +136,11 @@ export function MembersHistoryPage() {
       <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
         <TextField
           size="small"
-          placeholder="Search by name or email…"
+          placeholder="Search by username…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ flex: 1 }}
         />
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Status</InputLabel>
-          <Select
-            value={statusFilter}
-            label="Status"
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {["All", "Accepted", "Invited", "Rejected", "Suspended"].map((s) => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Role</InputLabel>
           <Select
@@ -407,22 +161,67 @@ export function MembersHistoryPage() {
             <TableRow>
               <TableCell>User</TableCell>
               <TableCell>Role</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Invited At</TableCell>
-              <TableCell>Last Active</TableCell>
-              <TableCell>Platforms</TableCell>
-              <TableCell align="right">Activity</TableCell>
+              <TableCell>Joined At</TableCell>
+              <TableCell>Time Since Joined</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                   <Typography color="text.disabled">No members match your filters.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((m) => <MemberRow key={m.id} member={m} />)
+              filtered.map((m) => (
+                <TableRow key={m.userId} hover>
+                  <TableCell>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Avatar
+                        sx={{
+                          bgcolor: getAvatarColor(m.userId),
+                          width: 38,
+                          height: 38,
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {getInitials(m.username)}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {m.username}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={m.role}
+                      color={ROLE_COLOR[m.role] ?? "default"}
+                      sx={{ borderRadius: 1, fontSize: "0.7rem" }}
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Typography variant="body2">
+                      {new Date(m.joinedAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Typography>
+                  </TableCell>
+
+                  <TableCell>
+                    <Typography variant="body2">
+                      {timeAgo(m.joinedAt)}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

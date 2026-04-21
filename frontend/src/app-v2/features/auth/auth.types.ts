@@ -9,9 +9,14 @@ export interface RegisterRequest {
   password: string;
 }
 
+// Backend uses ASP.NET Core default camelCase JSON serialization
 export interface AuthResponse {
-  AccessToken: string;
-  RefreshToken: string;
-  UserId: string;
-  Username: string;
+  accessToken: string;
+  refreshToken: string;
+  userId: string;
+  username: string;
+  email: string;
+  teamId: string;
+  teamRole: string;
+  isTeamNameSetupRequired: boolean;
 }
