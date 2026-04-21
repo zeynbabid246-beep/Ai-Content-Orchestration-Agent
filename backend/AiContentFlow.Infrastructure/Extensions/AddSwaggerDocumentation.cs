@@ -16,13 +16,19 @@ namespace AiContentFlow.Infrastructure.Extensions
                 {
                     Name = "Authorization",
                     Type = SecuritySchemeType.Http,
-                    Scheme = "Bearer",
+                    Scheme = "bearer",
                     BearerFormat = "JWT",
                     In = ParameterLocation.Header,
-                    Description = "Enter your JWT token."
+                    Description = "Enter JWT token only (without the 'Bearer ' prefix)."
                 });
 
-
+                options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecuritySchemeReference("Bearer", _, null),
+                        []
+                    }
+                });
             });
 
             return services;

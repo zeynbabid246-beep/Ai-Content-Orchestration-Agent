@@ -25,7 +25,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can create content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can create content posts");
 
         await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
 
@@ -82,7 +82,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> UpdateAsync(Guid teamId, int contentPostId, string requestingUserId, UpdateContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can update content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can update content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -129,7 +129,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> TransitionStatusAsync(Guid teamId, int contentPostId, string requestingUserId, TransitionContentPostStatusDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can transition content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can transition content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -154,7 +154,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> ScheduleAsync(Guid teamId, int contentPostId, string requestingUserId, ScheduleContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can schedule content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can schedule content posts");
 
         if (dto.ScheduledAt.Kind != DateTimeKind.Utc)
             throw new InvalidOperationException("ScheduledAt must be in UTC");
@@ -176,7 +176,7 @@ public class ContentPostService : IContentPostService
 
     public async Task<ContentPostResponseDto> PublishAsync(Guid teamId, int contentPostId, string requestingUserId, PublishContentPostDto dto)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can publish content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can publish content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -194,7 +194,7 @@ public class ContentPostService : IContentPostService
 
     public async Task DeleteAsync(Guid teamId, int contentPostId, string requestingUserId)
     {
-        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin can delete content posts");
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can delete content posts");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
@@ -345,7 +345,7 @@ public class ContentPostService : IContentPostService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
+        if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
             throw new UnauthorizedAccessException(permissionErrorMessage);
     }
 

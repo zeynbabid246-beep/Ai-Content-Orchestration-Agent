@@ -34,8 +34,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
+        // If you don't touch it, the default is localhost:5073/swagger 
         // If you leave RoutePrefix empty, the URL is just localhost:5073/
-        // If you don't touch it, the default is localhost:5073/swagger
+
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
     });
 }

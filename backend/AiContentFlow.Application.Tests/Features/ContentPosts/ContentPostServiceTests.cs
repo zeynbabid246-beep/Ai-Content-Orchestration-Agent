@@ -166,6 +166,42 @@ public class ContentPostServiceTests
     }
 
     [Fact]
+    public async Task ScheduleAsync_WhenRequesterRoleIsEditor_AllowsScheduling()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var socialRepo = new Mock<ISocialAccountRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+
+        var teamId = Guid.NewGuid();
+        var contentPost = new ContentPost
+        {
+            Id = 20,
+            TeamId = teamId,
+            ContentJson = "{}",
+            ContentType = ContentType.LinkedInPost,
+            Status = ContentStatus.Ready,
+            CreatedByUserId = "editor-1",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "editor-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "editor-1", Role = TeamRole.Editor, JoinedAt = DateTime.UtcNow });
+        contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 20)).ReturnsAsync(contentPost);
+
+        var scheduledAt = DateTime.UtcNow.AddMinutes(30);
+
+        var result = await service.ScheduleAsync(teamId, 20, "editor-1", new ScheduleContentPostDto(scheduledAt));
+
+        Assert.Equal(ContentStatus.Scheduled, result.Status);
+        Assert.Equal(scheduledAt, result.ScheduledAt);
+        contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task ScheduleAndPublishAsync_WhenLifecycleIsValid_Succeeds()
     {
         var contentPostRepo = new Mock<IContentPostRepository>();

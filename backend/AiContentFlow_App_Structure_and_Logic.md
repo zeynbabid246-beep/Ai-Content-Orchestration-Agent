@@ -95,8 +95,8 @@ Team name completion endpoint:
 ## Authorization Logic
 
 Role policies:
-- `Admin`: channels, social accounts, content post mutations, team management
-- `Editor`: campaign mutations (`create/update/delete/link/unlink`)
+- `Admin`: channels, social accounts, content post mutations, campaign mutations, team management
+- `Editor`: content post mutations (`create/update/delete/transition/schedule/publish`) and campaign mutations (`create/update/delete/link/unlink`)
 - `Viewer`: read-only
 
 Cross-entity tenant guards:

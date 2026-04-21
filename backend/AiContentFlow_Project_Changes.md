@@ -293,3 +293,24 @@ This document records the main foundation updates made to the AiContentFlow back
 
 ## Notes
 - Existing `NU1510`/nullable warnings remain from prior configuration and were not expanded in scope.
+
+---
+
+## Date
+- **2026-04-17**
+
+## What Was Done
+
+### 32) Swagger bearer security requirement was corrected
+- Fixed Swagger OpenAPI security requirement wiring so bearer auth is applied to operations in generated `swagger.json`.
+- Confirmed security metadata now includes global bearer requirement (`"security": { "Bearer": [] }`).
+- Kept bearer scheme configured as HTTP `bearer` with JWT format.
+
+### 33) Content post mutation permissions were updated for `Editor`
+- Updated `ContentPostService` mutation guard to allow both `Admin` and `Editor` for post-related mutations in team scope.
+- Updated mutation permission messages accordingly.
+- Added unit test coverage for editor scheduling path (`ScheduleAsync_WhenRequesterRoleIsEditor_AllowsScheduling`).
+
+## Validation
+- `dotnet build -v minimal` succeeded.
+- `AiContentFlow.Application.Tests.Features.ContentPosts.ContentPostServiceTests` run succeeded: `12 passed, 0 failed`.
