@@ -14,8 +14,15 @@ import {
   Typography,
 } from "@mui/material";
 
+import {
+  useSchedulerEventsQuery,
+  useCreateSchedulerEventMutation,
+  useUpdateSchedulerEventMutation,
+  useDeleteSchedulerEventMutation,
+} from "./scheduler.queries";
+
 type EventStatus = "pending" | "progress" | "done";
-type EventItem = { title: string; time: string; status: EventStatus; notes: string; color: string };
+type EventItem = { id?: number | string, title: string; time: string; status: EventStatus; notes: string; color: string };
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -29,9 +36,15 @@ export function SchedulerPage() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [events, setEvents] = useState<Record<string, EventItem[]>>({});
+  
+  const { data: events = {}, isLoading } = useSchedulerEventsQuery();
+  const createMutation = useCreateSchedulerEventMutation();
+  const updateMutation = useUpdateSchedulerEventMutation();
+  const deleteMutation = useDeleteSchedulerEventMutation();
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [form, setForm] = useState<EventItem>({ title: "", time: "09:00", status: "pending", notes: "", color: COLORS[0] });
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
@@ -50,13 +63,38 @@ export function SchedulerPage() {
   const openModal = (day: number) => {
     setSelectedDate(dateKey(viewYear, viewMonth, day));
     setForm({ title: "", time: "09:00", status: "pending", notes: "", color: COLORS[0] });
+    setIsEditMode(false);
     setModalOpen(true);
   };
 
-  const addEvent = () => {
+  const openEditModal = (e: React.MouseEvent, key: string, event: EventItem) => {
+    e.stopPropagation();
+    setSelectedDate(key);
+    setForm(event);
+    setIsEditMode(true);
+    setModalOpen(true);
+  };
+
+  const submitEvent = () => {
     if (!selectedDate || !form.title.trim()) return;
-    setEvents((prev) => ({ ...prev, [selectedDate]: [...(prev[selectedDate] || []), form] }));
-    setForm((prev) => ({ ...prev, title: "", notes: "" }));
+    
+    if (isEditMode && form.id) {
+       updateMutation.mutate(
+         { dateKey: selectedDate, event: form },
+         { onSuccess: () => setModalOpen(false) }
+       );
+    } else {
+       createMutation.mutate(
+         { dateKey: selectedDate, event: form },
+         { onSuccess: () => setModalOpen(false) }
+       );
+    }
+  };
+
+  const deleteEvent = () => {
+    if (isEditMode && form.id) {
+       deleteMutation.mutate(form.id, { onSuccess: () => setModalOpen(false) });
+    }
   };
 
   return (
@@ -81,10 +119,15 @@ export function SchedulerPage() {
           ))}
         </Box>
 
-        {weeks.map((week, weekIndex) => (
-          <Box key={`w-${weekIndex}`} sx={{ mt: 0.5, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1 }}>
-            {week.map((day, dayIndex) => {
-              const key = day ? dateKey(viewYear, viewMonth, day) : "";
+        {isLoading ? (
+          <Box display="flex" justifyContent="center" py={6}>
+            <Typography color="text.secondary">Loading calendar...</Typography>
+          </Box>
+        ) : (
+          weeks.map((week, weekIndex) => (
+            <Box key={`w-${weekIndex}`} sx={{ mt: 0.5, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1 }}>
+              {week.map((day, dayIndex) => {
+                const key = day ? dateKey(viewYear, viewMonth, day) : "";
               const dayEvents = day ? (events[key] || []) : [];
               return (
                 <Box key={`d-${weekIndex}-${dayIndex}`}>
@@ -102,8 +145,14 @@ export function SchedulerPage() {
                   >
                     <Typography variant="caption">{day ?? ""}</Typography>
                     <Stack spacing={0.5} mt={0.5}>
-                      {dayEvents.slice(0, 2).map((event, index) => (
-                        <Chip key={`${event.title}-${index}`} size="small" label={event.title} sx={{ bgcolor: event.color, color: "common.white", borderRadius: 1 }} />
+                      {dayEvents.slice(0, 5).map((event, index) => (
+                        <Chip 
+                          key={`${event.title}-${index}`} 
+                          size="small" 
+                          label={event.title} 
+                          onClick={(e) => openEditModal(e, key, event as EventItem)}
+                          sx={{ bgcolor: event.color, color: "common.white", borderRadius: 1, '&:hover': { opacity: 0.8 } }} 
+                        />
                       ))}
                     </Stack>
                   </Paper>
@@ -111,7 +160,7 @@ export function SchedulerPage() {
               );
             })}
           </Box>
-        ))}
+        )))}
       </Paper>
 
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth maxWidth="sm">
@@ -134,8 +183,15 @@ export function SchedulerPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setModalOpen(false)}>Close</Button>
-          <Button variant="contained" onClick={addEvent}>Add event</Button>
+          {isEditMode && (
+             <Button color="error" onClick={deleteEvent} disabled={deleteMutation.isPending} sx={{ mr: "auto" }}>
+               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+             </Button>
+          )}
+          <Button onClick={() => setModalOpen(false)} disabled={createMutation.isPending || updateMutation.isPending}>Close</Button>
+          <Button variant="contained" onClick={submitEvent} disabled={createMutation.isPending || updateMutation.isPending || !form.title.trim()}>
+            {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditMode ? "Save Changes" : "Add event"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Stack>

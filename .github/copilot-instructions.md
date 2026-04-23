@@ -35,11 +35,13 @@ The platform supports:
 Roles:
 - `Owner`
 - `Admin`
+- `Editor`
 - `Viewer`
 
 Note:
-- Current implemented team-role model is `Owner`, `Admin`, `Viewer`.
-- If `Editor` is introduced later, update domain enum + authorization rules first, then update this file.
+- Current implemented team-role model is `Admin`, `Editor`, `Viewer`.
+- `Admin` is owner-equivalent role.
+- Editors can perform all content-post workflow mutations in their team scope (`create/update/delete/transition/schedule/publish`).
 
 Rules:
 - All data belongs to a `Team`.
@@ -127,30 +129,13 @@ These areas are still evolving:
 - use `PostVariant` for social-platform variants; do not introduce or keep a separate `PostPlatform` entity
 
 ## Next Delivery Priority (Execution Order)
-1. Implement `ContentPost` lifecycle workflow hardening (`Draft -> Ready -> Scheduled -> Published`).
+1. Keep authorization and documentation aligned with runtime behavior, especially team-role policies.
 
 ## Next Steps (Execution Checklist)
-1. Add explicit lifecycle transition rules in `ContentPostService`.
-   - Allow only valid status transitions.
-   - Reject invalid transitions as domain violations (`400`).
-2. Add scheduling use case for content posts.
-   - Validate `ScheduledAt` is UTC and in the future.
-   - Enforce team membership and Owner/Admin permissions for scheduling mutations.
-3. Add publish execution path (manual trigger first).
-   - Set `PublishedAt` and transition status consistently.
-   - Keep orchestration in `Application`; avoid controller business logic.
-4. Extend API endpoints for workflow actions under `api/teams/{teamId}/content-posts`.
-   - Keep controllers thin and DTO-only.
-   - Preserve current error mapping (`404` missing team-scoped resource, `400` rule violation, `403` membership/role).
-5. Add focused tests for lifecycle and scheduling paths.
-   - Invalid transition rejection.
-   - Cross-team access rejection.
-   - Role violation rejection.
-   - Valid schedule/publish flow.
-6. Update docs and traceability after implementation.
-   - `AiContentFlow_API_Endpoints.md`
-   - `AiContentFlow_App_Structure_and_Logic.md`
-   - `AiContentFlow_Project_Changes.md`
+1. Keep role enforcement consistent across modules (`Admin`, `Editor`, `Viewer`) without reintroducing `Owner`.
+2. Expand focused tests for role boundaries and tenant isolation where new endpoints are added.
+3. Continue content workflow delivery while keeping controllers thin and service-layer orchestration.
+4. Keep docs and traceability updated after each behavior change.
 
 ## Implementation Status Snapshot
 - `ContentPost` + `PostVariant` iteration is implemented:
@@ -183,7 +168,7 @@ These areas are still evolving:
   - Unit tests cover campaign tenant-isolation and link/unlink rules.
 
 ## Traceability
-- Last completed migration: `AddCampaignSlice`.
+- Last completed migration: `20260416102043_SimplifyTeamRolesToAdminEditorViewer`.
 
 ## Known Technical Blockers
 - Intermittent/blocked NuGet restore access to `https://api.nuget.org/v3/index.json` can prevent full restore/test runs.

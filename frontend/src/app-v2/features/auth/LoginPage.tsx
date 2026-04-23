@@ -3,6 +3,7 @@ import { Alert, Box, Button, Paper, Stack, TextField, Typography } from "@mui/ma
 import { useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { login } from "./auth.api";
+import { ROUTES } from "../../shared/lib/routes";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export function LoginPage() {
 
   const mutation = useMutation({
     mutationFn: login,
-    onSuccess: () => navigate("/app/brands"),
+    onSuccess: () => navigate(ROUTES.dashboard, { replace: true }),
   });
 
   const handleSubmit = () => {
@@ -28,33 +29,40 @@ export function LoginPage() {
     <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center" }}>
       <Paper sx={{ width: "100%", maxWidth: 450, p: 4 }}>
         <Stack spacing={2}>
-          <Typography variant="h4" >
-            Sign in
-          </Typography>
+          <Typography variant="h4">Sign in</Typography>
           <Typography variant="body2" color="text.secondary">
             Access your enterprise workspace.
           </Typography>
 
-          {fieldError ? <Alert severity="warning">{fieldError}</Alert> : null}
-          {mutation.isError ? <Alert severity="error">{(mutation.error as Error).message}</Alert> : null}
+          {fieldError && <Alert severity="warning">{fieldError}</Alert>}
+          {mutation.isError && (
+            <Alert severity="error">{(mutation.error as Error).message}</Alert>
+          )}
 
-          <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <TextField
+            label="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
           <TextField
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-            }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
           />
 
-          <Button variant="contained" onClick={handleSubmit} disabled={mutation.isPending}>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Signing in..." : "Sign in"}
           </Button>
 
           <Typography variant="body2" color="text.secondary">
-            No account? <RouterLink to="/app/register">Create one</RouterLink>
+            No account?{" "}
+            <RouterLink to={ROUTES.register}>Create one</RouterLink>
           </Typography>
         </Stack>
       </Paper>

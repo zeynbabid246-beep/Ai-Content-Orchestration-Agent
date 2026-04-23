@@ -5,8 +5,11 @@
 
 ## Authentication Overview
 1. Register with `POST /api/Auth/register`
-2. Use `accessToken` with `Bearer <token>` in protected routes
+2. Use `accessToken` as bearer token in protected routes
 3. Refresh with `POST /api/Auth/refresh`
+
+Swagger note:
+- In Swagger `Authorize`, paste the raw JWT token value only (without `Bearer ` prefix).
 
 ## Standard Error Shape
 ```json
@@ -18,7 +21,7 @@
 
 ## Permission Matrix (Team Scope)
 - `Admin`: full team mutation rights
-- `Editor`: campaign mutations (create/update/delete/link/unlink)
+- `Editor`: content post mutations (create/update/delete/transition/schedule/publish) and campaign mutations (create/update/delete/link/unlink)
 - `Viewer`: read-only
 
 ---
@@ -388,7 +391,7 @@ Publish rules:
 - `platformPostId` / `platformPostUrl` are optional metadata fields.
 
 Workflow error behavior:
-- `403 Forbidden`: requester is not team member or lacks `Admin` role for workflow mutations.
+- `403 Forbidden`: requester is not team member or lacks `Admin/Editor` role for workflow mutations.
 - `404 Not Found`: team-scoped content post does not exist.
 - `400 Bad Request`: invalid lifecycle transition or invalid scheduling input.
 
@@ -488,7 +491,7 @@ Validation behavior:
 2. Open Swagger (`/swagger`).
 3. Register user.
 4. Login and copy `accessToken`.
-5. Authorize with `Bearer <accessToken>`.
+5. Authorize by pasting raw `accessToken` in Swagger (do not include `Bearer ` prefix).
 6. Copy `teamId` from auth response.
 7. (Optional) complete onboarding name via `PUT /api/Team/{teamId}/name` if `isTeamNameSetupRequired=true`.
 8. Create a channel via `POST /api/teams/{teamId}/channels`.

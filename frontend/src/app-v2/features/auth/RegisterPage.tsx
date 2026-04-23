@@ -3,6 +3,7 @@ import { Alert, Box, Button, Paper, Stack, TextField, Typography } from "@mui/ma
 import { useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { register } from "./auth.api";
+import { ROUTES } from "../../shared/lib/routes";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export function RegisterPage() {
 
   const mutation = useMutation({
     mutationFn: register,
-    onSuccess: () => navigate("/app/brands"),
+    onSuccess: () => navigate(ROUTES.dashboard, { replace: true }),
   });
 
   const handleSubmit = () => {
@@ -31,19 +32,32 @@ export function RegisterPage() {
     <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center" }}>
       <Paper sx={{ width: "100%", maxWidth: 500, p: 4 }}>
         <Stack spacing={2}>
-          <Typography variant="h4" >
-            Register
-          </Typography>
+          <Typography variant="h4">Register</Typography>
           <Typography variant="body2" color="text.secondary">
             Create your ContentFlow enterprise account.
           </Typography>
 
-          {validationError ? <Alert severity="warning">{validationError}</Alert> : null}
-          {mutation.isError ? <Alert severity="error">{(mutation.error as Error).message}</Alert> : null}
+          {validationError && <Alert severity="warning">{validationError}</Alert>}
+          {mutation.isError && (
+            <Alert severity="error">{(mutation.error as Error).message}</Alert>
+          )}
 
-          <TextField label="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-          <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <TextField
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <TextField
+            label="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <TextField
             label="Confirm password"
             type="password"
@@ -51,12 +65,17 @@ export function RegisterPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
 
-          <Button variant="contained" onClick={handleSubmit} disabled={mutation.isPending || Boolean(validationError)}>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={mutation.isPending || Boolean(validationError)}
+          >
             {mutation.isPending ? "Creating..." : "Create account"}
           </Button>
 
           <Typography variant="body2" color="text.secondary">
-            Already have an account? <RouterLink to="/app/login">Sign in</RouterLink>
+            Already have an account?{" "}
+            <RouterLink to={ROUTES.login}>Sign in</RouterLink>
           </Typography>
         </Stack>
       </Paper>

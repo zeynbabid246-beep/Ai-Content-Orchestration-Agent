@@ -46,8 +46,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
+<<<<<<< HEAD
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "AiContentFlow API v1");
         options.RoutePrefix = "swagger"; // optional (default)
+=======
+        // If you don't touch it, the default is localhost:5073/swagger 
+        // If you leave RoutePrefix empty, the URL is just localhost:5073/
+
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+>>>>>>> 6c86c05b86b6dc509665b451b0bd8a28ac642eb3
     });
 }
 
