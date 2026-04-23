@@ -126,6 +126,7 @@ Services/
  JwtTokenGenerator.cs
  LinkedInAuthService.cs
  MetaAuthService.cs
+ SmtpEmailService.cs
 Workers/PublishWorker.cs
 
 [metadataReferences]

@@ -63,6 +63,7 @@ Common/Interfaces/
  ICampaignRepository.cs
  IChannelRepository.cs
  IContentPostRepository.cs
+ IEmailService.cs
  IIdentityService.cs
  IImageGenerationService.cs
  IJwtTokenGenerator.cs
@@ -75,6 +76,7 @@ Common/Interfaces/
  ISocialAuthService.cs
  ITeamRepository.cs
  ITextGenerationService.cs
+Common/Models/EmailSettings.cs
 Dtos/PublishResult.cs
 Features/Auth/
  AuthService.cs
