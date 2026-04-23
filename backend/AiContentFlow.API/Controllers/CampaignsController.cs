@@ -26,7 +26,7 @@ public class CampaignsController : ControllerBase
             return Unauthorized("User ID not found in token");
 
         var result = await _campaignService.CreateAsync(teamId, userId, dto);
-        //var result = await createaCampaignFeature.ExecuteAsync(do);
+        //var result = await create CampaignFeature.ExecuteAsync(do);
 
         //application : create feature folder : ICreateCampaignFeature + Its implementation
         return CreatedAtAction(nameof(GetById), new { teamId, campaignId = result.Id }, result);

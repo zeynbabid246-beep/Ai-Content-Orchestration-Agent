@@ -23,7 +23,9 @@ public class ContentPostRepository : IContentPostRepository
     {
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
-            .FirstOrDefaultAsync(cp => cp.TeamId == teamId && cp.Id == contentPostId && cp.Status != ContentStatus.Deleted);
+            .FirstOrDefaultAsync(cp => cp.TeamId == teamId 
+                                    && cp.Id == contentPostId 
+                                    && cp.Status != ContentStatus.Deleted);
     }
 
     public async Task<List<ContentPost>> GetByTeamAsync(Guid teamId)
@@ -33,6 +35,58 @@ public class ContentPostRepository : IContentPostRepository
             .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Deleted)
             .OrderByDescending(cp => cp.CreatedAt)
             .ToListAsync();
+    }
+
+    public async Task<List<ContentPost>> GetByStatusAsync(Guid teamId, ContentStatus status)
+    {
+        return await _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .Where(p => p.TeamId == teamId && p.Status == status)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<ContentPost>> GetScheduledAsync(Guid teamId)
+    {
+        return await _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Scheduled)
+            .OrderBy(p => p.ScheduledAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<ContentPost>> GetDeletedAsync(Guid teamId)
+    {
+        return await _context.ContentPosts
+            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Deleted)
+            .OrderByDescending(p => p.UpdatedAt)
+            .ToListAsync();
+    }
+
+    
+    public async Task<List<ContentPost>> GetAllAsync()
+    {
+        return await _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .OrderByDescending(cp => cp.CreatedAt)
+            .ToListAsync();
+    }
+
+    
+    public async Task<List<ContentPost>> GetDueScheduledPostsAsync()
+    {
+        return await _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .Where(p => p.Status == ContentStatus.Scheduled 
+                     && p.ScheduledAt <= DateTime.UtcNow)
+            .OrderBy(p => p.ScheduledAt)
+            .ToListAsync();
+    }
+
+    public async Task<ContentPost> UpdateAsync(ContentPost post)
+    {
+        _context.ContentPosts.Update(post);
+        return post;  
     }
 
     public async Task SaveChangesAsync()

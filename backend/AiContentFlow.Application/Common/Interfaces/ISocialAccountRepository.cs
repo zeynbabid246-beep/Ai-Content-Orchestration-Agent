@@ -9,4 +9,5 @@ public interface ISocialAccountRepository
     Task<List<SocialAccount>> GetByTeamAsync(Guid teamId);
     Task<bool> ExistsAsync(Guid teamId, int channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null);
     Task SaveChangesAsync();
+     Task<SocialAccount?> GetActiveByChannelAsync(int channelId);
 }

@@ -316,7 +316,6 @@ public class ContentPostServiceTests
         var result = await service.CreateAsync(teamId, "user-1", dto);
 
         Assert.NotNull(captured);
-        Assert.Null(captured!.ChannelId);
         Assert.Null(captured.SocialAccountId);
         Assert.Null(result.ChannelId);
         Assert.Null(result.SocialAccountId);

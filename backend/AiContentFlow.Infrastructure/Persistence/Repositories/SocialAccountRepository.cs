@@ -22,7 +22,9 @@ public class SocialAccountRepository : ISocialAccountRepository
     public async Task<SocialAccount?> GetByIdAsync(Guid teamId, int socialAccountId)
     {
         return await _context.SocialAccounts
-            .FirstOrDefaultAsync(sa => sa.TeamId == teamId && sa.Id == socialAccountId && !sa.IsDeleted);
+            .FirstOrDefaultAsync(sa => sa.TeamId == teamId 
+                                    && sa.Id == socialAccountId 
+                                    && !sa.IsDeleted);
     }
 
     public async Task<List<SocialAccount>> GetByTeamAsync(Guid teamId)
@@ -42,6 +44,15 @@ public class SocialAccountRepository : ISocialAccountRepository
             && !sa.IsDeleted
             && sa.AccountHandle.ToLower() == normalizedHandle.ToLower()
             && (!excludeSocialAccountId.HasValue || sa.Id != excludeSocialAccountId.Value));
+    }
+
+  
+    public async Task<SocialAccount?> GetActiveByChannelAsync(int channelId)
+    {
+        return await _context.SocialAccounts
+            .FirstOrDefaultAsync(sa => sa.ChannelId == channelId 
+                                    && sa.IsActive 
+                                    && !sa.IsDeleted);
     }
 
     public async Task SaveChangesAsync()

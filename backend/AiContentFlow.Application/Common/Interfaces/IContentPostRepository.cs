@@ -7,5 +7,13 @@ public interface IContentPostRepository
     Task AddAsync(ContentPost contentPost);
     Task<ContentPost?> GetByIdAsync(Guid teamId, int contentPostId);
     Task<List<ContentPost>> GetByTeamAsync(Guid teamId);
+    Task<List<ContentPost>> GetByStatusAsync(Guid teamId, ContentStatus status); 
+    Task<List<ContentPost>> GetScheduledAsync(Guid teamId);                      
+    Task<List<ContentPost>> GetDeletedAsync(Guid teamId);                        
+    Task<ContentPost> UpdateAsync(ContentPost post);
     Task SaveChangesAsync();
+
+   
+    Task<List<ContentPost>> GetAllAsync();
+    Task<List<ContentPost>> GetDueScheduledPostsAsync();
 }

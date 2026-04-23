@@ -29,24 +29,24 @@ public class ContentPostService : IContentPostService
 
         await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
 
-        var contentPost = new ContentPost
-        {
-            TeamId = teamId,
-            ChannelId = dto.ChannelId,
-            SocialAccountId = dto.SocialAccountId,
-            Title = Normalize(dto.Title),
-            ContentType = dto.ContentType,
-            ContentJson = dto.ContentJson.Trim(),
-            Status = ContentStatus.Draft,
-            Prompt = Normalize(dto.Prompt),
-            AiModel = Normalize(dto.AiModel),
-            AiTokens = dto.AiTokens,
-            RetryCount = 0,
-            CreatedByUserId = requestingUserId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            PostVariants = MapVariants(dto.PostVariants)
-        };
+       var contentPost = new ContentPost
+{
+    TeamId = teamId,
+    ChannelId = dto.ChannelId,
+    SocialAccountId = dto.SocialAccountId,
+    Title = Normalize(dto.Title),           
+    ContentType = dto.ContentType,
+    ContentJson = dto.ContentJson.Trim(),
+    Status = ContentStatus.Draft,
+    Prompt = Normalize(dto.Prompt),         
+    AiModel = Normalize(dto.AiModel),      
+    AiTokens = dto.AiTokens,
+    RetryCount = 0,
+    CreatedByUserId = requestingUserId,
+    CreatedAt = DateTime.UtcNow,
+    UpdatedAt = DateTime.UtcNow,
+    PostVariants = MapVariants(dto.PostVariants)
+};
 
         await _contentPostRepository.AddAsync(contentPost);
         await _contentPostRepository.SaveChangesAsync();

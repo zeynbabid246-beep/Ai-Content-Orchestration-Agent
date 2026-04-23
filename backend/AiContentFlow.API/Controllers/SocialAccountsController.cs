@@ -2,7 +2,7 @@ using AiContentFlow.Application.Features.SocialAccounts;
 using AiContentFlow.Application.Features.SocialAccounts.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
+#nullable enable
 namespace AiContentFlow.API.Controllers;
 
 [ApiController]
@@ -21,7 +21,6 @@ public class SocialAccountsController : ControllerBase
     public async Task<ActionResult<SocialAccountResponseDto>> Create(Guid teamId, [FromBody] CreateSocialAccountDto dto)
     {
         var userId = GetCurrentUserId();
-
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
@@ -33,7 +32,6 @@ public class SocialAccountsController : ControllerBase
     public async Task<ActionResult<List<SocialAccountResponseDto>>> GetByTeam(Guid teamId)
     {
         var userId = GetCurrentUserId();
-
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
@@ -45,7 +43,6 @@ public class SocialAccountsController : ControllerBase
     public async Task<ActionResult<SocialAccountResponseDto>> GetById(Guid teamId, int socialAccountId)
     {
         var userId = GetCurrentUserId();
-
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
@@ -57,7 +54,6 @@ public class SocialAccountsController : ControllerBase
     public async Task<ActionResult<SocialAccountResponseDto>> Update(Guid teamId, int socialAccountId, [FromBody] UpdateSocialAccountDto dto)
     {
         var userId = GetCurrentUserId();
-
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
@@ -69,7 +65,6 @@ public class SocialAccountsController : ControllerBase
     public async Task<IActionResult> Delete(Guid teamId, int socialAccountId)
     {
         var userId = GetCurrentUserId();
-
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
@@ -77,7 +72,8 @@ public class SocialAccountsController : ControllerBase
         return NoContent();
     }
 
-    private string GetCurrentUserId()
+    // ✅ return type is nullable — matches FindFirst which can return null
+    private string? GetCurrentUserId()
     {
         return User.FindFirst("sub")?.Value
                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
