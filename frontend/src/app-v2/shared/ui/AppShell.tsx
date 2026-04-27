@@ -43,17 +43,15 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Workspace",
     items: [
       { label: "Dashboard", path: ROUTES.dashboard, glyph: "D" },
-      { label: "Brand Studio", path: ROUTES.brandStudio, glyph: "S" },
       { label: "Generate", path: ROUTES.generate, glyph: "G" },
       { label: "Scheduler", path: ROUTES.scheduler, glyph: "S" },
     ],
   },
   {
-    title: "Platforms",
+    title: "Platforms & Content",
     items: [
-      { label: "Social Media", path: ROUTES.socialMedia, glyph: "P" },
+      { label: "Channels", path: ROUTES.channels, glyph: "C" },
       { label: "Content Feed", path: ROUTES.contentFeed, glyph: "F" },
-      { label: "Content Types", path: ROUTES.contentType, glyph: "T" },
     ],
   },
   {

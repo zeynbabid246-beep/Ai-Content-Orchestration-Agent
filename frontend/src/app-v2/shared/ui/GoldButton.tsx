@@ -10,6 +10,7 @@ interface GoldButtonProps {
   size?: "small" | "medium";
   startIcon?: ReactNode;
   fullWidth?: boolean;
+  sx?: any;
 }
 
 const styles = {
@@ -36,6 +37,7 @@ export function GoldButton({
   size = "medium",
   startIcon,
   fullWidth,
+  sx,
 }: GoldButtonProps) {
   return (
     <Button
@@ -51,6 +53,7 @@ export function GoldButton({
         fontWeight: 500,
         transition: "all 0.2s",
         "&:disabled": { opacity: 0.45 },
+        ...sx,
       }}
     >
       {loading ? "Processing…" : children}

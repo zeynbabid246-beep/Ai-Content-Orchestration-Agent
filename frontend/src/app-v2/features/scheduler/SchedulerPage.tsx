@@ -21,8 +21,9 @@ import {
   useDeleteSchedulerEventMutation,
 } from "./scheduler.queries";
 
-type EventStatus = "pending" | "progress" | "done";
-type EventItem = { id?: number | string, title: string; time: string; status: EventStatus; notes: string; color: string };
+import type { EventStatus } from "./scheduler.types";
+
+type EventItem = { id?: number | string, title: string; time: string; status: EventStatus; notes: string; color?: string };
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -45,7 +46,7 @@ export function SchedulerPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [form, setForm] = useState<EventItem>({ title: "", time: "09:00", status: "pending", notes: "", color: COLORS[0] });
+  const [form, setForm] = useState<EventItem>({ title: "", time: "09:00", status: "Draft", notes: "", color: COLORS[0] });
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
@@ -62,7 +63,7 @@ export function SchedulerPage() {
 
   const openModal = (day: number) => {
     setSelectedDate(dateKey(viewYear, viewMonth, day));
-    setForm({ title: "", time: "09:00", status: "pending", notes: "", color: COLORS[0] });
+    setForm({ title: "", time: "09:00", status: "Draft", notes: "", color: COLORS[0] });
     setIsEditMode(false);
     setModalOpen(true);
   };
@@ -151,7 +152,7 @@ export function SchedulerPage() {
                           size="small" 
                           label={event.title} 
                           onClick={(e) => openEditModal(e, key, event as EventItem)}
-                          sx={{ bgcolor: event.color, color: "common.white", borderRadius: 1, '&:hover': { opacity: 0.8 } }} 
+                     
                         />
                       ))}
                     </Stack>
@@ -171,15 +172,15 @@ export function SchedulerPage() {
             <Stack direction="row" spacing={2}>
               <TextField type="time" label="Time" value={form.time} onChange={(event) => setForm((prev) => ({ ...prev, time: event.target.value }))} fullWidth />
               <TextField select label="Status" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as EventStatus }))} fullWidth>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="progress">In Progress</MenuItem>
-                <MenuItem value="done">Done</MenuItem>
+                <MenuItem value="Draft">Draft</MenuItem>
+                <MenuItem value="Ready">Ready</MenuItem>
+                <MenuItem value="Scheduled">Scheduled</MenuItem>
+                 <MenuItem value="Published">Published</MenuItem>
+                  <MenuItem value="Deleted">Deleted</MenuItem>
               </TextField>
             </Stack>
             <TextField multiline minRows={3} label="Notes" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
-            <TextField select label="Color" value={form.color} onChange={(event) => setForm((prev) => ({ ...prev, color: event.target.value }))}>
-              {COLORS.map((color) => <MenuItem key={color} value={color}>{color}</MenuItem>)}
-            </TextField>
+        
           </Stack>
         </DialogContent>
         <DialogActions>

@@ -1,5 +1,3 @@
-// src/app-v2/features/channels/channels.api.ts
-
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
 import type { Channel, CreateChannelRequest, UpdateChannelRequest } from "./channels.types";
@@ -30,8 +28,8 @@ export async function createChannel(payload: CreateChannelRequest): Promise<Chan
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify({
-      Name: payload.name,
-      Description: payload.description ?? null,
+      name: payload.name,
+      description: payload.description ?? null,
     }),
   });
 }
@@ -42,8 +40,8 @@ export async function updateChannel(channelId: number, payload: UpdateChannelReq
     method: "PUT",
     requiresAuth: true,
     body: JSON.stringify({
-      Name: payload.name,
-      Description: payload.description ?? null,
+      name: payload.name,
+      description: payload.description ?? null,
     }),
   });
 }

@@ -1,51 +1,58 @@
 import type { DashboardPost, DashboardStat, AnalyticsData } from "./dashboard.types";
 
+import { apiRequest } from "../../shared/lib/http";
+import { authStorage } from "../../shared/lib/storage";
+
+function getTeamId(): string {
+  const teamId = authStorage.getTeamId();
+  if (!teamId) throw new Error("No team found. Please log in again.");
+  return teamId;
+}
+
 export async function getDashboardPosts(): Promise<DashboardPost[]> {
-  return [
-    {
-      title: "5 AI Trends Reshaping Marketing",
-      subtitle: "Long-form thought leadership",
-      platform: "LinkedIn",
-      status: "Ready",
-      date: "Apr 16, 2026",
-    },
-    {
-      title: "Behind the scenes at our HQ",
-      subtitle: "Story-style photo carousel",
-      platform: "Instagram",
-      status: "Scheduled",
-      date: "Apr 17, 2026",
-    },
-    {
-      title: "Q2 Product Update",
-      subtitle: "Feature announcement post",
-      platform: "Facebook",
-      status: "Draft",
-      date: "Apr 18, 2026",
-    },
-    {
-      title: "How We Cut Costs by 40%",
-      subtitle: "Case study article",
-      platform: "Blog",
-      status: "Published",
-      date: "Apr 14, 2026",
-    },
-    {
-      title: "Team Spotlight: Engineering",
-      subtitle: "Culture & hiring post",
-      platform: "LinkedIn",
-      status: "Scheduled",
-      date: "Apr 19, 2026",
-    },
-  ];
+  const teamId = getTeamId();
+  const posts = await apiRequest<any[]>(`/teams/${teamId}/content-posts`, {
+    requiresAuth: true,
+  });
+
+  return posts.slice(0, 5).map(p => {
+    let platformName = "Unknown";
+    if (p.contentType === 1) platformName = "X";
+    else if (p.contentType === 2) platformName = "LinkedIn";
+    else if (p.contentType === 3) platformName = "Instagram";
+    else if (p.contentType === 4) platformName = "Facebook";
+    else if (p.contentType === 0) platformName = "Blog";
+
+    let statusName = "Draft";
+    if (p.status === 1) statusName = "Ready";
+    if (p.status === 2) statusName = "Scheduled";
+    if (p.status === 3) statusName = "Published";
+
+    return {
+      id: p.id,
+      title: p.title || "Untitled",
+      subtitle: p.prompt?.substring(0, 30) || "Generated via AI",
+      platform: platformName as any,
+      status: statusName as any,
+      date: new Date(p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    };
+  });
 }
 
 export async function getDashboardStats(): Promise<DashboardStat[]> {
+  const teamId = getTeamId();
+  const posts = await apiRequest<any[]>(`/teams/${teamId}/content-posts`, {
+    requiresAuth: true,
+  });
+
+  const scheduledCount = posts.filter(p => p.status === 2).length;
+  const publishedCount = posts.filter(p => p.status === 3).length;
+
   return [
-    { value: "24", label: "Posts This Month", trend: "12%", direction: "up" },
-    { value: "18.4K", label: "Total Reach", trend: "8.2%", direction: "up" },
-    { value: "3.7%", label: "Avg. Engagement", trend: "0.4%", direction: "down" },
-    { value: "6", label: "Scheduled Posts", trend: null, direction: null },
+    { value: posts.length.toString(), label: "Total Posts", trend: null, direction: null },
+    { value: publishedCount.toString(), label: "Published Posts", trend: null, direction: null },
+    { value: scheduledCount.toString(), label: "Scheduled Posts", trend: null, direction: null },
+    { value: "0", label: "Avg. Engagement", trend: null, direction: null },
   ];
 }
 

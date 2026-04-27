@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Avatar,
   Box,
   Button,
+  Chip,
+  Divider,
   Paper,
   Stack,
   Switch,
@@ -14,280 +16,290 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
-const STATS = [
-  { label: "Content Published", value: "142" },
-  { label: "Campaigns Active", value: "8" },
-  { label: "Team Members", value: "24" },
-  { label: "AI Tokens Used", value: "91k" },
-];
+import { useProfile, useUpdateProfile, useUploadAvatar } from "./profil.queries";
+import { authStorage } from "../../shared/lib/storage";
+import { ROUTES } from "../../shared/lib/routes";
+
+// ─── component ────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
   const navigate = useNavigate();
+
+  const { data: profile, isLoading } = useProfile();
+  const updateProfileMutation = useUpdateProfile();
+  const uploadAvatarMutation = useUploadAvatar();
+
   const [tab, setTab] = useState("Overview");
   const [editing, setEditing] = useState(false);
-
-  const [name, setName] = useState("Siwar Attia");
-  const [email, setEmail] = useState("siwarattia700@gmail.com");
-  const [role, setRole] = useState("Content Creator");
-  const [bio, setBio] = useState(
-    "Building AI-powered content workflows that scale."
-  );
-
   const [saved, setSaved] = useState(false);
 
+  // ── editable fields ─────────────────────────────────────────────────────────
+  const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(null);
+
+  // ── read-only display fields ─────────────────────────────────────────────────
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
+
+  // ── notifications (local UI state) ──────────────────────────────────────────
   const [notifications, setNotifications] = useState({
-    email: true,
-    push: false,
-    weekly: true,
+    "Email notifications": true,
+    "Push notifications": false,
+    "Weekly digest": true,
   });
 
-  // ✅ Avatar state
-  const [avatar, setAvatar] = useState(null);
+  // ── sync profile → local state ───────────────────────────────────────────────
+  // ✅ FIX: was setname / setemail (lowercase) — now correct setName / setEmail
+  useEffect(() => {
+    if (!profile) return;
+    setName(profile.name);
+    setEmail(profile.email);
+    setRole(profile.role);
+    setBio(profile.bio);
+    setAvatar(profile.avatarUrl);
+  }, [profile]);
 
-  const handleAvatarChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setAvatar(imageUrl);
-    }
+  // ── avatar upload ────────────────────────────────────────────────────────────
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadAvatarMutation.mutate(file, {
+      onSuccess: (res) => setAvatar(res.url),
+    });
   };
 
+  // ── initials fallback ────────────────────────────────────────────────────────
   const initials = name
     .split(" ")
-    .map((word) => word[0])
+    .filter(Boolean)
+    .map((w) => w[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
 
+  if (isLoading) return <Typography sx={{ p: 3 }}>Loading…</Typography>;
+
+  // ── render ───────────────────────────────────────────────────────────────────
   return (
-    <Stack spacing={3}>
-      <Typography variant="h4">My Profile</Typography>
+    <Stack spacing={3} sx={{ maxWidth: 680, mx: "auto", py: 3, px: 2 }}>
+      <Typography variant="h4" fontWeight={700}>
+        My Profile
+      </Typography>
 
-      {/* PROFILE HEADER */}
-      <Paper sx={{ p: 2.5 }}>
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "start", md: "center" }}
-          spacing={2}
-        >
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Stack spacing={1} alignItems="center">
-              {/* ✅ Avatar with image */}
-              <Avatar
-                src={avatar || ""}
-                sx={{
-                  width: 64,
-                  height: 64,
-                  bgcolor: "primary.main",
-                  color: "background.default",
-                }}
-              >
-                {!avatar && initials}
-              </Avatar>
+      {/* ── HEADER CARD ─────────────────────────────────────────────────────── */}
+      <Paper sx={{ p: 3 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          {/* ✅ FIX: explicit size — was unsized/tiny before */}
+          <Avatar
+            src={avatar ?? ""}
+            sx={{ width: 72, height: 72, fontSize: 26, bgcolor: "primary.main" }}
+          >
+            {!avatar && (initials || "?")}
+          </Avatar>
 
-              {/* ✅ Upload button */}
-              {editing && (
-                <Button variant="outlined" component="label" size="small">
-                  Change Photo
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                  />
-                </Button>
+          <Box flex={1}>
+            <Typography variant="h6" fontWeight={600}>
+              {name || "—"}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
+              {role && (
+                <Chip label={role} size="small" color="primary" variant="outlined" />
               )}
             </Stack>
+          </Box>
 
-            <Box>
-              <Typography variant="h5" sx={{ mb: 0.5 }}>
-                {name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {role}
-              </Typography>
-            </Box>
-          </Stack>
+          {editing && (
+            <Button
+              component="label"
+              size="small"
+              variant="outlined"
+              disabled={uploadAvatarMutation.isPending}
+            >
+              {uploadAvatarMutation.isPending ? "Uploading…" : "Change Photo"}
+              <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
+            </Button>
+          )}
 
           <Button
-            variant={editing ? "contained" : "outlined"}
-            onClick={() => setEditing((prev) => !prev)}
+            size="small"
+            variant={editing ? "outlined" : "contained"}
+            color={editing ? "inherit" : "primary"}
+            onClick={() => { setEditing((p) => !p); setSaved(false); }}
           >
-            {editing ? "Stop Editing" : "Edit Profile"}
+            {editing ? "Cancel" : "Edit Profile"}
           </Button>
         </Stack>
       </Paper>
 
-      {/* STATS */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "1fr 1fr",
-            md: "repeat(4, 1fr)",
-          },
-          gap: 2,
-        }}
+      {/* ── TABS ────────────────────────────────────────────────────────────── */}
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
       >
-        {STATS.map((stat) => (
-          <Paper key={stat.label} sx={{ p: 2 }}>
-            <Typography
-              variant="h5"
-              color="primary.main"
-              sx={{ mb: 0.5 }}
-            >
-              {stat.value}
-            </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ textTransform: "uppercase", letterSpacing: 1 }}
-            >
-              {stat.label}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
-
-      {/* TABS */}
-      <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-        {["Overview", "Security", "Preferences", "Danger Zone"].map((item) => (
-          <Tab key={item} label={item} value={item} />
+        {["Overview", "Security", "Preferences", "Danger Zone"].map((t) => (
+          <Tab key={t} value={t} label={t} />
         ))}
       </Tabs>
 
-      {/* OVERVIEW */}
+      {/* ── OVERVIEW ────────────────────────────────────────────────────────── */}
       {tab === "Overview" && (
-        <Paper sx={{ p: 2.5 }}>
-          <Stack spacing={2}>
+        <Paper sx={{ p: 3 }}>
+          <Stack spacing={2.5}>
+            {/* Editable */}
             <TextField
-              label="Full name"
+              label="Name"
               value={name}
+              disabled={!editing}
               onChange={(e) => setName(e.target.value)}
-              disabled={!editing}
+              fullWidth
             />
-            <TextField
-              label="Role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              disabled={!editing}
-            />
+
+            {/* Read-only — comes from auth server, not stored for editing */}
             <TextField
               label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={!editing}
+              value={email || "—"}
+              disabled
+              fullWidth
+              helperText={
+                editing ? "Email is managed by your account and cannot be changed here." : ""
+              }
             />
+
+            {/* Read-only — assigned by team admin via auth */}
+            <TextField
+              label="Role"
+              value={role || "—"}
+              disabled
+              fullWidth
+              helperText={editing ? "Role is assigned by your team admin." : ""}
+            />
+
+            {/* Editable */}
             <TextField
               label="Bio"
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
               disabled={!editing}
+              onChange={(e) => setBio(e.target.value)}
               multiline
               minRows={3}
+              fullWidth
+              inputProps={{ maxLength: 300 }}
+              helperText={editing ? `${bio.length}/300` : ""}
             />
 
             {editing && (
               <Button
                 variant="contained"
-                onClick={() => {
-                  setSaved(true);
-                  setEditing(false);
-                }}
+                disabled={updateProfileMutation.isPending || !name.trim()}
+                onClick={() =>
+                  updateProfileMutation.mutate(
+                    { name, bio },
+                    { onSuccess: () => { setSaved(true); setEditing(false); } }
+                  )
+                }
               >
-                Save changes
+                {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
               </Button>
+            )}
+
+            {saved && (
+              <Alert severity="success" onClose={() => setSaved(false)}>
+                Profile updated successfully.
+              </Alert>
             )}
           </Stack>
         </Paper>
       )}
 
-      {/* SECURITY */}
+      {/* ── SECURITY ────────────────────────────────────────────────────────── */}
       {tab === "Security" && (
-        <Paper sx={{ p: 2.5 }}>
-          <Stack spacing={2}>
-            <TextField type="password" label="Current password" />
-            <TextField type="password" label="New password" />
-            <TextField type="password" label="Confirm password" />
-            <Button variant="contained">Update password</Button>
+        <Paper sx={{ p: 3 }}>
+          <Stack spacing={2} alignItems="flex-start">
+            <Typography variant="h6" fontWeight={600}>
+              Password &amp; Security
+            </Typography>
+            <Divider flexItem />
+            <Alert severity="info" sx={{ width: "100%" }}>
+              Password change is coming soon. Connect <code>useUpdatePassword</code> in{" "}
+              <code>profil.queries.ts</code> to your <code>/profile/password</code> endpoint.
+            </Alert>
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {[
+                "Verify your current password",
+                "Set a new password with a strength indicator",
+                "Confirm the new password before saving",
+              ].map((item) => (
+                <li key={item}>
+                  <Typography variant="body2" color="text.secondary">
+                    {item}
+                  </Typography>
+                </li>
+              ))}
+            </Box>
           </Stack>
         </Paper>
       )}
 
-      {/* PREFERENCES */}
+      {/* ── PREFERENCES ─────────────────────────────────────────────────────── */}
       {tab === "Preferences" && (
-        <Paper sx={{ p: 2.5 }}>
-          <Stack spacing={1}>
-            <Stack direction="row" justifyContent="space-between">
-              <Typography>Email notifications</Typography>
-              <Switch
-                checked={notifications.email}
-                onChange={() =>
-                  setNotifications((prev) => ({
-                    ...prev,
-                    email: !prev.email,
-                  }))
-                }
-              />
-            </Stack>
-
-            <Stack direction="row" justifyContent="space-between">
-              <Typography>Push notifications</Typography>
-              <Switch
-                checked={notifications.push}
-                onChange={() =>
-                  setNotifications((prev) => ({
-                    ...prev,
-                    push: !prev.push,
-                  }))
-                }
-              />
-            </Stack>
-
-            <Stack direction="row" justifyContent="space-between">
-              <Typography>Weekly digest</Typography>
-              <Switch
-                checked={notifications.weekly}
-                onChange={() =>
-                  setNotifications((prev) => ({
-                    ...prev,
-                    weekly: !prev.weekly,
-                  }))
-                }
-              />
-            </Stack>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>
+            Notifications
+          </Typography>
+          <Stack>
+            {(Object.keys(notifications) as Array<keyof typeof notifications>).map((key) => (
+              <Stack
+                key={key}
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                sx={{ py: 1 }}
+              >
+                <Typography>{key}</Typography>
+                <Switch
+                  checked={notifications[key]}
+                  onChange={() =>
+                    setNotifications((p) => ({ ...p, [key]: !p[key] }))
+                  }
+                />
+              </Stack>
+            ))}
           </Stack>
         </Paper>
       )}
 
-      {/* DANGER ZONE */}
+      {/* ── DANGER ZONE ─────────────────────────────────────────────────────── */}
       {tab === "Danger Zone" && (
-        <Paper sx={{ p: 2.5 }}>
-          <Stack spacing={1.5}>
-            <Button
-              color="error"
-              variant="outlined"
-              onClick={() => navigate("/login")}
-            >
-              Log out
-            </Button>
-            <Button color="secondary" variant="outlined">
-              Export data
-            </Button>
-            <Button color="error" variant="contained">
-              Delete account
-            </Button>
+        <Paper sx={{ p: 3, border: "1px solid", borderColor: "error.light" }}>
+          <Stack spacing={2}>
+            <Typography variant="h6" color="error" fontWeight={600}>
+              Danger Zone
+            </Typography>
+            <Divider />
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Typography fontWeight={500}>Sign out</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Clears your session and returns you to login.
+                </Typography>
+              </Box>
+              {/* ✅ FIX: clears ALL authStorage keys before navigating */}
+              <Button
+                color="error"
+                variant="outlined"
+                onClick={() => {
+                  authStorage.clear();
+                  navigate(ROUTES.login, { replace: true });
+                }}
+              >
+                Logout
+              </Button>
+            </Stack>
           </Stack>
         </Paper>
-      )}
-
-      {/* SUCCESS ALERT */}
-      {saved && (
-        <Alert severity="success" onClose={() => setSaved(false)}>
-          Changes saved successfully
-        </Alert>
       )}
     </Stack>
   );

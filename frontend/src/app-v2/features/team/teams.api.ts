@@ -21,8 +21,8 @@ export async function inviteMember(payload: InviteRequest): Promise<void> {
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify({
-      Username: payload.username,
-      Role: payload.role,
+      username: payload.username,
+      role: payload.role,
     }),
   });
 }
@@ -33,8 +33,8 @@ export async function updateMemberRole(payload: UpdateRoleRequest): Promise<void
     method: "PUT",
     requiresAuth: true,
     body: JSON.stringify({
-      TargetUserId: payload.targetUserId,
-      Role: payload.role,
+      targetUserId: payload.targetUserId,
+      role: payload.role,
     }),
   });
 }

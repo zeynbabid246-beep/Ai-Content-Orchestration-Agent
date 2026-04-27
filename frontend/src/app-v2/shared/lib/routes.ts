@@ -11,7 +11,6 @@ export const ROUTES = {
 
   // Core
   dashboard: "/app/dashboard",
-  brandStudio: "/app/brand-studio",
   analytics: "/app/analytics",
   generate: "/app/generate",
   scheduler: "/app/scheduler",
@@ -19,7 +18,7 @@ export const ROUTES = {
   activity :"/app/activity",
 
   // Platforms
-  socialMedia: "/app/social-media",
+  channels: "/app/channels",
   contentFeed: "/app/content-feed",
   contentType: "/app/content-type",
 

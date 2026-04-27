@@ -29,9 +29,11 @@ export async function getSchedulerEvents(): Promise<SchedulerEventMap> {
     const h = String(dateObj.getHours()).padStart(2, "0");
     const min = String(dateObj.getMinutes()).padStart(2, "0");
     
-    let status: EventStatus = "pending";
-    if (post.status === 2 || post.status === 1) status = "progress";
-    if (post.status === 3) status = "done";
+    let status: EventStatus = "Draft";
+    if (post.status === 1) status = "Ready";
+    if (post.status === 2) status = "Scheduled";
+    if (post.status === 3) status = "Published";
+    if (post.status === 4) status = "Deleted";
 
     let notes = "";
     let color = "#1976d2";
@@ -74,6 +76,13 @@ export async function createSchedulerEvent(dateKey: string, event: SchedulerEven
     body: JSON.stringify(rawData),
   });
 
+  // Transition to Ready before scheduling
+  await apiRequest<any>(`/teams/${teamId}/content-posts/${createdPost.id}/workflow/transition`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({ status: 1 }), // Ready status
+  });
+
   const [hours, minutes] = event.time.split(":").map(Number);
   const [yy, mm, dd] = dateKey.split("-").map(Number);
   const scheduledDate = new Date(Date.UTC(yy, mm - 1, dd, hours, minutes));
@@ -91,8 +100,10 @@ export async function updateSchedulerEvent(dateKey: string, event: SchedulerEven
   const teamId = getTeamId();
   
   let mappedStatus = 0; // Draft
-  if (event.status === "progress") mappedStatus = 2; // Scheduled
-  if (event.status === "done") mappedStatus = 3; // Published
+  if (event.status === "Ready") mappedStatus = 1;
+  if (event.status === "Scheduled") mappedStatus = 2;
+  if (event.status === "Published") mappedStatus = 3;
+  if (event.status === "Deleted") mappedStatus = 4;
   
   const rawData = {
     title: event.title,
@@ -106,6 +117,17 @@ export async function updateSchedulerEvent(dateKey: string, event: SchedulerEven
     requiresAuth: true,
     body: JSON.stringify(rawData),
   });
+
+  // Automatically ensure transition to Ready if we are going to schedule it again
+  try {
+    await apiRequest<any>(`/teams/${teamId}/content-posts/${event.id}/workflow/transition`, {
+      method: "POST",
+      requiresAuth: true,
+      body: JSON.stringify({ status: 1 }), // Ready
+    });
+  } catch (e) {
+    // If it's already ready or advanced, ignore
+  }
 
   const [hours, minutes] = event.time.split(":").map(Number);
   const [yy, mm, dd] = dateKey.split("-").map(Number);

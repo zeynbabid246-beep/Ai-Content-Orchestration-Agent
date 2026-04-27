@@ -1,5 +1,3 @@
-// src/app-v2/features/channels/channels.types.ts
-
 export interface Channel {
   id: number;
   teamId: string;
@@ -8,13 +6,14 @@ export interface Channel {
   createdAt: string;
   updatedAt: string;
 }
-
+ 
 export interface CreateChannelRequest {
   name: string;
   description?: string;
 }
-
+ 
 export interface UpdateChannelRequest {
   name: string;
   description?: string;
 }
+ 

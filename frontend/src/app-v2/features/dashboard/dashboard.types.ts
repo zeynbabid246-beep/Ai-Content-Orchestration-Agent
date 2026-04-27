@@ -2,6 +2,7 @@ export type PostPlatform = "LinkedIn" | "Blog" | "Instagram" | "Facebook";
 export type PostStatus = "Ready" | "Scheduled" | "Draft" | "Published";
 
 export interface DashboardPost {
+  id: number;
   title: string;
   subtitle: string;
   platform: PostPlatform;

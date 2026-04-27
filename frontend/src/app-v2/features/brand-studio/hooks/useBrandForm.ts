@@ -23,7 +23,7 @@ export function useBrandForm() {
   const [slogan, setSlogan] = useState(DEFAULTS.slogan);
   const [description, setDescription] = useState(DEFAULTS.description);
 
-  // Multi-color state (Arrays of 3)
+  
   const [primaryColors, setPrimaryColors] = useState<string[]>(
     Array(PRIMARY_COUNT).fill(DEFAULTS.primaryColor)
   );
@@ -41,7 +41,6 @@ export function useBrandForm() {
   const [scraped, setScraped] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Helper functions to update specific color slots
   const updatePrimaryColor = useCallback((index: number, value: string) => {
     setPrimaryColors((prev) => {
       const next = [...prev];
@@ -58,7 +57,6 @@ export function useBrandForm() {
     });
   }, []);
 
-  // Handle Logo Revocation (Memory cleanup)
   useEffect(() => {
     return () => {
       if (logoPreview && logoPreview.startsWith("blob:")) {

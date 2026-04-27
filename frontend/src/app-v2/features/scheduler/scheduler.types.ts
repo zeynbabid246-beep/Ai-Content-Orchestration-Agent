@@ -1,4 +1,4 @@
-export type EventStatus = "pending" | "progress" | "done";
+export type EventStatus = "Draft" | "Ready" | "Scheduled" | "Published" | "Deleted";
 
 export interface SchedulerEvent {
   id?: number | string;
@@ -6,7 +6,7 @@ export interface SchedulerEvent {
   time: string;
   status: EventStatus;
   notes: string;
-  color: string;
+  color?: string;
 }
 
 export type SchedulerEventMap = Record<string, SchedulerEvent[]>;

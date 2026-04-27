@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   Tab,
@@ -25,11 +26,14 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { BrandStudioPage } from "../brand-studio/BrandStudioPage";
+import { ContentTypePage } from "../content-type/ContentTypePage";
+import { getLinkedInToken, connectLinkedIn } from "./linkedin-auth";
 import {
-  useChannelsQuery,
-  useCreateChannelMutation,
-  useUpdateChannelMutation,
-  useDeleteChannelMutation,
+  useChannels,
+  useCreateChannel,
+  useUpdateChannel,
+  useDeleteChannel,
 } from "../channels/channels.queries";
 import type { Channel } from "../channels/channels.types";
 
@@ -169,10 +173,10 @@ function DeleteDialog({
 // ─── Channels Tab ────────────────────────────────────────────────────────────
 
 function ChannelsTab() {
-  const { data: channels = [], isLoading, isError } = useChannelsQuery();
-  const createMutation = useCreateChannelMutation();
-  const updateMutation = useUpdateChannelMutation();
-  const deleteMutation = useDeleteChannelMutation();
+  const { data: channels = [], isLoading, isError } = useChannels();
+  const createMutation = useCreateChannel();
+  const updateMutation = useUpdateChannel();
+  const deleteMutation = useDeleteChannel();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -188,7 +192,7 @@ function ChannelsTab() {
   const handleUpdate = (name: string, description: string) => {
     if (!editChannel) return;
     updateMutation.mutate(
-      { channelId: editChannel.id, name, description: description || undefined },
+      { id: editChannel.id, data: { name, description: description || undefined } },
       { onSuccess: () => setEditChannel(null) }
     );
   };
@@ -372,8 +376,18 @@ function ChannelsTab() {
 function PlatformsTab() {
   const [platforms, setPlatforms] = useState(PLATFORMS);
 
-  const toggleConnect = (id: string) => {
-    setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, connected: !p.connected } : p)));
+  const toggleConnect = async (id: string) => {
+    if (id === "linkedin" && !platforms.find(p => p.id === "linkedin")?.connected) {
+      // Simulate reading the token from our linkedin token file
+      const token = await connectLinkedIn();
+      if (token) {
+        setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, connected: true } : p)));
+        // Example: alert or save token
+        console.log("Successfully connected with token:", token);
+      }
+    } else {
+      setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, connected: !p.connected } : p)));
+    }
   };
 
   return (
@@ -430,14 +444,14 @@ function PlatformsTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function SocialMediaPage() {
-  const [activeTab, setActiveTab] = useState("platforms");
+  const [activeTab, setActiveTab] = useState("channels");
 
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4">Social Media</Typography>
+        <Typography variant="h4">Channels & Platforms</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
-          MANAGE YOUR CONNECTED PLATFORMS AND CHANNELS
+          MANAGE YOUR CHANNELS, BRAND IDENTITIES, AND CONNECTED PLATFORMS
         </Typography>
       </Box>
 
@@ -447,12 +461,16 @@ export function SocialMediaPage() {
         textColor="primary"
         indicatorColor="primary"
       >
-        <Tab label="Platforms" value="platforms" />
         <Tab label="Channels" value="channels" />
+        <Tab label="Brand Studio" value="brand" />
+        <Tab label="Content Type" value="content-type" />
+        <Tab label="Social Accounts" value="platforms" />
       </Tabs>
 
-      {activeTab === "platforms" && <PlatformsTab />}
       {activeTab === "channels" && <ChannelsTab />}
+      {activeTab === "brand" && <BrandStudioPage />}
+      {activeTab === "content-type" && <ContentTypePage />}
+      {activeTab === "platforms" && <PlatformsTab />}
     </Stack>
   );
 }

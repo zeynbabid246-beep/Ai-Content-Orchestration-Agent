@@ -3,7 +3,6 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { RegisterPage } from "../features/auth/RegisterPage";
 import { AppShell } from "../shared/ui/AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
-import { BrandStudioPage } from "../features/brand-studio/BrandStudioPage";
 import { SchedulerPage } from "../features/scheduler/SchedulerPage";
 import { GeneratePage } from "../features/generate/GeneratePage";
 import { SocialMediaPage } from "../features/social-media/SocialMediaPage";
@@ -29,10 +28,9 @@ export default function AppV2Router() {
         <Route element={<AppShell />}>
           <Route index element={<Navigate to={ROUTES.dashboard} replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/brand-studio" element={<BrandStudioPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/generate" element={<GeneratePage />} />
-          <Route path="/social-media" element={<SocialMediaPage />} />
+          <Route path="/channels" element={<SocialMediaPage />} />
           <Route path="/invite-user" element={<InviteUserPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/content-type" element={<ContentTypePage />} />

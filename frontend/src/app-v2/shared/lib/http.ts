@@ -1,18 +1,77 @@
+import axios, { AxiosRequestConfig, AxiosError } from "axios";
 import { env } from "./env";
 import { authStorage } from "./storage";
 
-interface RequestOptions extends RequestInit {
+const api = axios.create({
+  baseURL: env.apiBaseUrl,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// ─── Request interceptor — attach Bearer token ────────────────────────────────
+api.interceptors.request.use((config) => {
+  const token = authStorage.getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ─── Response interceptor — handle 401 + token refresh ───────────────────────
+api.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const refreshed = await attemptTokenRefresh();
+      if (refreshed) {
+        const newToken = authStorage.getAccessToken();
+        if (newToken && originalRequest.headers) {
+          (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
+        }
+        return api(originalRequest);
+      } else {
+        authStorage.clear();
+        window.location.href = "/app/login";
+        return Promise.reject(new Error("Session expired. Please log in again."));
+      }
+    }
+
+    // Backend ExceptionMiddleware returns { message: string, errors: [] }
+    const message =
+      (error.response?.data as { message?: string } | null)?.message ??
+      `Request failed: ${error.response?.status ?? "unknown"}`;
+
+    return Promise.reject(new Error(message));
+  }
+);
+
+// ─── Public request function ──────────────────────────────────────────────────
+interface RequestOptions {
+  method?: string;
+  body?: string;
   requiresAuth?: boolean;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { requiresAuth = false, headers, ...rest } = options;
-  const finalHeaders = new Headers(headers ?? {});
+  const { method = "GET", body, requiresAuth = false } = options;
 
-  if (!finalHeaders.has("Content-Type") && rest.body) {
-    finalHeaders.set("Content-Type", "application/json");
+  const config: AxiosRequestConfig = {
+    url: path,
+    method,
+    data: body ? JSON.parse(body) : undefined,
+  };
+
+  // If auth not required, strip the Authorization header for this request
+  if (!requiresAuth) {
+    config.headers = { Authorization: undefined };
   }
 
+<<<<<<< HEAD
   if (requiresAuth) {
     const token = authStorage.getAccessToken();
     if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
@@ -66,26 +125,28 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   return data as T;
+=======
+  // 204 No Content — axios returns empty string, normalise to null
+  const response = await api.request<T>(config);
+  return response.data ?? (null as T);
+>>>>>>> a83e84e8 (just done)
 }
 
+// ─── Token refresh ────────────────────────────────────────────────────────────
 async function attemptTokenRefresh(): Promise<boolean> {
-  const refreshToken = localStorage.getItem("refreshToken");
+  const refreshToken = authStorage.getRefreshToken();
   if (!refreshToken) return false;
 
   try {
-    // env.apiBaseUrl already includes /api, so just append /Auth/refresh
-    const response = await fetch(`${env.apiBaseUrl}/Auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: refreshToken }),
-    });
+    const response = await axios.post<{ accessToken: string; refreshToken: string }>(
+      `${env.apiBaseUrl}/Auth/refresh`,
+      { refreshToken },
+      { headers: { "Content-Type": "application/json" } }
+    );
 
-    if (!response.ok) return false;
-
-    const data = await response.json();
-    // Backend returns camelCase JSON
-    if (data?.accessToken) {
-      authStorage.setTokens(data.accessToken, data.refreshToken);
+    const { accessToken, refreshToken: newRefresh } = response.data;
+    if (accessToken) {
+      authStorage.setTokens(accessToken, newRefresh);
       return true;
     }
     return false;

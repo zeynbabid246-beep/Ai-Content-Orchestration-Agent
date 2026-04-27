@@ -6,8 +6,8 @@ export async function login(payload: LoginRequest) {
   const response = await apiRequest<AuthResponse>("/Auth/login", {
     method: "POST",
     body: JSON.stringify({
-      Email: payload.email.trim(),
-      Password: payload.password,
+      email: payload.email.trim(),
+      password: payload.password,
     }),
   });
 
@@ -22,9 +22,9 @@ export async function register(payload: RegisterRequest) {
   const response = await apiRequest<AuthResponse>("/Auth/register", {
     method: "POST",
     body: JSON.stringify({
-      Username: payload.username.trim(),
-      Email: payload.email.trim(),
-      Password: payload.password,
+      username: payload.username.trim(),
+      email: payload.email.trim(),
+      password: payload.password,
     }),
   });
 

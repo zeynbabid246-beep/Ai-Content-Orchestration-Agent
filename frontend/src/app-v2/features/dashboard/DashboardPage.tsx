@@ -19,6 +19,7 @@ import {
   LinearProgress,
   Divider,
   Avatar,
+  Alert,
 } from "@mui/material";
 import { authStorage } from "../../shared/lib/storage";
 import { ROUTES } from "../../shared/lib/routes";
@@ -27,6 +28,7 @@ import {
   useDashboardStatsQuery,
   useDashboardAnalyticsQuery,
 } from "./dashboard.queries";
+import { usePublishContentPost } from "../content-posts/content-posts.queries";
 import { MembersHistoryPage } from "../team/membreHistory";
 import type { PostStatus, PlatformAnalytics } from "./dashboard.types";
 
@@ -302,9 +304,8 @@ function ActiveClientsPanel({ platform }: { platform: PlatformAnalytics }) {
                       ? `${platform.color}33`
                       : "rgba(167,139,250,0.2)",
                   color: client.type === "Company" ? platform.color : "#a78bfa",
-                  border: `1px solid ${
-                    client.type === "Company" ? platform.color : "#a78bfa"
-                  }44`,
+                  border: `1px solid ${client.type === "Company" ? platform.color : "#a78bfa"
+                    }44`,
                 }}
               >
                 {client.avatar}
@@ -504,9 +505,30 @@ function OverviewTab() {
   const navigate = useNavigate();
   const { data: posts = [] } = useDashboardPostsQuery();
   const { data: stats = [] } = useDashboardStatsQuery();
+  const publishMutation = usePublishContentPost();
+
+  const handlePublish = (id: number) => {
+    publishMutation.mutate({
+      id,
+      data: {
+        platformPostId: `post-${Date.now()}`,
+        platformPostUrl: `https://social.example.com/post/${id}`,
+      },
+    });
+  };
 
   return (
     <Stack spacing={3}>
+      {publishMutation.isSuccess && (
+        <Alert severity="success" onClose={() => publishMutation.reset()}>
+          Post published successfully!
+        </Alert>
+      )}
+      {publishMutation.isError && (
+        <Alert severity="error" onClose={() => publishMutation.reset()}>
+          Failed to publish post. Only scheduled posts can be published.
+        </Alert>
+      )}
       <Grid container spacing={2}>
         {stats.map((stat) => (
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat.label}>
@@ -585,7 +607,15 @@ function OverviewTab() {
                 </TableCell>
                 <TableCell align="right">
                   <IconButton aria-label="Edit post" size="small">✎</IconButton>
-                  <IconButton aria-label="Publish post" size="small">➤</IconButton>
+                  <IconButton
+                    aria-label="Publish post"
+                    size="small"
+                    onClick={() => handlePublish(post.id)}
+                    disabled={post.status !== "Scheduled" || publishMutation.isPending}
+                    title={post.status === "Scheduled" ? "Publish now" : "Only scheduled posts can be published"}
+                  >
+                    ➤
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -646,9 +676,9 @@ export function DashboardPage() {
         ))}
       </Tabs>
 
-      {activeTab === "Overview"  && <OverviewTab />}
+      {activeTab === "Overview" && <OverviewTab />}
       {activeTab === "Analytics" && <AnalyticsTab />}
-      {activeTab === "Activity"  && <MembersHistoryPage />}
+      {activeTab === "Activity" && <MembersHistoryPage />}
     </Stack>
   );
 }
