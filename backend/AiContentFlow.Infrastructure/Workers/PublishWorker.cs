@@ -42,11 +42,18 @@ public class PublishWorker : BackgroundService
                 {
                     try
                     {
-                       
-                        if (variant.SocialAccount == null || !variant.SocialAccount.IsActive)
+                        if (variant.SocialAccount == null || !variant.SocialAccount.IsActive || variant.SocialAccount.Status == SocialAccountStatus.Disconnected)
                         {
                             variant.Status = ContentStatus.Failed;
                             variant.LastError = "Social account not found or inactive";
+                            variant.RetryCount++;
+                            if (variant.ContentPost != null)
+                            {
+                                variant.ContentPost.Status = ContentStatus.Failed;
+                                variant.ContentPost.LastError = variant.LastError;
+                                variant.ContentPost.RetryCount++;
+                                variant.ContentPost.UpdatedAt = DateTime.UtcNow;
+                            }
                             continue;
                         }
 
@@ -59,12 +66,32 @@ public class PublishWorker : BackgroundService
                             variant.PlatformPostId = result.PostId;
                             variant.PlatformPostUrl = result.PostUrl;
                             variant.PublishedAt = DateTime.UtcNow;
+                            variant.UpdatedAt = DateTime.UtcNow;
+
+                            if (variant.ContentPost != null)
+                            {
+                                variant.ContentPost.Status = ContentStatus.Published;
+                                variant.ContentPost.PublishedAt = DateTime.UtcNow;
+                                variant.ContentPost.PlatformPostId = result.PostId;
+                                variant.ContentPost.PlatformPostUrl = result.PostUrl;
+                                variant.ContentPost.LastError = null;
+                                variant.ContentPost.UpdatedAt = DateTime.UtcNow;
+                            }
                         }
                         else
                         {
                             variant.Status = ContentStatus.Failed;
                             variant.LastError = result.ErrorMessage;
                             variant.RetryCount++;
+                            variant.UpdatedAt = DateTime.UtcNow;
+
+                            if (variant.ContentPost != null)
+                            {
+                                variant.ContentPost.Status = ContentStatus.Failed;
+                                variant.ContentPost.LastError = result.ErrorMessage;
+                                variant.ContentPost.RetryCount++;
+                                variant.ContentPost.UpdatedAt = DateTime.UtcNow;
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -73,6 +100,15 @@ public class PublishWorker : BackgroundService
                         variant.Status = ContentStatus.Failed;
                         variant.LastError = ex.Message;
                         variant.RetryCount++;
+                        variant.UpdatedAt = DateTime.UtcNow;
+
+                        if (variant.ContentPost != null)
+                        {
+                            variant.ContentPost.Status = ContentStatus.Failed;
+                            variant.ContentPost.LastError = ex.Message;
+                            variant.ContentPost.RetryCount++;
+                            variant.ContentPost.UpdatedAt = DateTime.UtcNow;
+                        }
                     }
                 }
 

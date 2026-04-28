@@ -258,6 +258,30 @@ This document records the main foundation updates made to the AiContentFlow back
 ### 27) Campaign channel scoping was added
 - Added optional `Campaign.ChannelId` relation.
 - Create/update campaign now validate optional `ChannelId` in team scope.
+
+---
+
+## Date
+- **2026-04-22**
+
+## What Was Done
+
+### 28) Publishing documentation was audited
+- Documented that `ContentPost` workflow publish is metadata-only.
+- Documented legacy post publish endpoints that invoke social publishers.
+- Noted that social posting is handled by `PublishPostUseCase` + `IPublisher` implementations.
+
+### 29) Content-post publishing was wired to social publishers
+- `ContentPostService.PublishAsync` now delegates to `PublishPostUseCase` for real social publishing.
+- Scheduling now creates `PostVariant` records and requires an active social account.
+- `PublishPostUseCase` now supports Ready or Scheduled posts and persists social account linkage.
+- `PublishWorker` now updates both post variants and content posts during scheduled publishing.
+- Content-post workflow tests updated to cover the social publish flow.
+
+### 30) Hangfire scheduling replaced the background worker
+- Added Hangfire server and PostgreSQL storage configuration in the API host.
+- Replaced `PublishWorker` registration with recurring job `PublishScheduledVariantsJob`.
+- Added Hangfire dashboard at `/hangfire` in development.
 - Campaign DTO contracts now carry `channelId`.
 
 ### 28) Content post optional linkage was implemented

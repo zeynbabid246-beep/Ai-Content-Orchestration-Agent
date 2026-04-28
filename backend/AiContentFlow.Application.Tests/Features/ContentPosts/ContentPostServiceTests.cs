@@ -2,6 +2,9 @@ using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.ContentPosts;
 using AiContentFlow.Application.Features.ContentPosts.Dtos;
 using AiContentFlow.Domain.Models;
+using Application.DTOs;
+using Application.Interfaces;
+using Application.UseCases;
 using Moq;
 using Xunit;
 
@@ -172,13 +175,15 @@ public class ContentPostServiceTests
         var channelRepo = new Mock<IChannelRepository>();
         var socialRepo = new Mock<ISocialAccountRepository>();
         var teamRepo = new Mock<ITeamRepository>();
-        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+        var postVariantRepo = new Mock<IPostVariantRepository>();
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo, postVariantRepo);
 
         var teamId = Guid.NewGuid();
         var contentPost = new ContentPost
         {
             Id = 20,
             TeamId = teamId,
+            SocialAccountId = 12,
             ContentJson = "{}",
             ContentType = ContentType.LinkedInPost,
             Status = ContentStatus.Ready,
@@ -191,6 +196,19 @@ public class ContentPostServiceTests
         teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "editor-1"))
             .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "editor-1", Role = TeamRole.Editor, JoinedAt = DateTime.UtcNow });
         contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 20)).ReturnsAsync(contentPost);
+        socialRepo.Setup(x => x.GetByIdAsync(teamId, 12)).ReturnsAsync(new SocialAccount
+        {
+            Id = 12,
+            TeamId = teamId,
+            ChannelId = 1,
+            Platform = SocialPlatform.LinkedIn,
+            Status = SocialAccountStatus.Active,
+            IsActive = true,
+            AccountHandle = "@brand",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        postVariantRepo.Setup(x => x.GetByContentPostIdAsync(20)).ReturnsAsync(new List<PostVariant>());
 
         var scheduledAt = DateTime.UtcNow.AddMinutes(30);
 
@@ -199,6 +217,7 @@ public class ContentPostServiceTests
         Assert.Equal(ContentStatus.Scheduled, result.Status);
         Assert.Equal(scheduledAt, result.ScheduledAt);
         contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Once);
+        postVariantRepo.Verify(x => x.AddAsync(It.IsAny<PostVariant>()), Times.Once);
     }
 
     [Fact]
@@ -208,13 +227,19 @@ public class ContentPostServiceTests
         var channelRepo = new Mock<IChannelRepository>();
         var socialRepo = new Mock<ISocialAccountRepository>();
         var teamRepo = new Mock<ITeamRepository>();
-        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo);
+        var postVariantRepo = new Mock<IPostVariantRepository>();
+        var publisher = new Mock<IPublisher>();
+        publisher.SetupGet(p => p.Platform).Returns(SocialPlatform.LinkedIn);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PostVariant>(), It.IsAny<SocialAccount>()))
+            .ReturnsAsync(PublishResult.Success("li-123", "https://linkedin.example/123"));
+        var service = CreateService(contentPostRepo, channelRepo, socialRepo, teamRepo, postVariantRepo, publisher);
 
         var teamId = Guid.NewGuid();
         var contentPost = new ContentPost
         {
             Id = 10,
             TeamId = teamId,
+            SocialAccountId = 44,
             ContentJson = "{}",
             ContentType = ContentType.LinkedInPost,
             Status = ContentStatus.Ready,
@@ -227,6 +252,19 @@ public class ContentPostServiceTests
         teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "owner-1"))
             .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "owner-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
         contentPostRepo.Setup(x => x.GetByIdAsync(teamId, 10)).ReturnsAsync(contentPost);
+        socialRepo.Setup(x => x.GetByIdAsync(teamId, 44)).ReturnsAsync(new SocialAccount
+        {
+            Id = 44,
+            TeamId = teamId,
+            ChannelId = 1,
+            Platform = SocialPlatform.LinkedIn,
+            Status = SocialAccountStatus.Active,
+            IsActive = true,
+            AccountHandle = "@brand",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        postVariantRepo.Setup(x => x.GetByContentPostIdAsync(10)).ReturnsAsync(new List<PostVariant>());
 
         var scheduledAt = DateTime.UtcNow.AddHours(2);
         var scheduled = await service.ScheduleAsync(teamId, 10, "owner-1", new ScheduleContentPostDto(scheduledAt));
@@ -238,8 +276,8 @@ public class ContentPostServiceTests
 
         Assert.Equal(ContentStatus.Published, published.Status);
         Assert.NotNull(published.PublishedAt);
-        Assert.Equal("platform-123", published.PlatformPostId);
-        Assert.Equal("https://social.example/post/123", published.PlatformPostUrl);
+        Assert.Equal("li-123", published.PlatformPostId);
+        Assert.Equal("https://linkedin.example/123", published.PlatformPostUrl);
 
         contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Exactly(2));
     }
@@ -383,9 +421,30 @@ public class ContentPostServiceTests
         Mock<IContentPostRepository> contentPostRepo,
         Mock<IChannelRepository> channelRepo,
         Mock<ISocialAccountRepository> socialRepo,
-        Mock<ITeamRepository> teamRepo)
+        Mock<ITeamRepository> teamRepo,
+        Mock<IPostVariantRepository>? postVariantRepo = null,
+        Mock<IPublisher>? publisher = null)
     {
-        return new ContentPostService(contentPostRepo.Object, channelRepo.Object, socialRepo.Object, teamRepo.Object);
+        var variantRepo = postVariantRepo ?? new Mock<IPostVariantRepository>();
+        var publisherMock = publisher ?? new Mock<IPublisher>();
+
+        publisherMock.SetupGet(p => p.Platform).Returns(SocialPlatform.LinkedIn);
+        publisherMock.Setup(p => p.PublishAsync(It.IsAny<PostVariant>(), It.IsAny<SocialAccount>()))
+            .ReturnsAsync(PublishResult.Success("post-1", "https://social.example/post-1"));
+
+        var publishUseCase = new PublishPostUseCase(
+            new[] { publisherMock.Object },
+            socialRepo.Object,
+            contentPostRepo.Object,
+            variantRepo.Object);
+
+        return new ContentPostService(
+            contentPostRepo.Object,
+            channelRepo.Object,
+            socialRepo.Object,
+            teamRepo.Object,
+            variantRepo.Object,
+            publishUseCase);
     }
 
     private static CreateContentPostDto CreateDto(int? channelId, int? socialAccountId)

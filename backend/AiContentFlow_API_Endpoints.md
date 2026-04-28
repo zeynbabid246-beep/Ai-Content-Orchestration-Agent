@@ -252,6 +252,7 @@ Authorization: required
 - `2` Scheduled
 - `3` Published
 - `4` Deleted
+- `5` Failed
 
 `SocialPlatform`
 - `0` Facebook
@@ -371,9 +372,11 @@ Scheduling rules:
 - `scheduledAt` must be UTC (`Z` suffix).
 - `scheduledAt` must be in the future.
 - Valid lifecycle transition must be satisfied (`Ready -> Scheduled`).
+- If a social account is linked, it must be active for social publishing.
+- When a social account is linked, a scheduled `PostVariant` is created as the publish execution record.
 
 ### `POST /api/teams/{teamId}/content-posts/{contentPostId}/workflow/publish`
-Manually publish a scheduled content post.
+Publish a content post via the social publisher pipeline.
 
 Request (`PublishContentPostDto`):
 ```json
@@ -386,9 +389,10 @@ Request (`PublishContentPostDto`):
 Response: `200 OK` (`ContentPostResponseDto`)
 
 Publish rules:
-- Valid lifecycle transition must be satisfied (`Scheduled -> Published`).
+- Valid lifecycle transition must be satisfied (`Ready -> Published` or `Scheduled -> Published`).
 - `publishedAt` is set at execution time.
-- `platformPostId` / `platformPostUrl` are optional metadata fields.
+- Social posting uses the linked social account and ignores request metadata fields.
+- `socialAccountId` must be present on the content post and be active.
 
 Workflow error behavior:
 - `403 Forbidden`: requester is not team member or lacks `Admin/Editor` role for workflow mutations.
@@ -402,7 +406,19 @@ Response: `204 No Content`
 
 ---
 
-## 6) Campaign Endpoints
+## 6) Legacy Post Publishing Endpoints
+Route base: `api/teams/{teamId}/posts`
+Authorization: required
+
+### `POST /api/teams/{teamId}/posts/{id}/publish`
+Publishes via the social publisher pipeline (LinkedIn supported) and updates the content post + post variants.
+
+### `POST /api/teams/{teamId}/posts/generate-and-publish`
+Generates a draft, marks it ready, then publishes via the social publisher pipeline.
+
+---
+
+## 7) Campaign Endpoints
 Route base: `api/teams/{teamId}/campaigns`
 Authorization: required
 
@@ -505,6 +521,10 @@ Validation behavior:
 16. Delete content post and verify it no longer appears in list.
 17. Create campaign via `POST /api/teams/{teamId}/campaigns` (optionally include `channelId`).
 18. Link/unlink a content post using campaign link endpoints.
+
+## Hangfire Dashboard (Development)
+- `GET /hangfire` (development only)
+- Shows recurring job `publish-scheduled-variants` that processes scheduled post variants every minute.
 
 ## Database Verification
 Check these tables in PostgreSQL:

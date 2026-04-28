@@ -35,6 +35,7 @@ Implements persistence and identity:
 - identity registration/login,
 - JWT + refresh token persistence,
 - EF migrations.
+- Hangfire background jobs for scheduled publishing.
 
 ### `AiContentFlow.API`
 HTTP boundary:
@@ -116,9 +117,21 @@ Scheduling rules:
 - UTC required
 - future timestamp required
 
+Social scheduling notes:
+- if a social account is linked, scheduling creates a `PostVariant` used by `PublishScheduledVariantsJob`
+- social accounts must be active for scheduled publishing to succeed
+
+Hangfire scheduling:
+- `PublishScheduledVariantsJob` runs every minute via Hangfire.
+- Dashboard is available at `/hangfire` in development.
+
 Publish rules:
 - transition must be valid
 - sets `PublishedAt` consistently
+
+Note on publishing pipelines:
+- `ContentPostService.PublishAsync` delegates to `PublishPostUseCase` for social publishing.
+- Scheduled publishing creates `PostVariant` records and is finalized by `PublishWorker`.
 
 Standalone post behavior:
 - create/schedule/publish works with `channelId=null` and `socialAccountId=null`

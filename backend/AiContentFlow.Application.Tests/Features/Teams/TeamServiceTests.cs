@@ -13,7 +13,8 @@ public class TeamServiceTests
     public async Task SetTeamNameAsync_WhenMemberIsNotAdmin_ThrowsUnauthorizedAccessException()
     {
         var teamRepo = new Mock<ITeamRepository>();
-        var service = new TeamService(teamRepo.Object);
+        var emailService = new Mock<IEmailService>();
+        var service = new TeamService(teamRepo.Object, emailService.Object);
 
         var teamId = Guid.NewGuid();
         teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team
@@ -40,7 +41,8 @@ public class TeamServiceTests
     public async Task SetTeamNameAsync_WhenValid_UpdatesNameAndClearsSetupFlag()
     {
         var teamRepo = new Mock<ITeamRepository>();
-        var service = new TeamService(teamRepo.Object);
+        var emailService = new Mock<IEmailService>();
+        var service = new TeamService(teamRepo.Object, emailService.Object);
 
         var teamId = Guid.NewGuid();
         var team = new Team

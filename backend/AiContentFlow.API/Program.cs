@@ -1,16 +1,25 @@
 using AiContentFlow.API.Middleware;
 using AiContentFlow.Infrastructure.Persistence;
+using AiContentFlow.Infrastructure.Workers;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using AiContentFlow.Infrastructure;
 using Application.Interfaces;
-using AiContentFlow.Infrastructure.Factories;
 using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Infrastructure.Extensions;
+using AiContentFlow.Infrastructure.Factories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // 🔧 Project dependencies
 builder.Services.AddProjectDependencies(builder.Configuration);
+
+builder.Services.AddHangfire(config =>
+{
+    config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+builder.Services.AddHangfireServer();
 
 
 builder.Services.AddSwaggerDocumentation();
@@ -56,6 +65,8 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
 
     });
+
+    app.UseHangfireDashboard("/hangfire");
 }
 
 //  Middleware pipeline
@@ -64,6 +75,11 @@ app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+RecurringJob.AddOrUpdate<PublishScheduledVariantsJob>(
+    "publish-scheduled-variants",
+    job => job.ExecuteAsync(CancellationToken.None),
+    Cron.Minutely);
 
 app.MapControllers();
 

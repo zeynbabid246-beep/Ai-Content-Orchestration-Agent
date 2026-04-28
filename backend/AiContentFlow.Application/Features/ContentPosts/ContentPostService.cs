@@ -1,6 +1,7 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.ContentPosts.Dtos;
 using AiContentFlow.Domain.Models;
+using Application.UseCases;
 
 namespace AiContentFlow.Application.Features.ContentPosts;
 
@@ -10,17 +11,23 @@ public class ContentPostService : IContentPostService
     private readonly IChannelRepository _channelRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly ITeamRepository _teamRepository;
+    private readonly IPostVariantRepository _postVariantRepository;
+    private readonly PublishPostUseCase _publishPostUseCase;
 
     public ContentPostService(
         IContentPostRepository contentPostRepository,
         IChannelRepository channelRepository,
         ISocialAccountRepository socialAccountRepository,
-        ITeamRepository teamRepository)
+        ITeamRepository teamRepository,
+        IPostVariantRepository postVariantRepository,
+        PublishPostUseCase publishPostUseCase)
     {
         _contentPostRepository = contentPostRepository;
         _channelRepository = channelRepository;
         _socialAccountRepository = socialAccountRepository;
         _teamRepository = teamRepository;
+        _postVariantRepository = postVariantRepository;
+        _publishPostUseCase = publishPostUseCase;
     }
 
     public async Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto)
@@ -172,6 +179,49 @@ public class ContentPostService : IContentPostService
         contentPost.ScheduledAt = dto.ScheduledAt;
         contentPost.UpdatedAt = DateTime.UtcNow;
 
+        if (contentPost.SocialAccountId.HasValue)
+        {
+            var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, contentPost.SocialAccountId.Value)
+                ?? throw new KeyNotFoundException("Social account not found");
+
+            if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
+                throw new InvalidOperationException("Social account is not active");
+
+            var existingVariants = await _postVariantRepository.GetByContentPostIdAsync(contentPost.Id);
+            var scheduledVariant = existingVariants.FirstOrDefault(v =>
+                v.Platform == socialAccount.Platform && v.Status == ContentStatus.Scheduled);
+
+            if (scheduledVariant is null)
+            {
+                scheduledVariant = new PostVariant
+                {
+                    ContentPostId = contentPost.Id,
+                    SocialAccountId = socialAccount.Id,
+                    SocialAccount = socialAccount,
+                    Platform = socialAccount.Platform,
+                    Title = contentPost.Title,
+                    ContentJson = contentPost.ContentJson,
+                    Status = ContentStatus.Scheduled,
+                    ScheduledAt = dto.ScheduledAt,
+                    RetryCount = 0,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _postVariantRepository.AddAsync(scheduledVariant);
+            }
+            else
+            {
+                scheduledVariant.SocialAccountId = socialAccount.Id;
+                scheduledVariant.Platform = socialAccount.Platform;
+                scheduledVariant.Title = contentPost.Title;
+                scheduledVariant.ContentJson = contentPost.ContentJson;
+                scheduledVariant.Status = ContentStatus.Scheduled;
+                scheduledVariant.ScheduledAt = dto.ScheduledAt;
+                scheduledVariant.UpdatedAt = DateTime.UtcNow;
+                await _postVariantRepository.UpdateAsync(scheduledVariant);
+            }
+        }
+
         await _contentPostRepository.SaveChangesAsync();
 
         return Map(contentPost);
@@ -181,17 +231,9 @@ public class ContentPostService : IContentPostService
     {
         await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can publish content posts");
 
-        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
-            ?? throw new KeyNotFoundException("Content post not found");
+        _ = dto;
 
-        ApplyLifecycleTransition(contentPost, ContentStatus.Published);
-        contentPost.PublishedAt = DateTime.UtcNow;
-        contentPost.PlatformPostId = Normalize(dto.PlatformPostId);
-        contentPost.PlatformPostUrl = Normalize(dto.PlatformPostUrl);
-        contentPost.UpdatedAt = DateTime.UtcNow;
-
-        await _contentPostRepository.SaveChangesAsync();
-
+        var contentPost = await _publishPostUseCase.Execute(teamId, contentPostId);
         return Map(contentPost);
     }
 

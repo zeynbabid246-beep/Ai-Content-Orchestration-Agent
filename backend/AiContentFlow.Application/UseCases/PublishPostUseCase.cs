@@ -28,14 +28,17 @@ public class PublishPostUseCase
         var post = await _postRepo.GetByIdAsync(teamId, postId)
             ?? throw new Exception("Post not found");
 
-        if (post.Status != ContentStatus.Ready)
-            throw new Exception("Post must be READY before publishing");
+        if (post.Status is not ContentStatus.Ready and not ContentStatus.Scheduled)
+            throw new Exception("Post must be Ready or Scheduled before publishing");
 
         if (post.SocialAccountId == null)
             throw new Exception("Post has no social account assigned");
 
         var account = await _socialRepo.GetByIdAsync(teamId, post.SocialAccountId.Value)
             ?? throw new Exception("Social account not found");
+
+        if (!account.IsActive || account.Status == SocialAccountStatus.Disconnected)
+            throw new Exception("Social account is not active");
 
         var publisher = _publishers.FirstOrDefault(p => p.Platform == account.Platform)
             ?? throw new Exception($"No publisher registered for platform: {account.Platform}");
@@ -45,10 +48,14 @@ public class PublishPostUseCase
         {
             ContentPostId = post.Id,
             ContentPost = post,
+            SocialAccountId = account.Id,
+            SocialAccount = account,
             Platform = account.Platform,
+            Title = post.Title,
             ContentJson = post.ContentJson,
             Status = ContentStatus.Draft,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         try
@@ -63,6 +70,7 @@ public class PublishPostUseCase
             variant.PlatformPostId = result.PostId;
             variant.PlatformPostUrl = result.PostUrl;
             variant.PublishedAt = DateTime.UtcNow;
+            variant.UpdatedAt = DateTime.UtcNow;
 
             await _variantRepo.AddAsync(variant);
             await _variantRepo.SaveChangesAsync();
@@ -73,6 +81,7 @@ public class PublishPostUseCase
             post.PlatformPostId = result.PostId;
             post.PlatformPostUrl = result.PostUrl;
             post.UpdatedAt = DateTime.UtcNow;
+            post.LastError = null;
 
             await _postRepo.UpdateAsync(post);
             await _postRepo.SaveChangesAsync();
@@ -84,6 +93,7 @@ public class PublishPostUseCase
             variant.Status = ContentStatus.Failed;
             variant.LastError = ex.Message;
             variant.RetryCount++;
+            variant.UpdatedAt = DateTime.UtcNow;
 
             await _variantRepo.AddAsync(variant);
             await _variantRepo.SaveChangesAsync();
