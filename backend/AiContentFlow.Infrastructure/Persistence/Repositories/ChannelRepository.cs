@@ -22,12 +22,16 @@ public class ChannelRepository : IChannelRepository
     public async Task<Channel?> GetByIdAsync(Guid teamId, int channelId)
     {
         return await _context.Channels
+            .Include(c => c.Branding)
+            .Include(c => c.Config)
             .FirstOrDefaultAsync(c => c.TeamId == teamId && c.Id == channelId && !c.IsDeleted);
     }
 
     public async Task<List<Channel>> GetByTeamAsync(Guid teamId)
     {
         return await _context.Channels
+            .Include(c => c.Branding)
+            .Include(c => c.Config)
             .Where(c => c.TeamId == teamId && !c.IsDeleted)
             .OrderBy(c => c.Name)
             .ToListAsync();

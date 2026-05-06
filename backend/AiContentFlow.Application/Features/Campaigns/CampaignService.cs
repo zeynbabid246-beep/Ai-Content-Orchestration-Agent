@@ -8,20 +8,17 @@ namespace AiContentFlow.Application.Features.Campaigns;
 public class CampaignService : ICampaignService
 {
     private readonly ICampaignRepository _campaignRepository;
-    private readonly ICampaignContentPostRepository _campaignContentPostRepository;
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IChannelRepository _channelRepository;
 
     public CampaignService(
         ICampaignRepository campaignRepository,
-        ICampaignContentPostRepository campaignContentPostRepository,
         IContentPostRepository contentPostRepository,
         ITeamRepository teamRepository,
         IChannelRepository channelRepository)
     {
         _campaignRepository = campaignRepository;
-        _campaignContentPostRepository = campaignContentPostRepository;
         _contentPostRepository = contentPostRepository;
         _teamRepository = teamRepository;
         _channelRepository = channelRepository;
@@ -39,11 +36,8 @@ public class CampaignService : ICampaignService
         if (await _campaignRepository.ExistsByNameAsync(teamId, normalizedName))
             throw new InvalidOperationException("Campaign name already exists for this team");
 
-        if (dto.ChannelId.HasValue)
-        {
-            _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId.Value)
-                ?? throw new KeyNotFoundException("Channel not found");
-        }
+        _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
+            ?? throw new KeyNotFoundException("Channel not found");
 
         var campaign = new Campaign
         {
@@ -100,11 +94,8 @@ public class CampaignService : ICampaignService
         if (await _campaignRepository.ExistsByNameAsync(teamId, normalizedName, campaignId))
             throw new InvalidOperationException("Campaign name already exists for this team");
 
-        if (dto.ChannelId.HasValue)
-        {
-            _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId.Value)
-                ?? throw new KeyNotFoundException("Channel not found");
-        }
+        _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
+            ?? throw new KeyNotFoundException("Channel not found");
 
         campaign.Name = normalizedName;
         campaign.Description = Normalize(dto.Description);
@@ -138,23 +129,15 @@ public class CampaignService : ICampaignService
         _ = await _campaignRepository.GetByIdAsync(teamId, campaignId)
             ?? throw new KeyNotFoundException("Campaign not found");
 
-        _ = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        var existingLink = await _campaignContentPostRepository.GetByIdsAsync(campaignId, contentPostId);
-        if (existingLink is not null)
+        if (contentPost.CampaignId == campaignId)
             throw new InvalidOperationException("Content post is already linked to this campaign");
 
-        var link = new CampaignContentPost
-        {
-            CampaignId = campaignId,
-            ContentPostId = contentPostId,
-            LinkedAt = DateTime.UtcNow,
-            LinkedByUserId = requestingUserId
-        };
-
-        await _campaignContentPostRepository.AddAsync(link);
-        await _campaignContentPostRepository.SaveChangesAsync();
+        contentPost.CampaignId = campaignId;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
     }
 
     public async Task UnlinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId)
@@ -164,14 +147,15 @@ public class CampaignService : ICampaignService
         _ = await _campaignRepository.GetByIdAsync(teamId, campaignId)
             ?? throw new KeyNotFoundException("Campaign not found");
 
-        _ = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        var existingLink = await _campaignContentPostRepository.GetByIdsAsync(campaignId, contentPostId)
-            ?? throw new KeyNotFoundException("Campaign-content post link not found");
+        if (contentPost.CampaignId != campaignId)
+            throw new KeyNotFoundException("Campaign-content post link not found");
 
-        await _campaignContentPostRepository.RemoveAsync(existingLink);
-        await _campaignContentPostRepository.SaveChangesAsync();
+        contentPost.CampaignId = null;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
     }
 
     private async Task EnsureCanMutateAsync(Guid teamId, string requestingUserId)
@@ -185,20 +169,16 @@ public class CampaignService : ICampaignService
 
     private static CampaignResponseDto Map(Campaign campaign)
     {
-        var links = campaign.CampaignContentPosts
-            .Select(link => new CampaignContentPostResponseDto(link.ContentPostId, link.LinkedAt, link.LinkedByUserId))
-            .ToList();
-
         return new CampaignResponseDto(
             campaign.Id,
             campaign.TeamId,
-            campaign.ChannelId,
+            campaign.ChannelId, // Ensure ChannelId is aligned with required mapping
             campaign.Name,
             campaign.Description,
             campaign.Status,
             campaign.CreatedAt,
             campaign.UpdatedAt,
-            links);
+            Array.Empty<CampaignContentPostResponseDto>());
     }
 
     private static string NormalizeRequired(string value)

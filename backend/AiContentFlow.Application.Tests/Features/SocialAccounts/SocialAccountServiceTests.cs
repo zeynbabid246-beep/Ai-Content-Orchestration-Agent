@@ -23,7 +23,7 @@ public class SocialAccountServiceTests
         teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team", CreatedAt = DateTime.UtcNow });
         teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "user-1")).ReturnsAsync((UserTeam?)null);
 
-        var dto = new CreateSocialAccountDto(1, SocialPlatform.LinkedIn, "@brand", "Brand");
+        var dto = new CreateSocialAccountDto(1, SocialPlatform.LinkedIn, "@brand", "Brand", null);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.CreateAsync(teamId, "user-1", dto));
     }
@@ -43,7 +43,7 @@ public class SocialAccountServiceTests
 
         channelRepo.Setup(x => x.GetByIdAsync(teamId, 77)).ReturnsAsync((Channel?)null);
 
-        var dto = new CreateSocialAccountDto(77, SocialPlatform.LinkedIn, "@brand", "Brand");
+        var dto = new CreateSocialAccountDto(77, SocialPlatform.LinkedIn, "@brand", "Brand", null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CreateAsync(teamId, "user-1", dto));
     }

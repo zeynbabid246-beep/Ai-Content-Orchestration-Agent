@@ -5,10 +5,9 @@ public class ContentPost
     public int Id { get; set; }
     public Guid TeamId { get; set; }
 
-    //  Foreign Keys
-    public int? ChannelId { get; set; }
-    public int? SocialAccountId { get; set; }
+    public int ChannelId { get; set; }
     public int? CampaignId { get; set; }
+    public string CreatedByUserId { get; set; } = string.Empty;
 
     // 📝 Content Fields
     public string Topic { get; set; } = "";
@@ -24,24 +23,13 @@ public class ContentPost
     // Classification
     public ContentType ContentType { get; set; }
     public ContentStatus Status { get; set; }
-
-    //  Dates
-    public DateTime? ScheduledAt { get; set; }
-    public DateTime? PublishedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    // 🚀 Publish Tracking
-    public string? PlatformPostId { get; set; }
-    public string? PlatformPostUrl { get; set; }
-    public int RetryCount { get; set; }
-    public string? LastError { get; set; }
-
-    //  Audit
-    public string CreatedByUserId { get; set; } = string.Empty;
-
     //  Navigation Properties
     public Team? Team { get; set; }
+    public Channel? Channel { get; set; }
+    public Campaign? Campaign { get; set; }
     public ICollection<PostVariant> PostVariants { get; set; } = [];
-    public ICollection<CampaignContentPost> CampaignContentPosts { get; set; } = [];
+    public ICollection<PostPublication> Publications { get; set; } = [];
 }

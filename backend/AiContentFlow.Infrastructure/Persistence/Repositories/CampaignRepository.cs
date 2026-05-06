@@ -22,14 +22,14 @@ public class CampaignRepository : ICampaignRepository
     public async Task<Campaign?> GetByIdAsync(Guid teamId, int campaignId)
     {
         return await _context.Campaigns
-            .Include(c => c.CampaignContentPosts)
+            .Include(c => c.ContentPosts)
             .FirstOrDefaultAsync(c => c.TeamId == teamId && c.Id == campaignId && !c.IsDeleted);
     }
 
     public async Task<List<Campaign>> GetByTeamAsync(Guid teamId)
     {
         return await _context.Campaigns
-            .Include(c => c.CampaignContentPosts)
+            .Include(c => c.ContentPosts)
             .Where(c => c.TeamId == teamId && !c.IsDeleted)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();

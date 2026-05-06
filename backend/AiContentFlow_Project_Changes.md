@@ -1,3 +1,16 @@
+# Backend Architecture Refactor
+
+Implemented the architecture guide's core backend separation:
+
+- Social OAuth flow is now signed-state, authenticated, and tenant/channel validated before account persistence.
+- Social credential access is routed through `ISocialCredentialStore`; stored tokens are protected and publishers decrypt through infrastructure only.
+- `PostPublication` is the publishing lifecycle aggregate and `PublishJob` is the execution/retry record.
+- Publication/job creation is transactional and supports idempotency.
+- Background publishing uses claimed batches with retry metadata and dead-letter state.
+- Application-facing repositories were tightened to require tenant scope for tenant-owned reads.
+- Analytics are publication-centric snapshots with source/window/dedupe metadata.
+- EF mappings were reconciled for `ContentPost`, and a refactor migration was generated.
+
 # AiContentFlow Project Changes Log
 
 ## Purpose
@@ -335,6 +348,55 @@ This document records the main foundation updates made to the AiContentFlow back
 - Updated mutation permission messages accordingly.
 - Added unit test coverage for editor scheduling path (`ScheduleAsync_WhenRequesterRoleIsEditor_AllowsScheduling`).
 
+### 34) Facebook publishing integration added
+- Added `FacebookPublisher` with text and image posting via Graph API.
+- Meta OAuth now stores `PlatformAccountId` (page ID) and populates social account fields.
+- Registered Meta auth service and Facebook publisher in DI.
+- Added Meta config placeholders to `appsettings.json`.
+
 ## Validation
 - `dotnet build -v minimal` succeeded.
 - `AiContentFlow.Application.Tests.Features.ContentPosts.ContentPostServiceTests` run succeeded: `12 passed, 0 failed`.
+
+---
+
+## Date
+- **2026-05-06**
+
+## What Was Done
+
+### 35) Publication-centric delivery lifecycle implemented
+- Added `PostPublication` as the delivery intent aggregate (team-scoped, idempotent, status-driven).
+- Added `PublishJob` as execution/retry tracking (`Pending`, `Running`, `Succeeded`, `Failed`, `DeadLettered`).
+- Implemented transactional publication + job creation in `PublicationService`.
+
+### 36) New publication and analytics application slices added
+- Added `Features/Publications` (`IPublicationService`, DTOs, `PublicationService`).
+- Added `Features/Analytics` (`IAnalyticsService`, DTOs, `AnalyticsService`) with dedupe-key based snapshot ingestion.
+- Added repository contracts and EF-backed repositories for publications, publish jobs, and analytics.
+
+### 37) API routing aligned to publication resources
+- Replaced legacy `PostsController` with `PublicationsController`.
+- Added endpoints:
+  - `POST /api/teams/{teamId}/content-posts/{contentPostId}/publications`
+  - `POST /api/teams/{teamId}/content-posts/{contentPostId}/publications/scheduled`
+  - `GET /api/teams/{teamId}/publications/{publicationId}/analytics`
+- Updated content workflow endpoints to delegate publish/schedule behavior to publication services.
+
+### 38) Social auth flow hardened and split by responsibility
+- Added signed OAuth state abstraction (`ISocialAuthStateService`) and provider-neutral auth result/state models.
+- Moved provider token persistence behind `ISocialCredentialStore` with infrastructure protection.
+- Updated social auth services and controller flow for authenticated, team-scoped callback handling.
+
+### 39) Background workers migrated to lifecycle jobs
+- Removed legacy `PublishWorker`.
+- Added `PublishScheduledVariantsJob` with claimed-batch processing and retry/dead-letter semantics.
+- Added `SyncPublicationAnalyticsJob` for recurring analytics snapshots.
+- Registered recurring Hangfire jobs:
+  - `publish-scheduled-variants` (minutely)
+  - `sync-publication-analytics` (hourly)
+
+### 40) Persistence model updated for new boundaries
+- Added EF entities/configuration and migration `20260506104946_AddPublishingLifecycleAndAnalytics`.
+- Updated `AppDbContext` and model snapshot for publication lifecycle tables and relationships.
+- Removed obsolete `CampaignContentPost` mapping path and related repository interface.

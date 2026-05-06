@@ -30,7 +30,7 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("ChannelId")
+                    b.Property<int>("ChannelId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
@@ -75,30 +75,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.HasIndex("TeamId", "Status");
 
                     b.ToTable("Campaigns");
-                });
-
-            modelBuilder.Entity("AiContentFlow.Domain.Models.CampaignContentPost", b =>
-                {
-                    b.Property<int>("CampaignId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ContentPostId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("LinkedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LinkedByUserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("CampaignId", "ContentPostId");
-
-                    b.HasIndex("CampaignId");
-
-                    b.HasIndex("ContentPostId");
-
-                    b.ToTable("CampaignContentPosts");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
@@ -150,6 +126,72 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("Channels");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelBranding", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slogan")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Theme")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tone")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId")
+                        .IsUnique();
+
+                    b.ToTable("ChannelBrandings");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId")
+                        .IsUnique();
+
+                    b.ToTable("ChannelConfigs");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
                     b.Property<int>("Id")
@@ -168,7 +210,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<int?>("CampaignId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("ChannelId")
+                    b.Property<int>("ChannelId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Content")
@@ -192,35 +234,8 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<string>("ImageUrl")
                         .HasColumnType("text");
 
-                    b.Property<string>("LastError")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("PlatformPostId")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("PlatformPostUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Prompt")
-                        .HasMaxLength(4000)
                         .HasColumnType("text");
-
-                    b.Property<DateTime?>("PublishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RetryCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime?>("ScheduledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("SocialAccountId")
-                        .HasColumnType("integer");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -231,9 +246,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .HasColumnType("character varying(300)");
 
                     b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TeamId1")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Title")
@@ -250,21 +262,91 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CampaignId");
+
                     b.HasIndex("ChannelId");
+
+                    b.HasIndex("TeamId", "ChannelId");
+
+                    b.HasIndex("TeamId", "CreatedAt");
+
+                    b.HasIndex("TeamId", "Status");
+
+                    b.ToTable("ContentPosts");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PostPublication", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ContentPostId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("ExternalPostId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ExternalPostUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("PostVariantId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RetryCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SocialAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentPostId");
+
+                    b.HasIndex("PostVariantId");
 
                     b.HasIndex("SocialAccountId");
 
-                    b.HasIndex("TeamId1");
-
-                    b.HasIndex("TeamId", "CreatedAt");
+                    b.HasIndex("TeamId", "IdempotencyKey")
+                        .IsUnique();
 
                     b.HasIndex("TeamId", "ScheduledAt");
 
                     b.HasIndex("TeamId", "Status");
 
-                    b.HasIndex("TeamId", "ChannelId", "SocialAccountId");
-
-                    b.ToTable("ContentPosts");
+                    b.ToTable("PostPublications");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.PostVariant", b =>
@@ -285,36 +367,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("LastError")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
                     b.Property<int>("Platform")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PlatformPostId")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("PlatformPostUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime?>("PublishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RetryCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime?>("ScheduledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("SocialAccountId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
                         .HasColumnType("integer");
 
                     b.Property<string>("Title")
@@ -326,12 +379,139 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SocialAccountId");
-
                     b.HasIndex("ContentPostId", "Platform")
                         .IsUnique();
 
                     b.ToTable("PostVariants");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PublicationAnalytics", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Clicks")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DedupeKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("EngagementRate")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<int>("Impressions")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MetricVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("PlatformCollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PostPublicationId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Shares")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("WindowEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("WindowStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostPublicationId");
+
+                    b.HasIndex("TeamId", "DedupeKey")
+                        .IsUnique();
+
+                    b.HasIndex("TeamId", "PostPublicationId", "CollectedAt");
+
+                    b.ToTable("PublicationAnalytics");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PublishJob", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeadLetteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("MaxAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3);
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PostPublicationId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RetryCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostPublicationId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Status", "ScheduledAt", "NextAttemptAt");
+
+                    b.ToTable("PublishJobs");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.SocialAccount", b =>
@@ -364,6 +544,11 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("ExternalAccountId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -379,11 +564,6 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.Property<int>("Platform")
                         .HasColumnType("integer");
-
-                    b.Property<string>("PlatformAccountId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("RefreshToken")
                         .HasMaxLength(2000)
@@ -712,62 +892,13 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("PublishJob", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AttemptCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<int>("PostVariantId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ScheduledFor")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("SocialAccountId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PostVariantId");
-
-                    b.HasIndex("ScheduledFor");
-
-                    b.HasIndex("SocialAccountId");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("PublishJobs");
-                });
-
             modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
                 {
                     b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
-                        .WithMany()
+                        .WithMany("Campaigns")
                         .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithMany("Campaigns")
@@ -778,25 +909,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("Channel");
 
                     b.Navigation("Team");
-                });
-
-            modelBuilder.Entity("AiContentFlow.Domain.Models.CampaignContentPost", b =>
-                {
-                    b.HasOne("AiContentFlow.Domain.Models.Campaign", "Campaign")
-                        .WithMany("CampaignContentPosts")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AiContentFlow.Domain.Models.ContentPost", "ContentPost")
-                        .WithMany("CampaignContentPosts")
-                        .HasForeignKey("ContentPostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Campaign");
-
-                    b.Navigation("ContentPost");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
@@ -810,27 +922,84 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("Team");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelBranding", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
+                        .WithOne("Branding")
+                        .HasForeignKey("AiContentFlow.Domain.Models.ChannelBranding", "ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelConfig", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
+                        .WithOne("Config")
+                        .HasForeignKey("AiContentFlow.Domain.Models.ChannelConfig", "ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
-                    b.HasOne("AiContentFlow.Domain.Models.Channel", null)
-                        .WithMany()
-                        .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("AiContentFlow.Domain.Models.Campaign", "Campaign")
+                        .WithMany("ContentPosts")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("AiContentFlow.Domain.Models.SocialAccount", null)
-                        .WithMany()
-                        .HasForeignKey("SocialAccountId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
+                        .WithMany("ContentPosts")
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
-                        .WithMany()
+                        .WithMany("ContentPosts")
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AiContentFlow.Domain.Models.Team", null)
-                        .WithMany("ContentPosts")
-                        .HasForeignKey("TeamId1");
+                    b.Navigation("Campaign");
+
+                    b.Navigation("Channel");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PostPublication", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.ContentPost", "ContentPost")
+                        .WithMany("Publications")
+                        .HasForeignKey("ContentPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AiContentFlow.Domain.Models.PostVariant", "PostVariant")
+                        .WithMany("Publications")
+                        .HasForeignKey("PostVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AiContentFlow.Domain.Models.SocialAccount", "SocialAccount")
+                        .WithMany("Publications")
+                        .HasForeignKey("SocialAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
+                        .WithMany("Publications")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ContentPost");
+
+                    b.Navigation("PostVariant");
+
+                    b.Navigation("SocialAccount");
 
                     b.Navigation("Team");
                 });
@@ -843,14 +1012,29 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AiContentFlow.Domain.Models.SocialAccount", "SocialAccount")
-                        .WithMany()
-                        .HasForeignKey("SocialAccountId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("ContentPost");
+                });
 
-                    b.Navigation("SocialAccount");
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PublicationAnalytics", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.PostPublication", "PostPublication")
+                        .WithMany("Analytics")
+                        .HasForeignKey("PostPublicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PostPublication");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PublishJob", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.PostPublication", "PostPublication")
+                        .WithMany("PublishJobs")
+                        .HasForeignKey("PostPublicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PostPublication");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.SocialAccount", b =>
@@ -951,40 +1135,46 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PublishJob", b =>
-                {
-                    b.HasOne("AiContentFlow.Domain.Models.PostVariant", "PostVariant")
-                        .WithMany()
-                        .HasForeignKey("PostVariantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AiContentFlow.Domain.Models.SocialAccount", "SocialAccount")
-                        .WithMany()
-                        .HasForeignKey("SocialAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("PostVariant");
-
-                    b.Navigation("SocialAccount");
-                });
-
             modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
                 {
-                    b.Navigation("CampaignContentPosts");
+                    b.Navigation("ContentPosts");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Channel", b =>
                 {
+                    b.Navigation("Branding");
+
+                    b.Navigation("Campaigns");
+
+                    b.Navigation("Config");
+
+                    b.Navigation("ContentPosts");
+
                     b.Navigation("SocialAccounts");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
-                    b.Navigation("CampaignContentPosts");
-
                     b.Navigation("PostVariants");
+
+                    b.Navigation("Publications");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PostPublication", b =>
+                {
+                    b.Navigation("Analytics");
+
+                    b.Navigation("PublishJobs");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.PostVariant", b =>
+                {
+                    b.Navigation("Publications");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.SocialAccount", b =>
+                {
+                    b.Navigation("Publications");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Team", b =>
@@ -994,6 +1184,8 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("Channels");
 
                     b.Navigation("ContentPosts");
+
+                    b.Navigation("Publications");
 
                     b.Navigation("SocialAccounts");
 

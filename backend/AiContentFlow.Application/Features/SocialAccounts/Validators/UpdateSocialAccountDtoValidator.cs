@@ -22,5 +22,8 @@ public class UpdateSocialAccountDtoValidator : AbstractValidator<UpdateSocialAcc
 
         RuleFor(x => x.DisplayName)
             .MaximumLength(150);
+
+        RuleFor(x => x.ExternalAccountId)
+            .MaximumLength(200);
     }
 }

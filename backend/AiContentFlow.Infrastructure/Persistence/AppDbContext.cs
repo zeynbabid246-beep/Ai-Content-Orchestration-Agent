@@ -17,8 +17,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ContentPost> ContentPosts { get; set; }
     public DbSet<PostVariant> PostVariants { get; set; }
     public DbSet<Campaign> Campaigns { get; set; }
-    public DbSet<CampaignContentPost> CampaignContentPosts { get; set; }
+    public DbSet<ChannelBranding> ChannelBrandings { get; set; }
+    public DbSet<ChannelConfig> ChannelConfigs { get; set; }
+    public DbSet<PostPublication> PostPublications { get; set; }
     public DbSet<PublishJob> PublishJobs { get; set; }
+    public DbSet<PublicationAnalytics> PublicationAnalytics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -85,6 +88,26 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(sa => sa.ChannelId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasMany(c => c.Campaigns)
+                .WithOne(campaign => campaign.Channel)
+                .HasForeignKey(campaign => campaign.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(c => c.ContentPosts)
+                .WithOne(cp => cp.Channel)
+                .HasForeignKey(cp => cp.ChannelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(c => c.Branding)
+                .WithOne(b => b.Channel)
+                .HasForeignKey<ChannelBranding>(b => b.ChannelId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.Config)
+                .WithOne(config => config.Channel)
+                .HasForeignKey<ChannelConfig>(config => config.ChannelId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasQueryFilter(c => !c.IsDeleted);
         });
 
@@ -99,7 +122,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(sa => sa.UpdatedAt).IsRequired();
             entity.Property(sa => sa.IsDeleted).HasDefaultValue(false);
             entity.Property(sa => sa.OAuthToken).IsRequired().HasMaxLength(2000);
-            entity.Property(sa => sa.PlatformAccountId).IsRequired().HasMaxLength(200);
+            entity.Property(sa => sa.ExternalAccountId).IsRequired().HasMaxLength(200);
             entity.Property(sa => sa.RefreshToken).HasMaxLength(2000);
             entity.HasIndex(sa => new { sa.TeamId, sa.ChannelId });
             entity.HasIndex(sa => new { sa.TeamId, sa.Platform });
@@ -118,60 +141,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.HasQueryFilter(sa => !sa.IsDeleted);
         });
 
-        builder.Entity<ContentPost>(entity =>
-        {
-            entity.HasKey(cp => cp.Id);
-            entity.Property(cp => cp.Topic).IsRequired().HasMaxLength(300);
-            entity.Property(cp => cp.Title).HasMaxLength(300);
-            entity.Property(cp => cp.Subject).HasMaxLength(300);
-            entity.Property(cp => cp.Content).HasColumnType("text");
-            entity.Property(cp => cp.ContentJson).IsRequired().HasColumnType("jsonb");
-            entity.Property(cp => cp.ContentType).HasConversion<int>();
-            entity.Property(cp => cp.Status).HasConversion<int>();
-            entity.Property(cp => cp.AiModel).HasMaxLength(100);
-            entity.Property(cp => cp.Prompt).HasColumnType("text");
-            entity.Property(cp => cp.PlatformPostId).HasMaxLength(200);
-            entity.Property(cp => cp.PlatformPostUrl).HasMaxLength(500);
-            entity.Property(cp => cp.LastError).HasMaxLength(4000);
-            entity.Property(cp => cp.CreatedByUserId).IsRequired();
-            entity.Property(cp => cp.CreatedAt).IsRequired();
-            entity.Property(cp => cp.UpdatedAt).IsRequired();
-            entity.Property(cp => cp.RetryCount).HasDefaultValue(0);
-            entity.HasIndex(cp => new { cp.TeamId, cp.Status });
-            entity.HasIndex(cp => new { cp.TeamId, cp.CreatedAt });
-            entity.HasIndex(cp => new { cp.TeamId, cp.ScheduledAt });
-
-            entity.HasOne(cp => cp.Team)
-                .WithMany()
-                .HasForeignKey(cp => cp.TeamId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(cp => cp.PostVariants)
-                .WithOne(pv => pv.ContentPost)
-                .HasForeignKey(pv => pv.ContentPostId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
         builder.Entity<PostVariant>(entity =>
         {
             entity.HasKey(pv => pv.Id);
             entity.Property(pv => pv.ContentJson).IsRequired().HasColumnType("jsonb");
             entity.Property(pv => pv.Title).HasMaxLength(200);
             entity.Property(pv => pv.Platform).HasConversion<int>();
-            entity.Property(pv => pv.Status).HasConversion<int>();
-            entity.Property(pv => pv.PlatformPostId).HasMaxLength(200);
-            entity.Property(pv => pv.PlatformPostUrl).HasMaxLength(500);
-            entity.Property(pv => pv.LastError).HasMaxLength(4000);
             entity.Property(pv => pv.CreatedAt).IsRequired();
             entity.Property(pv => pv.UpdatedAt).IsRequired();
-            entity.Property(pv => pv.RetryCount).HasDefaultValue(0);
             entity.HasIndex(pv => new { pv.ContentPostId, pv.Platform }).IsUnique();
-
-            // ✅ fixed — FK must reference the int column, not the navigation property
-            entity.HasOne(pv => pv.SocialAccount)
-                .WithMany()
-                .HasForeignKey(pv => pv.SocialAccountId)  
-                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<Campaign>(entity =>
@@ -193,60 +171,85 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(c => c.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasMany(c => c.CampaignContentPosts)
-                .WithOne(ccp => ccp.Campaign)
-                .HasForeignKey(ccp => ccp.CampaignId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             entity.HasOne(c => c.Channel)
-                .WithMany()
+                .WithMany(channel => channel.Campaigns)
                 .HasForeignKey(c => c.ChannelId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(c => !c.IsDeleted);
         });
 
-        builder.Entity<CampaignContentPost>(entity =>
+        builder.Entity<PostPublication>(entity =>
         {
-            entity.HasKey(ccp => new { ccp.CampaignId, ccp.ContentPostId });
-            entity.Property(ccp => ccp.LinkedAt).IsRequired();
-            entity.Property(ccp => ccp.LinkedByUserId).IsRequired();
-            entity.HasIndex(ccp => ccp.CampaignId);
-            entity.HasIndex(ccp => ccp.ContentPostId);
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Status).HasConversion<int>();
+            entity.Property(p => p.ExternalPostId).HasMaxLength(200);
+            entity.Property(p => p.ExternalPostUrl).HasMaxLength(500);
+            entity.Property(p => p.ErrorMessage).HasMaxLength(4000);
+            entity.Property(p => p.IdempotencyKey).HasMaxLength(200);
+            entity.Property(p => p.CreatedAt).IsRequired();
+            entity.Property(p => p.UpdatedAt).IsRequired();
+            entity.Property(p => p.RetryCount).HasDefaultValue(0);
+            entity.HasIndex(p => new { p.TeamId, p.Status });
+            entity.HasIndex(p => new { p.TeamId, p.ScheduledAt });
+            entity.HasIndex(p => new { p.TeamId, p.IdempotencyKey }).IsUnique();
 
-            entity.HasOne(ccp => ccp.Campaign)
-                .WithMany(c => c.CampaignContentPosts)
-                .HasForeignKey(ccp => ccp.CampaignId)
+            entity.HasOne(p => p.Team)
+                .WithMany(t => t.Publications)
+                .HasForeignKey(p => p.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(ccp => ccp.ContentPost)
-                .WithMany(cp => cp.CampaignContentPosts)
-                .HasForeignKey(ccp => ccp.ContentPostId)
+            entity.HasOne(p => p.ContentPost)
+                .WithMany(cp => cp.Publications)
+                .HasForeignKey(p => p.ContentPostId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasQueryFilter(ccp => !ccp.Campaign!.IsDeleted);
+            entity.HasOne(p => p.PostVariant)
+                .WithMany(v => v.Publications)
+                .HasForeignKey(p => p.PostVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(p => p.SocialAccount)
+                .WithMany(sa => sa.Publications)
+                .HasForeignKey(p => p.SocialAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<PublishJob>(entity =>
         {
             entity.HasKey(pj => pj.Id);
-            entity.Property(pj => pj.Status).IsRequired().HasMaxLength(50);
-            entity.Property(pj => pj.ErrorMessage).HasMaxLength(4000);
-            entity.Property(pj => pj.ScheduledFor).IsRequired();
+            entity.Property(pj => pj.Status).HasConversion<int>();
+            entity.Property(pj => pj.LastError).HasMaxLength(4000);
+            entity.Property(pj => pj.ScheduledAt).IsRequired();
+            entity.Property(pj => pj.NextAttemptAt).IsRequired();
+            entity.Property(pj => pj.LockedBy).HasMaxLength(200);
             entity.Property(pj => pj.CreatedAt).IsRequired();
-            entity.Property(pj => pj.AttemptCount).HasDefaultValue(0);
+            entity.Property(pj => pj.RetryCount).HasDefaultValue(0);
+            entity.Property(pj => pj.MaxAttempts).HasDefaultValue(3);
             entity.HasIndex(pj => pj.Status);
-            entity.HasIndex(pj => pj.ScheduledFor);
+            entity.HasIndex(pj => new { pj.Status, pj.ScheduledAt, pj.NextAttemptAt });
 
-            entity.HasOne(pj => pj.PostVariant)
-                .WithMany()
-                .HasForeignKey(pj => pj.PostVariantId)
+            entity.HasOne(pj => pj.PostPublication)
+                .WithMany(pp => pp.PublishJobs)
+                .HasForeignKey(pj => pj.PostPublicationId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
 
-            entity.HasOne(pj => pj.SocialAccount)
-                .WithMany()
-                .HasForeignKey(pj => pj.SocialAccountId)
-                .OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PublicationAnalytics>(entity =>
+        {
+            entity.HasKey(pa => pa.Id);
+            entity.Property(pa => pa.Source).IsRequired().HasMaxLength(100);
+            entity.Property(pa => pa.DedupeKey).IsRequired().HasMaxLength(200);
+            entity.Property(pa => pa.MetricVersion).HasMaxLength(100);
+            entity.Property(pa => pa.EngagementRate).HasPrecision(8, 4);
+            entity.Property(pa => pa.CollectedAt).IsRequired();
+            entity.HasIndex(pa => new { pa.TeamId, pa.PostPublicationId, pa.CollectedAt });
+            entity.HasIndex(pa => new { pa.TeamId, pa.DedupeKey }).IsUnique();
+
+            entity.HasOne(pa => pa.PostPublication)
+                .WithMany(pp => pp.Analytics)
+                .HasForeignKey(pa => pa.PostPublicationId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

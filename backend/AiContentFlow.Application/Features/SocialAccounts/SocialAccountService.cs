@@ -56,6 +56,7 @@ public class SocialAccountService : ISocialAccountService
             Status = SocialAccountStatus.Active,
             AccountHandle = normalizedHandle,
             DisplayName = Normalize(dto.DisplayName),
+            ExternalAccountId = Normalize(dto.ExternalAccountId) ?? string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -118,6 +119,7 @@ public class SocialAccountService : ISocialAccountService
         socialAccount.Status = dto.Status;
         socialAccount.AccountHandle = normalizedHandle;
         socialAccount.DisplayName = Normalize(dto.DisplayName);
+        socialAccount.ExternalAccountId = Normalize(dto.ExternalAccountId) ?? string.Empty;
         socialAccount.UpdatedAt = DateTime.UtcNow;
 
         await _socialAccountRepository.SaveChangesAsync();
@@ -153,6 +155,7 @@ public class SocialAccountService : ISocialAccountService
             socialAccount.Status,
             socialAccount.AccountHandle,
             socialAccount.DisplayName,
+            socialAccount.ExternalAccountId,
             socialAccount.CreatedAt,
             socialAccount.UpdatedAt);
     }

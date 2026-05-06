@@ -16,11 +16,16 @@ public class LinkedInPublisher : IPublisher
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<LinkedInPublisher> _logger;
+    private readonly ISocialCredentialStore _credentialStore;
 
-    public LinkedInPublisher(IHttpClientFactory factory, ILogger<LinkedInPublisher> logger)
+    public LinkedInPublisher(
+        IHttpClientFactory factory,
+        ILogger<LinkedInPublisher> logger,
+        ISocialCredentialStore credentialStore)
     {
         _httpClient = factory.CreateClient("LinkedIn");
         _logger = logger;
+        _credentialStore = credentialStore;
     }
 
     public async Task<PublishResult> PublishAsync(PostVariant variant, SocialAccount account)
@@ -43,12 +48,13 @@ public class LinkedInPublisher : IPublisher
             if (content.TryGetProperty("imageUrl", out var imgProp))
                 imageUrl = imgProp.GetString();
 
+            var accessToken = await _credentialStore.GetAccessTokenAsync(account);
             _httpClient.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", account.OAuthToken);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
             _httpClient.DefaultRequestHeaders.Remove("X-Restli-Protocol-Version");
             _httpClient.DefaultRequestHeaders.Add("X-Restli-Protocol-Version", "2.0.0");
 
-            var author = $"urn:li:member:{account.PlatformAccountId}";
+            var author = $"urn:li:member:{account.ExternalAccountId}";
 
             string? imageAssetUrn = null;
             if (!string.IsNullOrEmpty(imageUrl))
@@ -61,7 +67,7 @@ public class LinkedInPublisher : IPublisher
             // 🔁 Fallback to person URN
             _logger.LogWarning("LinkedIn publish failed with member URN → retrying with person URN");
 
-            var fallbackAuthor = $"urn:li:person:{account.PlatformAccountId}";
+            var fallbackAuthor = $"urn:li:person:{account.ExternalAccountId}";
             imageAssetUrn = null;
 
             if (!string.IsNullOrEmpty(imageUrl))

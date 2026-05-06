@@ -6,7 +6,8 @@ public record CreateSocialAccountDto(
     int ChannelId,
     SocialPlatform Platform,
     string AccountHandle,
-    string? DisplayName
+    string? DisplayName,
+    string? ExternalAccountId
 );
 
 public record UpdateSocialAccountDto(
@@ -14,7 +15,8 @@ public record UpdateSocialAccountDto(
     SocialPlatform Platform,
     SocialAccountStatus Status,
     string AccountHandle,
-    string? DisplayName
+    string? DisplayName,
+    string? ExternalAccountId
 );
 
 public record SocialAccountResponseDto(
@@ -25,6 +27,7 @@ public record SocialAccountResponseDto(
     SocialAccountStatus Status,
     string AccountHandle,
     string? DisplayName,
+    string? ExternalAccountId,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

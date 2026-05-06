@@ -25,14 +25,14 @@ public class ContentPostRepository : IContentPostRepository
             .Include(cp => cp.PostVariants)
             .FirstOrDefaultAsync(cp => cp.TeamId == teamId 
                                     && cp.Id == contentPostId 
-                                    && cp.Status != ContentStatus.Deleted);
+                                    && cp.Status != ContentStatus.Archived);
     }
 
     public async Task<List<ContentPost>> GetByTeamAsync(Guid teamId)
     {
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
-            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Deleted)
+            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Archived)
             .OrderByDescending(cp => cp.CreatedAt)
             .ToListAsync();
     }
@@ -51,35 +51,15 @@ public class ContentPostRepository : IContentPostRepository
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
             .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Scheduled)
-            .OrderBy(p => p.ScheduledAt)
+            .OrderByDescending(p => p.UpdatedAt)
             .ToListAsync();
     }
 
     public async Task<List<ContentPost>> GetDeletedAsync(Guid teamId)
     {
         return await _context.ContentPosts
-            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Deleted)
+            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Archived)
             .OrderByDescending(p => p.UpdatedAt)
-            .ToListAsync();
-    }
-
-    
-    public async Task<List<ContentPost>> GetAllAsync()
-    {
-        return await _context.ContentPosts
-            .Include(cp => cp.PostVariants)
-            .OrderByDescending(cp => cp.CreatedAt)
-            .ToListAsync();
-    }
-
-    
-    public async Task<List<ContentPost>> GetDueScheduledPostsAsync()
-    {
-        return await _context.ContentPosts
-            .Include(cp => cp.PostVariants)
-            .Where(p => p.Status == ContentStatus.Scheduled 
-                     && p.ScheduledAt <= DateTime.UtcNow)
-            .OrderBy(p => p.ScheduledAt)
             .ToListAsync();
     }
 

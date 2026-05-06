@@ -13,5 +13,11 @@ public class CreateChannelDtoValidator : AbstractValidator<CreateChannelDto>
 
         RuleFor(x => x.Description)
             .MaximumLength(500);
+
+        When(x => x.Config != null, () =>
+        {
+            RuleFor(x => x.Config!.SettingsJson)
+                .NotEmpty();
+        });
     }
 }

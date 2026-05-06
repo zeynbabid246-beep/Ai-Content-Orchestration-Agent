@@ -15,8 +15,8 @@ public record UpdatePostVariantDto(
 );
 
 public record CreateContentPostDto(
-    int? ChannelId,
-    int? SocialAccountId,
+    int ChannelId,
+    int? CampaignId,
     string? Title,
     ContentType ContentType,
     string ContentJson,
@@ -27,8 +27,8 @@ public record CreateContentPostDto(
 );
 
 public record UpdateContentPostDto(
-    int? ChannelId,
-    int? SocialAccountId,
+    int ChannelId,
+    int? CampaignId,
     string? Title,
     ContentType ContentType,
     string ContentJson,
@@ -44,13 +44,18 @@ public record TransitionContentPostStatusDto(
 );
 
 public record ScheduleContentPostDto(
-    DateTime ScheduledAt
+    int SocialAccountId,
+    int? PostVariantId,
+    DateTime ScheduledAt,
+    string? IdempotencyKey = null
 );
 
 public record PublishContentPostDto(
-    string? PlatformPostId,
-    string? PlatformPostUrl
+    int SocialAccountId,
+    int? PostVariantId,
+    string? IdempotencyKey = null
 );
+
 
 public record PostVariantResponseDto(
     int Id,
@@ -58,13 +63,6 @@ public record PostVariantResponseDto(
     SocialPlatform Platform,
     string ContentJson,
     string? Title,
-    ContentStatus Status,
-    string? PlatformPostId,
-    string? PlatformPostUrl,
-    DateTime? ScheduledAt,
-    DateTime? PublishedAt,
-    int RetryCount,
-    string? LastError,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
@@ -72,8 +70,8 @@ public record PostVariantResponseDto(
 public record ContentPostResponseDto(
     int Id,
     Guid TeamId,
-    int? ChannelId,
-    int? SocialAccountId,
+    int ChannelId,
+    int? CampaignId,
     string? Title,
     ContentType ContentType,
     string ContentJson,
@@ -81,12 +79,6 @@ public record ContentPostResponseDto(
     string? Prompt,
     string? AiModel,
     int? AiTokens,
-    DateTime? ScheduledAt,
-    DateTime? PublishedAt,
-    string? PlatformPostId,
-    string? PlatformPostUrl,
-    int RetryCount,
-    string? LastError,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<PostVariantResponseDto> PostVariants

@@ -46,13 +46,14 @@ public class SocialAccountRepository : ISocialAccountRepository
             && (!excludeSocialAccountId.HasValue || sa.Id != excludeSocialAccountId.Value));
     }
 
-  
-    public async Task<SocialAccount?> GetActiveByChannelAsync(int channelId)
+    public async Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int channelId, SocialPlatform platform, string externalAccountId)
     {
-        return await _context.SocialAccounts
-            .FirstOrDefaultAsync(sa => sa.ChannelId == channelId 
-                                    && sa.IsActive 
-                                    && !sa.IsDeleted);
+        return await _context.SocialAccounts.FirstOrDefaultAsync(sa =>
+            sa.TeamId == teamId
+            && sa.ChannelId == channelId
+            && sa.Platform == platform
+            && sa.ExternalAccountId == externalAccountId
+            && !sa.IsDeleted);
     }
 
     public async Task SaveChangesAsync()

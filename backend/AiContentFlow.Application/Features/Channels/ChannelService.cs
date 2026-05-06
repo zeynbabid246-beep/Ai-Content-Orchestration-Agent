@@ -49,6 +49,8 @@ public class ChannelService : IChannelService
             Name = name,
             NormalizedName = normalizedName,
             Description = Normalize(dto.Description),
+            Branding = MapBranding(dto.Branding),
+            Config = MapConfig(dto.Config),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -107,6 +109,8 @@ public class ChannelService : IChannelService
         channel.Name = name;
         channel.NormalizedName = normalizedName;
         channel.Description = Normalize(dto.Description);
+        channel.Branding = ApplyBranding(channel.Branding, dto.Branding);
+        channel.Config = ApplyConfig(channel.Config, dto.Config);
         channel.UpdatedAt = DateTime.UtcNow;
 
         await _channelRepository.SaveChangesAsync();
@@ -139,8 +143,98 @@ public class ChannelService : IChannelService
             channel.TeamId,
             channel.Name,
             channel.Description,
+            MapBranding(channel.Branding),
+            MapConfig(channel.Config),
             channel.CreatedAt,
             channel.UpdatedAt);
+    }
+
+    private static ChannelBranding? MapBranding(ChannelBrandingDto? dto)
+    {
+        if (dto is null)
+        {
+            return null;
+        }
+
+        return new ChannelBranding
+        {
+            LogoUrl = Normalize(dto.LogoUrl),
+            Theme = Normalize(dto.Theme),
+            Slogan = Normalize(dto.Slogan),
+            Tone = Normalize(dto.Tone),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static ChannelConfig? MapConfig(ChannelConfigDto? dto)
+    {
+        if (dto is null)
+        {
+            return null;
+        }
+
+        return new ChannelConfig
+        {
+            SettingsJson = dto.SettingsJson?.Trim() ?? string.Empty,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static ChannelBranding? ApplyBranding(ChannelBranding? existing, ChannelBrandingDto? dto)
+    {
+        if (dto is null)
+        {
+            return existing;
+        }
+
+        if (existing is null)
+        {
+            return MapBranding(dto);
+        }
+
+        existing.LogoUrl = Normalize(dto.LogoUrl);
+        existing.Theme = Normalize(dto.Theme);
+        existing.Slogan = Normalize(dto.Slogan);
+        existing.Tone = Normalize(dto.Tone);
+        existing.UpdatedAt = DateTime.UtcNow;
+        return existing;
+    }
+
+    private static ChannelConfig? ApplyConfig(ChannelConfig? existing, ChannelConfigDto? dto)
+    {
+        if (dto is null)
+        {
+            return existing;
+        }
+
+        if (existing is null)
+        {
+            return MapConfig(dto);
+        }
+
+        existing.SettingsJson = dto.SettingsJson?.Trim() ?? string.Empty;
+        existing.UpdatedAt = DateTime.UtcNow;
+        return existing;
+    }
+
+    private static ChannelBrandingDto? MapBranding(ChannelBranding? branding)
+    {
+        return branding == null
+            ? null
+            : new ChannelBrandingDto(
+                branding.LogoUrl,
+                branding.Theme,
+                branding.Slogan,
+                branding.Tone);
+    }
+
+    private static ChannelConfigDto? MapConfig(ChannelConfig? config)
+    {
+        return config == null
+            ? null
+            : new ChannelConfigDto(config.SettingsJson);
     }
 
     private static string NormalizeRequired(string value)

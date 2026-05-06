@@ -1,3 +1,29 @@
+# Refactored Backend Boundaries
+
+## Editorial Content
+
+`ContentPost` and `PostVariant` represent editorial content and platform-specific adaptations only. They do not own external publication identifiers, retry counters, provider errors, or job execution state.
+
+## Publishing Delivery
+
+`PostPublication` represents a delivery intent for one content post/variant to one social account. `PublishJob` represents the background execution mechanism for that publication.
+
+Publication creation is idempotent and should create `PostPublication` plus `PublishJob` in one transaction.
+
+## Social Integrations
+
+OAuth callback processing is split into:
+
+- application-owned state generation and tenant/user authorization
+- provider-owned token/account exchange
+- credential storage through `ISocialCredentialStore`
+
+Provider adapters must not invent or return tenant authority.
+
+## Analytics
+
+Analytics belong to `PostPublication` and are modeled as deduplicated snapshots with source, window, and metric version metadata.
+
 # AiContentFlow App Structure and Logic
 
 ## Overview
@@ -16,7 +42,9 @@ Core principles:
 
 ### `AiContentFlow.Domain`
 Defines core models and enums:
-- `Team`, `UserTeam`, `Channel`, `SocialAccount`, `ContentPost`, `PostVariant`, `Campaign`, `CampaignContentPost`
+- `Team`, `UserTeam`, `Channel`, `ChannelBranding`, `ChannelConfig`
+- `SocialAccount`, `ContentPost`, `PostVariant`, `Campaign`
+- `PostPublication`, `PublishJob`, `PublicationAnalytics`
 - `TeamRole`: `Viewer`, `Admin`, `Editor`
 - content and campaign lifecycle enums
 
@@ -79,17 +107,23 @@ Team name completion endpoint:
 - `Channel` is team-scoped.
 - `Channel.NormalizedName` enforces case-insensitive uniqueness within team.
 - `SocialAccount` is team-scoped and linked to channel.
+- OAuth tokens and secrets are managed through protected credential storage abstractions.
 
 ### Campaign
 - `Campaign` is team-scoped and soft-deletable.
-- campaign optionally references `ChannelId` for channel-context planning.
-- `CampaignContentPost` is many-to-many join to `ContentPost`.
+- campaign references one `ChannelId`.
+- `ContentPost` can optionally reference one `CampaignId`.
 
 ### Content Post
 - `ContentPost` is team-scoped.
-- `ChannelId` and `SocialAccountId` are optional.
-- standalone posts are valid and support full lifecycle.
-- when optional links are provided, service validates same-team ownership and channel-social consistency.
+- `ChannelId` is required.
+- `CampaignId` is optional.
+- publication destination is handled by `PostPublication`, not stored on the post.
+
+### Publication and Jobs
+- `PostPublication` is the delivery intent and lifecycle aggregate for publishing.
+- `PublishJob` is the execution/retry unit for background publishing.
+- `PublicationAnalytics` is publication-scoped metrics storage with dedupe metadata.
 
 ---
 
@@ -109,32 +143,33 @@ Cross-entity tenant guards:
 ## Content Lifecycle Logic
 
 Allowed transitions:
-- `Draft -> Ready`
-- `Ready -> Scheduled`
+- `Draft -> Review`
+- `Review -> Approved`
+- `Approved -> Scheduled`
 - `Scheduled -> Published`
+- `Published -> Archived`
 
 Scheduling rules:
 - UTC required
 - future timestamp required
 
 Social scheduling notes:
-- if a social account is linked, scheduling creates a `PostVariant` used by `PublishScheduledVariantsJob`
-- social accounts must be active for scheduled publishing to succeed
+- scheduling creates `PostPublication` + `PublishJob` atomically.
+- social account must be active and team-scoped.
+
+Meta token usage:
+- Facebook posts use page access tokens stored in `SocialAccount.OAuthToken`.
+- Page IDs are stored in `SocialAccount.PlatformAccountId`.
 
 Hangfire scheduling:
 - `PublishScheduledVariantsJob` runs every minute via Hangfire.
+- `SyncPublicationAnalyticsJob` runs hourly via Hangfire.
 - Dashboard is available at `/hangfire` in development.
 
 Publish rules:
-- transition must be valid
-- sets `PublishedAt` consistently
-
-Note on publishing pipelines:
-- `ContentPostService.PublishAsync` delegates to `PublishPostUseCase` for social publishing.
-- Scheduled publishing creates `PostVariant` records and is finalized by `PublishWorker`.
-
-Standalone post behavior:
-- create/schedule/publish works with `channelId=null` and `socialAccountId=null`
+- publication endpoint accepts `socialAccountId` and optional `postVariantId`.
+- only `Approved` and `Scheduled` posts are publishable.
+- idempotency is enforced via publication intent matching and optional `idempotencyKey`.
 
 ---
 
@@ -153,11 +188,11 @@ Campaign mutation rules:
 Recent model updates:
 - `Teams.IsNameSetupRequired`
 - `Channels.NormalizedName` + unique index (`TeamId`, `NormalizedName`)
-- nullable `ContentPosts.ChannelId` and `ContentPosts.SocialAccountId`
-- optional `Campaigns.ChannelId` + index (`TeamId`, `ChannelId`)
+- `ContentPosts.ChannelId` required and `ContentPosts.CampaignId` optional
+- publishing lifecycle tables: `PostPublications`, `PublishJobs`, `PublicationAnalytics`
 
 Migration:
-- `20260416094812_TeamFirstOnboardingScopedCampaignsOptionalContent`
+- `20260506104946_AddPublishingLifecycleAndAnalytics`
 
 ---
 

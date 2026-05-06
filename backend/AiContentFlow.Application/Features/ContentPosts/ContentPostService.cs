@@ -1,7 +1,7 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Services;
 using AiContentFlow.Application.Features.ContentPosts.Dtos;
 using AiContentFlow.Domain.Models;
-using Application.UseCases;
 
 namespace AiContentFlow.Application.Features.ContentPosts;
 
@@ -9,51 +9,47 @@ public class ContentPostService : IContentPostService
 {
     private readonly IContentPostRepository _contentPostRepository;
     private readonly IChannelRepository _channelRepository;
-    private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IPostVariantRepository _postVariantRepository;
-    private readonly PublishPostUseCase _publishPostUseCase;
+    private readonly Features.Publications.IPublicationService _publicationService;
 
     public ContentPostService(
         IContentPostRepository contentPostRepository,
         IChannelRepository channelRepository,
-        ISocialAccountRepository socialAccountRepository,
         ITeamRepository teamRepository,
         IPostVariantRepository postVariantRepository,
-        PublishPostUseCase publishPostUseCase)
+        Features.Publications.IPublicationService publicationService)
     {
         _contentPostRepository = contentPostRepository;
         _channelRepository = channelRepository;
-        _socialAccountRepository = socialAccountRepository;
         _teamRepository = teamRepository;
         _postVariantRepository = postVariantRepository;
-        _publishPostUseCase = publishPostUseCase;
+        _publicationService = publicationService;
     }
 
     public async Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto)
     {
         await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can create content posts");
 
-        await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
+        await ValidateChannelAsync(teamId, dto.ChannelId);
 
-       var contentPost = new ContentPost
-{
-    TeamId = teamId,
-    ChannelId = dto.ChannelId,
-    SocialAccountId = dto.SocialAccountId,
-    Title = Normalize(dto.Title),           
-    ContentType = dto.ContentType,
-    ContentJson = dto.ContentJson.Trim(),
-    Status = ContentStatus.Draft,
-    Prompt = Normalize(dto.Prompt),         
-    AiModel = Normalize(dto.AiModel),      
-    AiTokens = dto.AiTokens,
-    RetryCount = 0,
-    CreatedByUserId = requestingUserId,
-    CreatedAt = DateTime.UtcNow,
-    UpdatedAt = DateTime.UtcNow,
-    PostVariants = MapVariants(dto.PostVariants)
-};
+        var contentPost = new ContentPost
+        {
+            TeamId = teamId,
+            ChannelId = dto.ChannelId,
+            CampaignId = dto.CampaignId,
+            Title = Normalize(dto.Title),
+            ContentType = dto.ContentType,
+            ContentJson = JsonContentValidator.Normalize(dto.ContentJson),
+            Status = ContentStatus.Draft,
+            Prompt = Normalize(dto.Prompt),
+            AiModel = Normalize(dto.AiModel),
+            AiTokens = dto.AiTokens,
+            CreatedByUserId = requestingUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            PostVariants = MapVariants(dto.PostVariants)
+        };
 
         await _contentPostRepository.AddAsync(contentPost);
         await _contentPostRepository.SaveChangesAsync();
@@ -94,21 +90,18 @@ public class ContentPostService : IContentPostService
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        if (contentPost.Status == ContentStatus.Deleted)
+        if (contentPost.Status == ContentStatus.Archived)
             throw new KeyNotFoundException("Content post not found");
 
-        await ValidateChannelAndSocialAccountAsync(teamId, dto.ChannelId, dto.SocialAccountId);
+        await ValidateChannelAsync(teamId, dto.ChannelId);
 
         contentPost.ChannelId = dto.ChannelId;
-        contentPost.SocialAccountId = dto.SocialAccountId;
+        contentPost.CampaignId = dto.CampaignId;
         contentPost.Title = Normalize(dto.Title);
         contentPost.ContentType = dto.ContentType;
-        contentPost.ContentJson = dto.ContentJson.Trim();
+        contentPost.ContentJson = JsonContentValidator.Normalize(dto.ContentJson);
         if (dto.Status != contentPost.Status)
         {
-            if (dto.Status == ContentStatus.Deleted)
-                throw new InvalidOperationException("Use delete endpoint to delete content posts");
-
             if (dto.Status == ContentStatus.Scheduled)
                 throw new InvalidOperationException("Use schedule endpoint to move content post to Scheduled");
 
@@ -150,9 +143,6 @@ public class ContentPostService : IContentPostService
         if (dto.Status == ContentStatus.Published)
             throw new InvalidOperationException("Use publish endpoint to move content post to Published");
 
-        if (dto.Status == ContentStatus.Deleted)
-            throw new InvalidOperationException("Use delete endpoint to delete content posts");
-
         if (dto.Status != contentPost.Status)
             ApplyLifecycleTransition(contentPost, dto.Status);
 
@@ -175,54 +165,15 @@ public class ContentPostService : IContentPostService
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        ApplyLifecycleTransition(contentPost, ContentStatus.Scheduled);
-        contentPost.ScheduledAt = dto.ScheduledAt;
-        contentPost.UpdatedAt = DateTime.UtcNow;
-
-        if (contentPost.SocialAccountId.HasValue)
-        {
-            var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, contentPost.SocialAccountId.Value)
-                ?? throw new KeyNotFoundException("Social account not found");
-
-            if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
-                throw new InvalidOperationException("Social account is not active");
-
-            var existingVariants = await _postVariantRepository.GetByContentPostIdAsync(contentPost.Id);
-            var scheduledVariant = existingVariants.FirstOrDefault(v =>
-                v.Platform == socialAccount.Platform && v.Status == ContentStatus.Scheduled);
-
-            if (scheduledVariant is null)
-            {
-                scheduledVariant = new PostVariant
-                {
-                    ContentPostId = contentPost.Id,
-                    SocialAccountId = socialAccount.Id,
-                    SocialAccount = socialAccount,
-                    Platform = socialAccount.Platform,
-                    Title = contentPost.Title,
-                    ContentJson = contentPost.ContentJson,
-                    Status = ContentStatus.Scheduled,
-                    ScheduledAt = dto.ScheduledAt,
-                    RetryCount = 0,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _postVariantRepository.AddAsync(scheduledVariant);
-            }
-            else
-            {
-                scheduledVariant.SocialAccountId = socialAccount.Id;
-                scheduledVariant.Platform = socialAccount.Platform;
-                scheduledVariant.Title = contentPost.Title;
-                scheduledVariant.ContentJson = contentPost.ContentJson;
-                scheduledVariant.Status = ContentStatus.Scheduled;
-                scheduledVariant.ScheduledAt = dto.ScheduledAt;
-                scheduledVariant.UpdatedAt = DateTime.UtcNow;
-                await _postVariantRepository.UpdateAsync(scheduledVariant);
-            }
-        }
-
-        await _contentPostRepository.SaveChangesAsync();
+        await _publicationService.ScheduleAsync(
+            teamId,
+            contentPost.Id,
+            requestingUserId,
+            new Features.Publications.Dtos.SchedulePublicationDto(
+                dto.SocialAccountId,
+                dto.PostVariantId,
+                dto.ScheduledAt,
+                dto.IdempotencyKey));
 
         return Map(contentPost);
     }
@@ -231,9 +182,16 @@ public class ContentPostService : IContentPostService
     {
         await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can publish content posts");
 
-        _ = dto;
-
-        var contentPost = await _publishPostUseCase.Execute(teamId, contentPostId);
+        _ = await _publicationService.PublishAsync(
+            teamId,
+            contentPostId,
+            requestingUserId,
+            new Features.Publications.Dtos.PublishPublicationDto(
+                dto.SocialAccountId,
+                dto.PostVariantId,
+                dto.IdempotencyKey));
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
         return Map(contentPost);
     }
 
@@ -244,7 +202,7 @@ public class ContentPostService : IContentPostService
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        contentPost.Status = ContentStatus.Deleted;
+        contentPost.Status = ContentStatus.Archived;
         contentPost.UpdatedAt = DateTime.UtcNow;
 
         await _contentPostRepository.SaveChangesAsync();
@@ -260,10 +218,8 @@ public class ContentPostService : IContentPostService
         return variants.Select(variant => new PostVariant
         {
             Platform = variant.Platform,
-            ContentJson = variant.ContentJson.Trim(),
+            ContentJson = JsonContentValidator.Normalize(variant.ContentJson),
             Title = Normalize(variant.Title),
-            Status = ContentStatus.Draft,
-            RetryCount = 0,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         }).ToList();
@@ -279,10 +235,8 @@ public class ContentPostService : IContentPostService
         return variants.Select(variant => new PostVariant
         {
             Platform = variant.Platform,
-            ContentJson = variant.ContentJson.Trim(),
+            ContentJson = JsonContentValidator.Normalize(variant.ContentJson),
             Title = Normalize(variant.Title),
-            Status = ContentStatus.Draft,
-            RetryCount = 0,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         }).ToList();
@@ -294,7 +248,7 @@ public class ContentPostService : IContentPostService
             contentPost.Id,
             contentPost.TeamId,
             contentPost.ChannelId,
-            contentPost.SocialAccountId,
+            contentPost.CampaignId,
             contentPost.Title,
             contentPost.ContentType,
             contentPost.ContentJson,
@@ -302,12 +256,6 @@ public class ContentPostService : IContentPostService
             contentPost.Prompt,
             contentPost.AiModel,
             contentPost.AiTokens,
-            contentPost.ScheduledAt,
-            contentPost.PublishedAt,
-            contentPost.PlatformPostId,
-            contentPost.PlatformPostUrl,
-            contentPost.RetryCount,
-            contentPost.LastError,
             contentPost.CreatedAt,
             contentPost.UpdatedAt,
             contentPost.PostVariants.Select(Map).ToList()
@@ -322,13 +270,6 @@ public class ContentPostService : IContentPostService
             variant.Platform,
             variant.ContentJson,
             variant.Title,
-            variant.Status,
-            variant.PlatformPostId,
-            variant.PlatformPostUrl,
-            variant.ScheduledAt,
-            variant.PublishedAt,
-            variant.RetryCount,
-            variant.LastError,
             variant.CreatedAt,
             variant.UpdatedAt
         );
@@ -345,38 +286,22 @@ public class ContentPostService : IContentPostService
 
         contentPost.Status = targetStatus;
 
-        if (targetStatus == ContentStatus.Ready)
-        {
-            contentPost.ScheduledAt = null;
-            contentPost.PublishedAt = null;
-            contentPost.PlatformPostId = null;
-            contentPost.PlatformPostUrl = null;
-            return;
-        }
-
-        if (targetStatus == ContentStatus.Scheduled)
-        {
-            contentPost.PublishedAt = null;
-            contentPost.PlatformPostId = null;
-            contentPost.PlatformPostUrl = null;
-        }
     }
 
     private static void EnsureValidLifecycleTransition(ContentStatus currentStatus, ContentStatus targetStatus)
     {
-        if (currentStatus == ContentStatus.Deleted)
-            throw new InvalidOperationException("Deleted content posts cannot be transitioned");
-
-        if (targetStatus == ContentStatus.Deleted)
-            throw new InvalidOperationException("Deleted status can only be set through delete operation");
+        if (currentStatus == ContentStatus.Archived)
+            throw new InvalidOperationException("Archived content posts cannot be transitioned");
 
         if (currentStatus == targetStatus)
             return;
 
         var isValidTransition =
-            (currentStatus == ContentStatus.Draft && targetStatus == ContentStatus.Ready) ||
-            (currentStatus == ContentStatus.Ready && targetStatus == ContentStatus.Scheduled) ||
-            (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Published);
+            (currentStatus == ContentStatus.Draft && targetStatus == ContentStatus.Review) ||
+            (currentStatus == ContentStatus.Review && targetStatus == ContentStatus.Approved) ||
+            (currentStatus == ContentStatus.Approved && targetStatus == ContentStatus.Scheduled) ||
+            (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Published) ||
+            (currentStatus == ContentStatus.Published && targetStatus == ContentStatus.Archived);
 
         if (!isValidTransition)
             throw new InvalidOperationException($"Invalid content post status transition: {currentStatus} -> {targetStatus}");
@@ -394,26 +319,9 @@ public class ContentPostService : IContentPostService
             throw new UnauthorizedAccessException(permissionErrorMessage);
     }
 
-    private async Task ValidateChannelAndSocialAccountAsync(Guid teamId, int? channelId, int? socialAccountId)
+    private async Task ValidateChannelAsync(Guid teamId, int channelId)
     {
-        if (socialAccountId.HasValue && !channelId.HasValue)
-            throw new InvalidOperationException("ChannelId is required when SocialAccountId is provided");
-
-        if (channelId.HasValue)
-        {
-            _ = await _channelRepository.GetByIdAsync(teamId, channelId.Value)
-                ?? throw new KeyNotFoundException("Channel not found");
-        }
-
-        if (!socialAccountId.HasValue)
-        {
-            return;
-        }
-
-        var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId.Value)
-            ?? throw new KeyNotFoundException("Social account not found");
-
-        if (channelId.HasValue && socialAccount.ChannelId != channelId.Value)
-            throw new InvalidOperationException("Social account does not belong to the specified channel");
+        _ = await _channelRepository.GetByIdAsync(teamId, channelId)
+            ?? throw new KeyNotFoundException("Channel not found");
     }
 }

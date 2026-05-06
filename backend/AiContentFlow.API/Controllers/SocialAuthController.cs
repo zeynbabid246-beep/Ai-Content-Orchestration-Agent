@@ -1,32 +1,38 @@
-using AiContentFlow.Application.Common.Interfaces;
-using Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiContentFlow.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/auth")]
 public class SocialAuthController : ControllerBase
 {
-    private readonly IAuthServiceFactory _factory;
+    private readonly AiContentFlow.Application.Features.SocialAuth.SocialAuthService _socialAuthService;
 
-    public SocialAuthController(IAuthServiceFactory factory)
+    public SocialAuthController(AiContentFlow.Application.Features.SocialAuth.SocialAuthService socialAuthService)
     {
-        _factory = factory;
+        _socialAuthService = socialAuthService;
     }
 
-    // GET /api/auth/linkedin/login?channelId=1
+    // GET /api/auth/linkedin/login?teamId=...&channelId=1
     [HttpGet("{platform}/login")]
-    public IActionResult Login([FromRoute] string platform, [FromQuery] int channelId)
+    public async Task<IActionResult> Login([FromRoute] string platform, [FromQuery] Guid teamId, [FromQuery] int channelId)
     {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        if (teamId == Guid.Empty)
+            return BadRequest(new { error = "Invalid teamId" });
+
         if (channelId <= 0)
             return BadRequest(new { error = "Invalid channelId" });
 
         try
         {
-            var service = _factory.GetService(platform);
-            var url = service.GetAuthUrl(channelId);
-            return Redirect(url);
+            var result = await _socialAuthService.CreateLoginUrlAsync(teamId, channelId, userId, platform);
+            return Redirect(result.AuthorizationUrl);
         }
         catch (NotSupportedException ex)
         {
@@ -47,19 +53,28 @@ public class SocialAuthController : ControllerBase
         if (string.IsNullOrEmpty(state))
             return BadRequest(new { error = "State parameter missing" });
 
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
         try
         {
-            var service = _factory.GetService(platform);
-            await service.ProcessCallbackAsync(code, state);
-            return Ok(new { message = $"{platform} connected successfully" });
+            var result = await _socialAuthService.HandleCallbackAsync(platform, code, state, userId);
+            return Ok(result);
         }
         catch (NotSupportedException ex)
         {
             return BadRequest(new { error = ex.Message });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new { error = "Social authorization failed" });
         }
+    }
+
+    private string GetCurrentUserId()
+    {
+        return User.FindFirst("sub")?.Value
+               ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     }
 }

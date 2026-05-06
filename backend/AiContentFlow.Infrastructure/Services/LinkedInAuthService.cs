@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Domain.Models;
 using AiContentFlow.Infrastructure.Persistence;
 using Application.Interfaces;
@@ -25,11 +26,10 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
         _logger = logger;
     }
 
-    public string GetLoginUrl(int channelId)
+    public string GetLoginUrl(string state)
     {
         var clientId = _config["LinkedIn:ClientId"]!;
         var redirectUri = _config["LinkedIn:RedirectUri"]!;
-        var state = $"{channelId}:{Guid.NewGuid()}";
 
         return $"https://www.linkedin.com/oauth/v2/authorization?" +
                $"response_type=code" +
@@ -39,11 +39,9 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
                $"&scope=w_member_social%20openid%20profile%20email";
     }
 
-    public async Task HandleCallbackAsync(string code, string state)
+    public async Task<SocialAuthResult> HandleCallbackAsync(string code, string state)
     {
-       
-        var parts = state.Split(':');
-        if (parts.Length < 2 || !int.TryParse(parts[0], out var channelId))
+        if (string.IsNullOrWhiteSpace(state))
             throw new Exception("Invalid state parameter");
 
         var (token, sub) = await ExchangeCodeAsync(code);
@@ -55,41 +53,20 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
         var name = await GetNameAsync(token);
 
        
-        var channel = await _db.Channels.FindAsync(channelId)
-            ?? throw new Exception($"Channel {channelId} not found");
-
-        var existing = _db.SocialAccounts
-            .FirstOrDefault(sa => sa.ChannelId == channelId
-                               && sa.Platform == SocialPlatform.LinkedIn
-                               && !sa.IsDeleted);
-
-        if (existing != null)
+        var accounts = new List<SocialAccountAuthDto>
         {
-            
-            existing.OAuthToken = token;
-            existing.PlatformAccountId = memberId;
-            existing.AccountHandle = name;
-            existing.TokenExpiry = DateTime.UtcNow.AddDays(60);
-            existing.IsActive = true;
-        }
-        else
-        {
-            var account = new SocialAccount
-            {
-                TeamId = channel.TeamId,      
-                ChannelId = channelId,
-                Platform = SocialPlatform.LinkedIn,
-                AccountHandle = name,           
-                PlatformAccountId = memberId,
-                OAuthToken = token,
-                RefreshToken = null,
-                TokenExpiry = DateTime.UtcNow.AddDays(60),
-                IsActive = true
-            };
-            _db.SocialAccounts.Add(account);
-        }
+            new(
+                "LinkedIn",
+                memberId,
+                name,
+                name,
+                name,
+                token,
+                DateTime.UtcNow.AddDays(60),
+                null)
+        };
 
-        await _db.SaveChangesAsync();
+        return new SocialAuthResult(accounts);
     }
 
     private async Task<string> GetMemberIdAsync(string accessToken, string fallbackSub)
@@ -192,6 +169,6 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
         return (accessToken, sub);
     }
 
-    public string GetAuthUrl(int channelId) => GetLoginUrl(channelId);
-    public Task ProcessCallbackAsync(string code, string state) => HandleCallbackAsync(code, state);
+    public string GetAuthUrl(string state) => GetLoginUrl(state);
+    public Task<SocialAuthResult> ProcessCallbackAsync(string code, string state) => HandleCallbackAsync(code, state);
 }

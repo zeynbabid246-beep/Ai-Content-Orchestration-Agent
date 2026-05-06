@@ -11,7 +11,6 @@ public class GeneratePostRequest
     public string Model { get; set; } = "";
     public ContentType Type { get; set; }
     public ContentFormat Format { get; set; }
-    public int? ChannelId { get; set; }
+    public int ChannelId { get; set; }
     public int? CampaignId { get; set; }
-    public int? SocialAccountId { get; set; }
 }

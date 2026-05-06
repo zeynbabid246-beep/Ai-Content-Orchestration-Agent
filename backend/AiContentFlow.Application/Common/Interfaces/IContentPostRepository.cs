@@ -12,8 +12,4 @@ public interface IContentPostRepository
     Task<List<ContentPost>> GetDeletedAsync(Guid teamId);                        
     Task<ContentPost> UpdateAsync(ContentPost post);
     Task SaveChangesAsync();
-
-   
-    Task<List<ContentPost>> GetAllAsync();
-    Task<List<ContentPost>> GetDueScheduledPostsAsync();
 }

@@ -37,7 +37,7 @@ public class ChannelServiceTests
         teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "user-1"))
             .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "user-1", Role = TeamRole.Viewer, JoinedAt = DateTime.UtcNow });
 
-        var dto = new CreateChannelDto("Channel A", "Description");
+        var dto = new CreateChannelDto("Channel A", "Description", null, null);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.CreateAsync(teamId, "user-1", dto));
     }
@@ -55,7 +55,7 @@ public class ChannelServiceTests
             .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "admin-1", Role = TeamRole.Admin, JoinedAt = DateTime.UtcNow });
         channelRepo.Setup(x => x.ExistsByNameAsync(teamId, "PRODUCT AND GROWTH", null)).ReturnsAsync(true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(teamId, "admin-1", new CreateChannelDto("product and growth", null)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(teamId, "admin-1", new CreateChannelDto("product and growth", null, null, null)));
     }
 
     private static ChannelService CreateService(Mock<IChannelRepository> channelRepo, Mock<ITeamRepository> teamRepo)

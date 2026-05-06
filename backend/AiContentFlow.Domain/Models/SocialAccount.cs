@@ -16,10 +16,12 @@ public class SocialAccount
     public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-        public bool IsActive { get; set; }
-        public string OAuthToken { get; set; } = "";
- public string PlatformAccountId { get; set; } = ""; 
- public string? RefreshToken { get; set; }
+    public bool IsActive { get; set; }
+    public string OAuthToken { get; set; } = "";
+    public string ExternalAccountId { get; set; } = "";
+    public string? RefreshToken { get; set; }
 
     public DateTime TokenExpiry { get; set; }
+
+    public ICollection<PostPublication> Publications { get; set; } = [];
 }

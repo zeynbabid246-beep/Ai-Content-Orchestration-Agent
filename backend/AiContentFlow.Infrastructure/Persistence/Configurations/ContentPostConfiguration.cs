@@ -10,23 +10,23 @@ public class ContentPostConfiguration : IEntityTypeConfiguration<ContentPost>
     {
         builder.HasKey(cp => cp.Id);
 
-        builder.Property(cp => cp.Title).HasMaxLength(200);
+        builder.Property(cp => cp.Topic).IsRequired().HasMaxLength(300);
+        builder.Property(cp => cp.Title).HasMaxLength(300);
+        builder.Property(cp => cp.Subject).HasMaxLength(300);
+        builder.Property(cp => cp.Content).HasColumnType("text");
         builder.Property(cp => cp.ContentJson).IsRequired().HasColumnType("jsonb");
         builder.Property(cp => cp.ContentType).HasConversion<int>();
         builder.Property(cp => cp.Status).HasConversion<int>();
-        builder.Property(cp => cp.Prompt).HasMaxLength(4000);
+        builder.Property(cp => cp.Prompt).HasColumnType("text");
         builder.Property(cp => cp.AiModel).HasMaxLength(100);
-        builder.Property(cp => cp.PlatformPostId).HasMaxLength(200);
-        builder.Property(cp => cp.PlatformPostUrl).HasMaxLength(500);
-        builder.Property(cp => cp.LastError).HasMaxLength(4000);
         builder.Property(cp => cp.CreatedByUserId).IsRequired();
         builder.Property(cp => cp.CreatedAt).IsRequired();
         builder.Property(cp => cp.UpdatedAt).IsRequired();
-        builder.Property(cp => cp.RetryCount).HasDefaultValue(0);
 
         // Indexes
         builder.HasIndex(cp => new { cp.TeamId, cp.CreatedAt });
-        builder.HasIndex(cp => new { cp.TeamId, cp.ChannelId, cp.SocialAccountId });
+        builder.HasIndex(cp => new { cp.TeamId, cp.ChannelId });
+        builder.HasIndex(cp => new { cp.TeamId, cp.Status });
 
         // Relationships
         builder.HasOne(cp => cp.Team)
@@ -39,16 +39,20 @@ public class ContentPostConfiguration : IEntityTypeConfiguration<ContentPost>
               .HasForeignKey(pv => pv.ContentPostId)
               .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne<Channel>()
-              .WithMany()
+        builder.HasOne(cp => cp.Channel)
+              .WithMany(c => c.ContentPosts)
               .HasForeignKey(cp => cp.ChannelId)
-              .IsRequired(false)
+              .IsRequired()
               .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<SocialAccount>()
-              .WithMany()
-              .HasForeignKey(cp => cp.SocialAccountId)
-              .IsRequired(false)
-              .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(cp => cp.Campaign)
+              .WithMany(c => c.ContentPosts)
+              .HasForeignKey(cp => cp.CampaignId)
+              .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasMany(cp => cp.Publications)
+              .WithOne(p => p.ContentPost)
+              .HasForeignKey(p => p.ContentPostId)
+              .OnDelete(DeleteBehavior.Cascade);
     }
 }

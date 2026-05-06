@@ -1,5 +1,5 @@
 public interface ILinkedInAuthService
 {
-    string GetLoginUrl(int channelId);
-    Task HandleCallbackAsync(string code, string state);
+    string GetLoginUrl(string state);
+    Task<AiContentFlow.Application.Common.Models.SocialAuthResult> HandleCallbackAsync(string code, string state);
 }

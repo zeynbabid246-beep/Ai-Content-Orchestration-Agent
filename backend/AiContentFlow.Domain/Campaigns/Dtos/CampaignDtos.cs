@@ -5,14 +5,14 @@ namespace AiContentFlow.Domain.Campaigns.Dtos;
 public record CreateCampaignDto(
     string Name,
     string? Description,
-    int? ChannelId,
+    int ChannelId,
     CampaignStatus Status
 );
 
 public record UpdateCampaignDto(
     string Name,
     string? Description,
-    int? ChannelId,
+    int ChannelId,
     CampaignStatus Status
 );
 
@@ -29,7 +29,7 @@ public record CampaignContentPostResponseDto(
 public record CampaignResponseDto(
     int Id,
     Guid TeamId,
-    int? ChannelId,
+    int ChannelId,
     string Name,
     string? Description,
     CampaignStatus Status,

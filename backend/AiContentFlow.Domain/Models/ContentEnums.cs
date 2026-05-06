@@ -17,46 +17,66 @@ public static class AiModelExtensions
 }
 public enum ContentType
 {
-    BlogPost = 0,
-    TwitterThread = 1,
-    LinkedInPost = 2,
-    InstagramPost = 3,
-    FacebookPost = 4
+    BlogPost,
+    TwitterThread,
+    LinkedInPost,
+    InstagramPost,
+    FacebookPost
 }
 
 public enum ContentStatus
 {
-    Draft = 0,
-    Ready = 1,
-    Scheduled = 2,
-    Published = 3,
-    Deleted = 4,
-     Failed = 5
+    Draft,
+    Review,
+    Approved,
+    Scheduled,
+    Published,
+    Archived
 }
 
 public enum SocialPlatform
 {
-    Facebook = 0,
-    LinkedIn = 1,
-    Instagram = 2,
-    X = 3,
-    Threads = 4,
-    TikTok = 5
+    Facebook,
+    LinkedIn,
+    Instagram,
+    X,
+    Threads,
+    TikTok
 }
 
 public enum SocialAccountStatus
 {
-    Active = 0,
-    Disconnected = 1
+    Active,
+    Disconnected
 }
 
 public enum CampaignStatus
 {
-    Draft = 0,
-    Active = 1,
-    Paused = 2,
-    Completed = 3,
-    Archived = 4
+    Draft,
+    Active,
+    Paused,
+    Completed,
+    Archived
+}
+
+public enum PublicationStatus
+{
+    Scheduled,
+    Queued,
+    Publishing,
+    Published,
+    Failed,
+    Retrying,
+    Cancelled
+}
+
+public enum PublishJobStatus
+{
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    DeadLettered
 }
 public enum AiModel
 {
@@ -81,7 +101,7 @@ public enum AiModel
 }
 public enum ContentFormat
 {
-    Text = 0,
-    Image = 1,
-    TextImage = 2
+    Text,
+    Image,
+    TextImage
 }

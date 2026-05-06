@@ -1,9 +1,11 @@
 ﻿using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
+using AiContentFlow.Application.Features.Analytics;
 using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Application.Features.Campaigns;
 using AiContentFlow.Application.Features.Channels;
 using AiContentFlow.Application.Features.ContentPosts;
+using AiContentFlow.Application.Features.Publications;
 using AiContentFlow.Application.Features.SocialAccounts;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Domain.Campaigns.Interfaces;
@@ -14,9 +16,9 @@ using AiContentFlow.Infrastructure.Persistence.Repositories;
 using AiContentFlow.Infrastructure.Publishers;
 using AiContentFlow.Infrastructure.Repositories;
 using AiContentFlow.Infrastructure.Services;
+using Infrastructure.Services;
 using AiContentFlow.Infrastructure.Workers;
 using Application.Interfaces;
-using Application.UseCases;
 using FluentValidation;
 using Infrastructure.Factories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -52,9 +54,13 @@ public static class DependencyInjection
         services.AddScoped<IChannelRepository, ChannelRepository>();
         services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
         services.AddScoped<ICampaignRepository, CampaignRepository>();
-        services.AddScoped<ICampaignContentPostRepository, CampaignContentPostRepository>();
         services.AddScoped<IPostVariantRepository, PostVariantRepository>();
+        services.AddScoped<IPostPublicationRepository, PostPublicationRepository>();
+        services.AddScoped<IPublishJobRepository, PublishJobRepository>();
+        services.AddScoped<IPublicationAnalyticsRepository, PublicationAnalyticsRepository>();
         services.AddScoped<IApplicationTransaction, EfCoreApplicationTransaction>();
+        services.AddScoped<ISocialAuthStateService, SignedSocialAuthStateService>();
+        services.AddScoped<ISocialCredentialStore, ProtectedSocialCredentialStore>();
 
         // 3. AI Services
         services.AddHttpClient<ITextGenerationService, TextGenerationService>();
@@ -68,6 +74,9 @@ public static class DependencyInjection
         services.AddScoped<IContentPostService, ContentPostService>();
         services.AddScoped<IChannelService, ChannelService>();
         services.AddScoped<ISocialAccountService, SocialAccountService>();
+        services.AddScoped<IPublicationService, PublicationService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<AiContentFlow.Application.Features.SocialAuth.SocialAuthService>();
         services.AddScoped<ICampaignService, CampaignService>();
 
 
@@ -77,20 +86,22 @@ public static class DependencyInjection
             sp.GetRequiredService<LinkedInAuthService>());
         services.AddScoped<ILinkedInAuthService, LinkedInAuthService>(sp =>
             sp.GetRequiredService<LinkedInAuthService>());
+        services.AddHttpClient("Meta");
+        services.AddScoped<MetaAuthService>();
+        services.AddScoped<ISocialAuthService, MetaAuthService>(sp =>
+            sp.GetRequiredService<MetaAuthService>());
         services.AddScoped<IAuthServiceFactory, AuthServiceFactory>();
 
         // 6. Publishers
         services.AddHttpClient("LinkedIn");
+        services.AddHttpClient("Facebook");
         services.AddScoped<IPublisher, LinkedInPublisher>();
+        services.AddScoped<IPublisher, FacebookPublisher>();
         services.AddScoped<IPublisherFactory, PublisherFactory>();
 
-        // 7. Use Cases
-        services.AddScoped<GeneratePostUseCase>();
-        services.AddScoped<PublishPostUseCase>();
-        services.AddScoped<GenerateAndPublishUseCase>();
-
-        // 8. Background Jobs
+        // 7. Background Jobs
         services.AddScoped<PublishScheduledVariantsJob>();
+        services.AddScoped<SyncPublicationAnalyticsJob>();
 
         
 

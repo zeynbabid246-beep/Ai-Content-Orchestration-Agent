@@ -14,4 +14,8 @@ public class Channel
     public DateTime UpdatedAt { get; set; }
 
     public ICollection<SocialAccount> SocialAccounts { get; set; } = [];
+    public ICollection<Campaign> Campaigns { get; set; } = [];
+    public ICollection<ContentPost> ContentPosts { get; set; } = [];
+    public ChannelBranding? Branding { get; set; }
+    public ChannelConfig? Config { get; set; }
 }

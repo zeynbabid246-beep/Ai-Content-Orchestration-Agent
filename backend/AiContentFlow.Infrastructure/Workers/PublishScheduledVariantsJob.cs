@@ -1,118 +1,118 @@
+using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Domain.Models;
-using AiContentFlow.Infrastructure.Persistence;
 using Application.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AiContentFlow.Infrastructure.Workers;
 
 public class PublishScheduledVariantsJob
 {
-    private readonly AppDbContext _db;
+    private const int BatchSize = 25;
+    private readonly IPublishJobRepository _publishJobRepository;
+    private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublisherFactory _publisherFactory;
+    private readonly IPostVariantRepository _postVariantRepository;
+    private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly ILogger<PublishScheduledVariantsJob> _logger;
 
     public PublishScheduledVariantsJob(
-        AppDbContext db,
+        IPublishJobRepository publishJobRepository,
+        IPostPublicationRepository publicationRepository,
+        IPostVariantRepository postVariantRepository,
+        ISocialAccountRepository socialAccountRepository,
         IPublisherFactory publisherFactory,
         ILogger<PublishScheduledVariantsJob> logger)
     {
-        _db = db;
+        _publishJobRepository = publishJobRepository;
+        _publicationRepository = publicationRepository;
+        _postVariantRepository = postVariantRepository;
+        _socialAccountRepository = socialAccountRepository;
         _publisherFactory = publisherFactory;
         _logger = logger;
     }
 
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
+        var workerId = $"{Environment.MachineName}:{Guid.NewGuid():N}";
+
         try
         {
-            var dueVariants = await _db.PostVariants
-                .Include(v => v.ContentPost)
-                .Include(v => v.SocialAccount)
-                .Where(v => v.Status == ContentStatus.Scheduled
-                         && v.ContentPost != null
-                         && v.ContentPost.ScheduledAt <= DateTime.UtcNow)
-                .ToListAsync(cancellationToken);
+            var dueJobs = await _publishJobRepository.ClaimDueAsync(DateTime.UtcNow, BatchSize, workerId);
 
-            foreach (var variant in dueVariants)
+            foreach (var job in dueJobs)
             {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
                 try
                 {
-                    if (variant.SocialAccount == null || !variant.SocialAccount.IsActive || variant.SocialAccount.Status == SocialAccountStatus.Disconnected)
+                    var publication = job.PostPublication
+                        ?? throw new InvalidOperationException("Publication not found");
+
+                    if (publication.TeamId == Guid.Empty)
+                        throw new InvalidOperationException("Publication tenant is invalid");
+
+                    var socialAccount = await _socialAccountRepository.GetByIdAsync(publication.TeamId, publication.SocialAccountId);
+                    if (socialAccount == null || !socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
                     {
-                        variant.Status = ContentStatus.Failed;
-                        variant.LastError = "Social account not found or inactive";
-                        variant.RetryCount++;
-                        if (variant.ContentPost != null)
-                        {
-                            variant.ContentPost.Status = ContentStatus.Failed;
-                            variant.ContentPost.LastError = variant.LastError;
-                            variant.ContentPost.RetryCount++;
-                            variant.ContentPost.UpdatedAt = DateTime.UtcNow;
-                        }
+                        publication.MarkFailed("Social account not found or inactive", DateTime.UtcNow);
+                        job.MarkFailed(publication.ErrorMessage, DateTime.UtcNow);
+                        await SaveProgressAsync();
                         continue;
                     }
 
-                    var publisher = _publisherFactory.GetPublisher(variant.SocialAccount.Platform);
-                    var result = await publisher.PublishAsync(variant, variant.SocialAccount);
+                    PostVariant? variant = null;
+                    if (publication.PostVariantId.HasValue)
+                    {
+                        variant = await _postVariantRepository.GetByIdAsync(publication.TeamId, publication.PostVariantId.Value);
+                    }
+
+                    if (variant == null)
+                    {
+                        var variants = await _postVariantRepository.GetByContentPostIdAsync(publication.TeamId, publication.ContentPostId);
+                        variant = variants.FirstOrDefault(v => v.Platform == socialAccount.Platform);
+                    }
+
+                    if (variant == null)
+                        throw new InvalidOperationException("Post variant not found for publication");
+
+                    var publisher = _publisherFactory.GetPublisher(socialAccount.Platform);
+                    publication.MarkPublishing(DateTime.UtcNow);
+                    await SaveProgressAsync();
+
+                    var result = await publisher.PublishAsync(variant, socialAccount);
 
                     if (result.IsSuccess)
                     {
-                        variant.Status = ContentStatus.Published;
-                        variant.PlatformPostId = result.PostId;
-                        variant.PlatformPostUrl = result.PostUrl;
-                        variant.PublishedAt = DateTime.UtcNow;
-                        variant.UpdatedAt = DateTime.UtcNow;
-
-                        if (variant.ContentPost != null)
-                        {
-                            variant.ContentPost.Status = ContentStatus.Published;
-                            variant.ContentPost.PublishedAt = DateTime.UtcNow;
-                            variant.ContentPost.PlatformPostId = result.PostId;
-                            variant.ContentPost.PlatformPostUrl = result.PostUrl;
-                            variant.ContentPost.LastError = null;
-                            variant.ContentPost.UpdatedAt = DateTime.UtcNow;
-                        }
+                        publication.MarkPublished(result.PostId, result.PostUrl, DateTime.UtcNow);
+                        job.MarkSucceeded(DateTime.UtcNow);
                     }
                     else
                     {
-                        variant.Status = ContentStatus.Failed;
-                        variant.LastError = result.ErrorMessage;
-                        variant.RetryCount++;
-                        variant.UpdatedAt = DateTime.UtcNow;
-
-                        if (variant.ContentPost != null)
-                        {
-                            variant.ContentPost.Status = ContentStatus.Failed;
-                            variant.ContentPost.LastError = result.ErrorMessage;
-                            variant.ContentPost.RetryCount++;
-                            variant.ContentPost.UpdatedAt = DateTime.UtcNow;
-                        }
+                        publication.MarkFailed(result.ErrorMessage, DateTime.UtcNow);
+                        job.MarkFailed(result.ErrorMessage, DateTime.UtcNow);
                     }
+
+                    await SaveProgressAsync();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to publish variant {VariantId}", variant.Id);
-                    variant.Status = ContentStatus.Failed;
-                    variant.LastError = ex.Message;
-                    variant.RetryCount++;
-                    variant.UpdatedAt = DateTime.UtcNow;
-
-                    if (variant.ContentPost != null)
-                    {
-                        variant.ContentPost.Status = ContentStatus.Failed;
-                        variant.ContentPost.LastError = ex.Message;
-                        variant.ContentPost.RetryCount++;
-                        variant.ContentPost.UpdatedAt = DateTime.UtcNow;
-                    }
+                    _logger.LogError(ex, "Failed to publish scheduled job {JobId}", job.Id);
+                    job.PostPublication?.MarkFailed(ex.Message, DateTime.UtcNow);
+                    job.MarkFailed(ex.Message, DateTime.UtcNow);
+                    await SaveProgressAsync();
                 }
             }
-
-            await _db.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "PublishScheduledVariantsJob encountered an error");
         }
+    }
+
+    private async Task SaveProgressAsync()
+    {
+        await _publishJobRepository.SaveChangesAsync();
+        await _publicationRepository.SaveChangesAsync();
     }
 }

@@ -1,6 +1,6 @@
 namespace AiContentFlow.Domain.Models;
 
-public enum TeamRole { Viewer = 0, Admin = 1, Editor = 2 }
+public enum TeamRole { Viewer, Admin, Editor }
 
 public class UserTeam
 {

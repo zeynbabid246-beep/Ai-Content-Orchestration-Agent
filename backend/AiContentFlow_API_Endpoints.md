@@ -8,6 +8,10 @@
 2. Use `accessToken` as bearer token in protected routes
 3. Refresh with `POST /api/Auth/refresh`
 
+Enum payload rule:
+- API enum fields are string-only (for example `"Facebook"`, `"LinkedIn"`, `"Approved"`).
+- Numeric enum payloads are rejected.
+
 Swagger note:
 - In Swagger `Authorize`, paste the raw JWT token value only (without `Bearer ` prefix).
 
@@ -20,9 +24,9 @@ Swagger note:
 ```
 
 ## Permission Matrix (Team Scope)
-- `Admin`: full team mutation rights
-- `Editor`: content post mutations (create/update/delete/transition/schedule/publish) and campaign mutations (create/update/delete/link/unlink)
-- `Viewer`: read-only
+- `Admin`: full team mutation rights.
+- `Editor`: content, campaign, and publication mutations.
+- `Viewer`: read-only.
 
 ---
 
@@ -186,6 +190,12 @@ Response: `204 No Content`
 Route base: `api/teams/{teamId}/social-accounts`
 Authorization: required
 
+### Meta OAuth
+- Login: `GET /api/auth/facebook/login?teamId={teamId}&channelId={channelId}`
+- Callback: `GET /api/auth/facebook/callback?code=...&state=...`
+- Required Meta config: `Meta:AppId`, `Meta:AppSecret`, `Meta:RedirectUri`
+- Required permissions: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `public_profile`
+
 ### `POST /api/teams/{teamId}/social-accounts`
 Create a social account.
 
@@ -193,7 +203,7 @@ Request (`CreateSocialAccountDto`):
 ```json
 {
   "channelId": 1,
-  "platform": 1,
+  "platform": "LinkedIn",
   "accountHandle": "@brand",
   "displayName": "Brand Page"
 }
@@ -218,8 +228,8 @@ Request (`UpdateSocialAccountDto`):
 ```json
 {
   "channelId": 1,
-  "platform": 1,
-  "status": 0,
+  "platform": "LinkedIn",
+  "status": "Active",
   "accountHandle": "@brand",
   "displayName": "Brand Page Updated"
 }
@@ -240,27 +250,27 @@ Authorization: required
 
 ### Enums
 `ContentType`
-- `0` BlogPost
-- `1` TwitterThread
-- `2` LinkedInPost
-- `3` InstagramPost
-- `4` FacebookPost
+- `BlogPost`
+- `TwitterThread`
+- `LinkedInPost`
+- `InstagramPost`
+- `FacebookPost`
 
 `ContentStatus`
-- `0` Draft
-- `1` Ready
-- `2` Scheduled
-- `3` Published
-- `4` Deleted
-- `5` Failed
+- `Draft`
+- `Review`
+- `Approved`
+- `Scheduled`
+- `Published`
+- `Archived`
 
 `SocialPlatform`
-- `0` Facebook
-- `1` LinkedIn
-- `2` Instagram
-- `3` X
-- `4` Threads
-- `5` TikTok
+- `Facebook`
+- `LinkedIn`
+- `Instagram`
+- `X`
+- `Threads`
+- `TikTok`
 
 ### `POST /api/teams/{teamId}/content-posts`
 Create content post.
@@ -268,17 +278,17 @@ Create content post.
 Request (`CreateContentPostDto`):
 ```json
 {
-  "channelId": null,
-  "socialAccountId": null,
+  "channelId": 1,
+  "campaignId": null,
   "title": "AI launch post",
-  "contentType": 2,
+  "contentType": "LinkedInPost",
   "contentJson": "{\"text\":\"Hello LinkedIn\"}",
   "prompt": "Create a linkedin launch post",
   "aiModel": "gpt-4o",
   "aiTokens": 120,
   "postVariants": [
     {
-      "platform": 1,
+      "platform": "LinkedIn",
       "contentJson": "{\"text\":\"LinkedIn variant\"}",
       "title": "LinkedIn version"
     }
@@ -289,16 +299,13 @@ Request (`CreateContentPostDto`):
 Response: `201 Created` (`ContentPostResponseDto`)
 
 Notes:
-- `channelId` and `socialAccountId` are optional.
-- If `socialAccountId` is provided, `channelId` must also be provided.
-- If both are provided, they must belong to the same team and the social account must belong to the specified channel.
+- `channelId` is required and must exist in the team scope.
+- Publication destination is selected later via publication endpoints (`socialAccountId` is no longer part of `ContentPost`).
 
 Validation behavior for create/update:
 - `403 Forbidden`: requester is not a member of the team or lacks required role to create/update.
 - `404 Not Found`: `ChannelId` does not exist in the provided `teamId`.
-- `404 Not Found`: `SocialAccountId` does not exist in the provided `teamId`.
-- `400 Bad Request`: `SocialAccountId` exists but belongs to a different `ChannelId` than the one sent in the content post request.
-- `400 Bad Request`: invalid lifecycle transition (allowed chain is `Draft -> Ready -> Scheduled -> Published`).
+- `400 Bad Request`: invalid lifecycle transition.
 
 ### `GET /api/teams/{teamId}/content-posts`
 List team content posts.
@@ -317,17 +324,17 @@ Request (`UpdateContentPostDto`):
 ```json
 {
   "channelId": 1,
-  "socialAccountId": 1,
+  "campaignId": null,
   "title": "AI launch post updated",
-  "contentType": 2,
+  "contentType": "LinkedInPost",
   "contentJson": "{\"text\":\"Updated text\"}",
-  "status": 1,
+  "status": "Approved",
   "prompt": "Refine tone",
   "aiModel": "gpt-4o",
   "aiTokens": 140,
   "postVariants": [
     {
-      "platform": 1,
+      "platform": "LinkedIn",
       "contentJson": "{\"text\":\"Updated LinkedIn variant\"}",
       "title": "LinkedIn updated"
     }
@@ -343,7 +350,7 @@ Transition content post status through lifecycle rules (manual status transition
 Request (`TransitionContentPostStatusDto`):
 ```json
 {
-  "status": 1
+  "status": "Review"
 }
 ```
 
@@ -351,9 +358,11 @@ Response: `200 OK` (`ContentPostResponseDto`)
 
 Rules:
 - Allowed transitions are explicit and forward-only:
-  - `Draft -> Ready`
-  - `Ready -> Scheduled`
-  - `Scheduled -> Published`
+- `Draft -> Review`
+- `Review -> Approved`
+- `Approved -> Scheduled`
+- `Scheduled -> Published`
+- `Published -> Archived`
 - Use workflow-specific endpoints for scheduling and publishing actions.
 
 ### `POST /api/teams/{teamId}/content-posts/{contentPostId}/workflow/schedule`
@@ -362,6 +371,8 @@ Schedule a content post.
 Request (`ScheduleContentPostDto`):
 ```json
 {
+  "socialAccountId": 1,
+  "postVariantId": null,
   "scheduledAt": "2026-04-12T15:30:00Z"
 }
 ```
@@ -371,9 +382,10 @@ Response: `200 OK` (`ContentPostResponseDto`)
 Scheduling rules:
 - `scheduledAt` must be UTC (`Z` suffix).
 - `scheduledAt` must be in the future.
-- Valid lifecycle transition must be satisfied (`Ready -> Scheduled`).
-- If a social account is linked, it must be active for social publishing.
-- When a social account is linked, a scheduled `PostVariant` is created as the publish execution record.
+- Content post must be publishable (`Approved` or already `Scheduled`).
+- `socialAccountId` is required and must reference an active social account in team scope.
+- `postVariantId` is optional. If omitted, the platform-matching variant is resolved automatically.
+- Creates `PostPublication` + `PublishJob` transactionally.
 
 ### `POST /api/teams/{teamId}/content-posts/{contentPostId}/workflow/publish`
 Publish a content post via the social publisher pipeline.
@@ -381,18 +393,19 @@ Publish a content post via the social publisher pipeline.
 Request (`PublishContentPostDto`):
 ```json
 {
-  "platformPostId": "platform-123",
-  "platformPostUrl": "https://social.example/post/123"
+  "socialAccountId": 1,
+  "postVariantId": null,
+  "idempotencyKey": "optional-client-key"
 }
 ```
 
 Response: `200 OK` (`ContentPostResponseDto`)
 
 Publish rules:
-- Valid lifecycle transition must be satisfied (`Ready -> Published` or `Scheduled -> Published`).
-- `publishedAt` is set at execution time.
-- Social posting uses the linked social account and ignores request metadata fields.
-- `socialAccountId` must be present on the content post and be active.
+- Content post must be publishable (`Approved` or `Scheduled`).
+- `socialAccountId` is required and must be active.
+- `postVariantId` is optional (service auto-resolves by platform if missing).
+- Creates `PostPublication` + `PublishJob` transactionally; returns `200 OK` with current content-post view.
 
 Workflow error behavior:
 - `403 Forbidden`: requester is not team member or lacks `Admin/Editor` role for workflow mutations.
@@ -400,21 +413,49 @@ Workflow error behavior:
 - `400 Bad Request`: invalid lifecycle transition or invalid scheduling input.
 
 ### `DELETE /api/teams/{teamId}/content-posts/{contentPostId}`
-Soft-delete content post (status becomes `Deleted`).
+Soft-delete content post (status becomes `Archived`).
 
 Response: `204 No Content`
 
 ---
 
-## 6) Legacy Post Publishing Endpoints
-Route base: `api/teams/{teamId}/posts`
+## 6) Publication Endpoints
+Route base: `api/teams/{teamId}`
 Authorization: required
 
-### `POST /api/teams/{teamId}/posts/{id}/publish`
-Publishes via the social publisher pipeline (LinkedIn supported) and updates the content post + post variants.
+### `POST /api/teams/{teamId}/content-posts/{contentPostId}/publications`
+Queue an immediate publication.
 
-### `POST /api/teams/{teamId}/posts/generate-and-publish`
-Generates a draft, marks it ready, then publishes via the social publisher pipeline.
+Request (`PublishPublicationDto`):
+```json
+{
+  "socialAccountId": 1,
+  "postVariantId": null,
+  "idempotencyKey": "optional-client-key"
+}
+```
+
+Response: `202 Accepted` (`PublicationResponseDto`)
+
+### `POST /api/teams/{teamId}/content-posts/{contentPostId}/publications/scheduled`
+Schedule a publication.
+
+Request (`SchedulePublicationDto`):
+```json
+{
+  "socialAccountId": 1,
+  "postVariantId": null,
+  "scheduledAt": "2026-04-12T15:30:00Z",
+  "idempotencyKey": "optional-client-key"
+}
+```
+
+Response: `202 Accepted` (`PublicationResponseDto`)
+
+### `GET /api/teams/{teamId}/publications/{publicationId}/analytics`
+Get publication analytics snapshots.
+
+Response: `200 OK` (`List<PublicationAnalyticsResponseDto>`)
 
 ---
 
@@ -423,11 +464,11 @@ Route base: `api/teams/{teamId}/campaigns`
 Authorization: required
 
 ### `CampaignStatus` enum
-- `0` Draft
-- `1` Active
-- `2` Paused
-- `3` Completed
-- `4` Archived
+- `Draft`
+- `Active`
+- `Paused`
+- `Completed`
+- `Archived`
 
 ### `POST /api/teams/{teamId}/campaigns`
 Create campaign.
@@ -438,13 +479,13 @@ Request (`CreateCampaignDto`):
   "name": "Q2 Product Launch",
   "description": "Cross-channel launch campaign",
   "channelId": 12,
-  "status": 0
+  "status": "Draft"
 }
 ```
 
 Response: `201 Created` (`CampaignResponseDto`)
 
-`channelId` is optional. Set `null` to create a campaign with no channel association.
+`channelId` is required and must exist in the provided team scope.
 
 ### `GET /api/teams/{teamId}/campaigns`
 List team campaigns.
@@ -465,7 +506,7 @@ Request (`UpdateCampaignDto`):
   "name": "Q2 Product Launch Updated",
   "description": "Updated description",
   "channelId": 12,
-  "status": 1
+  "status": "Active"
 }
 ```
 
@@ -515,7 +556,7 @@ Validation behavior:
 10. Create content post via `POST /api/teams/{teamId}/content-posts`.
 11. Verify with list/get endpoints.
 12. Update content post.
-13. Transition to `Ready` with `POST /api/teams/{teamId}/content-posts/{id}/workflow/transition`.
+13. Transition to `Review` (then `Approved`) with `POST /api/teams/{teamId}/content-posts/{id}/workflow/transition`.
 14. Schedule with `POST /api/teams/{teamId}/content-posts/{id}/workflow/schedule`.
 15. Publish with `POST /api/teams/{teamId}/content-posts/{id}/workflow/publish`.
 16. Delete content post and verify it no longer appears in list.
@@ -525,6 +566,7 @@ Validation behavior:
 ## Hangfire Dashboard (Development)
 - `GET /hangfire` (development only)
 - Shows recurring job `publish-scheduled-variants` that processes scheduled post variants every minute.
+- Shows recurring job `sync-publication-analytics` that syncs analytics snapshots hourly.
 
 ## Database Verification
 Check these tables in PostgreSQL:
@@ -535,8 +577,10 @@ Check these tables in PostgreSQL:
 - `ContentPosts`
 - `PostVariants`
 - `Campaigns`
-- `CampaignContentPosts`
 - `RefreshTokens`
+- `PostPublications`
+- `PublishJobs`
+- `PublicationAnalytics`
 - `__EFMigrationsHistory`
 
 For migration state:
