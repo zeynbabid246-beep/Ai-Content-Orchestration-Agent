@@ -7,6 +7,7 @@ namespace AiContentFlow.Application.Features.ContentPosts;
 
 public class ContentPostService : IContentPostService
 {
+    private const string DefaultChannelName = "General";
     private readonly IContentPostRepository _contentPostRepository;
     private readonly IChannelRepository _channelRepository;
     private readonly ITeamRepository _teamRepository;
@@ -31,14 +32,15 @@ public class ContentPostService : IContentPostService
     {
         await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can create content posts");
 
-        await ValidateChannelAsync(teamId, dto.ChannelId);
+        var channelId = await ResolveChannelIdAsync(teamId, dto.ChannelId);
 
         var contentPost = new ContentPost
         {
             TeamId = teamId,
-            ChannelId = dto.ChannelId,
+            ChannelId = channelId,
             CampaignId = dto.CampaignId,
             Title = Normalize(dto.Title),
+            ImageUrl = Normalize(dto.ImageUrl),
             ContentType = dto.ContentType,
             ContentJson = JsonContentValidator.Normalize(dto.ContentJson),
             Status = ContentStatus.Draft,
@@ -93,11 +95,12 @@ public class ContentPostService : IContentPostService
         if (contentPost.Status == ContentStatus.Archived)
             throw new KeyNotFoundException("Content post not found");
 
-        await ValidateChannelAsync(teamId, dto.ChannelId);
+        var channelId = await ResolveChannelIdAsync(teamId, dto.ChannelId, contentPost.ChannelId);
 
-        contentPost.ChannelId = dto.ChannelId;
+        contentPost.ChannelId = channelId;
         contentPost.CampaignId = dto.CampaignId;
         contentPost.Title = Normalize(dto.Title);
+        contentPost.ImageUrl = Normalize(dto.ImageUrl);
         contentPost.ContentType = dto.ContentType;
         contentPost.ContentJson = JsonContentValidator.Normalize(dto.ContentJson);
         if (dto.Status != contentPost.Status)
@@ -256,6 +259,7 @@ public class ContentPostService : IContentPostService
             contentPost.Prompt,
             contentPost.AiModel,
             contentPost.AiTokens,
+            contentPost.ImageUrl,
             contentPost.CreatedAt,
             contentPost.UpdatedAt,
             contentPost.PostVariants.Select(Map).ToList()
@@ -319,9 +323,39 @@ public class ContentPostService : IContentPostService
             throw new UnauthorizedAccessException(permissionErrorMessage);
     }
 
-    private async Task ValidateChannelAsync(Guid teamId, int channelId)
+    private async Task<int> ResolveChannelIdAsync(Guid teamId, int? requestedChannelId, int? fallbackChannelId = null)
     {
-        _ = await _channelRepository.GetByIdAsync(teamId, channelId)
-            ?? throw new KeyNotFoundException("Channel not found");
+        if (requestedChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, requestedChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+            return requestedChannelId.Value;
+        }
+
+        if (fallbackChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, fallbackChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+            return fallbackChannelId.Value;
+        }
+
+        var channels = await _channelRepository.GetByTeamAsync(teamId);
+        var existing = channels.FirstOrDefault();
+        if (existing is not null)
+            return existing.Id;
+
+        var channel = new Channel
+        {
+            TeamId = teamId,
+            Name = DefaultChannelName,
+            NormalizedName = DefaultChannelName.ToUpperInvariant(),
+            Description = "Auto-created default channel for direct posting",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _channelRepository.AddAsync(channel);
+        await _channelRepository.SaveChangesAsync();
+        return channel.Id;
     }
 }

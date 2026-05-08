@@ -400,3 +400,43 @@ This document records the main foundation updates made to the AiContentFlow back
 - Added EF entities/configuration and migration `20260506104946_AddPublishingLifecycleAndAnalytics`.
 - Updated `AppDbContext` and model snapshot for publication lifecycle tables and relationships.
 - Removed obsolete `CampaignContentPost` mapping path and related repository interface.
+
+---
+
+## Date
+- **2026-05-08**
+
+## What Was Done
+
+### 41) OAuth callback flow was made browser-safe
+- Changed social auth login endpoint to return `authorizationUrl` in JSON instead of backend redirect.
+- Allowed provider callback endpoint anonymously while preserving signed-state validation for tenant/channel/user binding.
+- Callback now redirects back to frontend with status query parameters:
+  - `socialAuthStatus=success|error`
+  - `platform=...`
+  - `socialAuthError=...` (on failures)
+
+### 42) Social platform scope was narrowed to supported providers
+- Restricted OAuth and social account management paths to `Facebook` and `LinkedIn`.
+- Explicitly excluded `Instagram` from OAuth account creation and publishing paths until full support is implemented.
+- Added publish-time guardrails so unsupported platforms fail with clear validation errors.
+
+### 43) Token validity guardrails were added to publication flow
+- Added checks in publication scheduling/publish actions to block expired social tokens.
+- Added worker-side checks to fail jobs with reconnect-required errors when tokens are expired/inactive.
+
+### 44) Meta API versioning was externalized
+- Removed hardcoded Graph API `v18.0` usage from auth/publishing paths.
+- Added configurable `Meta:GraphApiVersion` (defaulting to `v22.0`) used by:
+  - `MetaAuthService`
+  - `FacebookPublisher`
+
+### 45) Local configuration source was simplified
+- Added development config keys in `AiContentFlow.API/appsettings.Development.json`:
+  - `SocialAuth:FrontendRedirectUrl`
+  - `Meta:GraphApiVersion`
+- Removed duplicate launch profile env overrides from `AiContentFlow.API/Properties/launchSettings.json`.
+
+### 46) Documentation was aligned with runtime behavior
+- Updated `AiContentFlow_API_Endpoints.md` with current OAuth login/callback contract and supported-platform policy.
+- Updated `AiContentFlow_App_Structure_and_Logic.md` to reflect callback redirect behavior, platform exclusions, token-expiry enforcement, and Meta version config.

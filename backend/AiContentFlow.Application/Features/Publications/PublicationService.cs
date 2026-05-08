@@ -6,6 +6,7 @@ namespace AiContentFlow.Application.Features.Publications;
 
 public class PublicationService : IPublicationService
 {
+    private static readonly SocialPlatform[] SupportedPublishPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly IPostVariantRepository _postVariantRepository;
@@ -51,6 +52,8 @@ public class PublicationService : IPublicationService
 
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
+        EnsureSupportedPublishingPlatform(socialAccount.Platform);
+        EnsureTokenIsValid(socialAccount);
 
         var postVariant = await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
@@ -110,6 +113,8 @@ public class PublicationService : IPublicationService
 
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
+        EnsureSupportedPublishingPlatform(socialAccount.Platform);
+        EnsureTokenIsValid(socialAccount);
 
         var postVariant = await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
@@ -205,6 +210,25 @@ public class PublicationService : IPublicationService
     {
         if (contentPost.Status is not ContentStatus.Approved and not ContentStatus.Scheduled)
             throw new InvalidOperationException("Content post must be approved before it can be published");
+    }
+
+    private static void EnsureSupportedPublishingPlatform(SocialPlatform platform)
+    {
+        if (!SupportedPublishPlatforms.Contains(platform))
+            throw new InvalidOperationException($"Publishing for platform '{platform}' is not enabled yet.");
+    }
+
+    private static void EnsureTokenIsValid(SocialAccount socialAccount)
+    {
+        if (socialAccount.Platform == SocialPlatform.Facebook)
+        {
+            // Facebook page tokens are often effectively long-lived and may not expose a reliable expiry.
+            // We defer final validity to the provider call instead of hard-failing here.
+            return;
+        }
+
+        if (socialAccount.TokenExpiry <= DateTime.UtcNow)
+            throw new InvalidOperationException("Social account token has expired. Reconnect the account before publishing.");
     }
 
     private static string? Normalize(string? value)

@@ -1,10 +1,12 @@
 using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AiContentFlow.Domain.Models;
 using AiContentFlow.Application.Common.Interfaces;
 using Application.DTOs;
 using Application.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace AiContentFlow.Infrastructure.Publishers;
@@ -16,15 +18,19 @@ public class FacebookPublisher : IPublisher
     private readonly HttpClient _httpClient;
     private readonly ILogger<FacebookPublisher> _logger;
     private readonly ISocialCredentialStore _credentialStore;
+    private readonly string _graphApiBaseUrl;
 
     public FacebookPublisher(
         IHttpClientFactory factory,
         ILogger<FacebookPublisher> logger,
-        ISocialCredentialStore credentialStore)
+        ISocialCredentialStore credentialStore,
+        IConfiguration configuration)
     {
         _httpClient = factory.CreateClient("Facebook");
         _logger = logger;
         _credentialStore = credentialStore;
+        var graphVersion = configuration["Meta:GraphApiVersion"] ?? "v22.0";
+        _graphApiBaseUrl = $"https://graph.facebook.com/{graphVersion}";
     }
 
     public async Task<PublishResult> PublishAsync(PostVariant post, SocialAccount account)
@@ -69,7 +75,7 @@ public class FacebookPublisher : IPublisher
             ["access_token"] = accessToken
         };
 
-        var response = await _httpClient.PostAsync($"https://graph.facebook.com/v18.0/{pageId}/feed", new FormUrlEncodedContent(payload));
+        var response = await _httpClient.PostAsync($"{_graphApiBaseUrl}/{pageId}/feed", new FormUrlEncodedContent(payload));
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
@@ -88,6 +94,11 @@ public class FacebookPublisher : IPublisher
 
     private async Task<PublishResult> PublishPhotoAsync(string pageId, string accessToken, string message, string imageUrl)
     {
+        if (TryResolveLocalImagePath(imageUrl, out var localPath))
+        {
+            return await PublishPhotoFromFileAsync(pageId, accessToken, message, localPath);
+        }
+
         var payload = new Dictionary<string, string>
         {
             ["message"] = message,
@@ -95,7 +106,7 @@ public class FacebookPublisher : IPublisher
             ["access_token"] = accessToken
         };
 
-        var response = await _httpClient.PostAsync($"https://graph.facebook.com/v18.0/{pageId}/photos", new FormUrlEncodedContent(payload));
+        var response = await _httpClient.PostAsync($"{_graphApiBaseUrl}/{pageId}/photos", new FormUrlEncodedContent(payload));
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
@@ -110,6 +121,78 @@ public class FacebookPublisher : IPublisher
             : $"https://www.facebook.com/{postId}";
 
         return PublishResult.Success(postId, postUrl ?? string.Empty);
+    }
+
+    private async Task<PublishResult> PublishPhotoFromFileAsync(string pageId, string accessToken, string message, string filePath)
+    {
+        if (!File.Exists(filePath))
+            return PublishResult.Failure($"Image file not found: {filePath}");
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(message), "message" },
+            { new StringContent(accessToken), "access_token" }
+        };
+
+        await using var stream = File.OpenRead(filePath);
+        var imageContent = new StreamContent(stream);
+        form.Add(imageContent, "source", Path.GetFileName(filePath));
+
+        var response = await _httpClient.PostAsync($"{_graphApiBaseUrl}/{pageId}/photos", form);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Facebook photo upload from file failed: {Error}", error);
+            return PublishResult.Failure(error);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<FacebookPostResponse>();
+        var postId = result?.PostId ?? result?.Id ?? string.Empty;
+        var postUrl = string.IsNullOrWhiteSpace(postId)
+            ? null
+            : $"https://www.facebook.com/{postId}";
+
+        return PublishResult.Success(postId, postUrl ?? string.Empty);
+    }
+
+    private static bool TryResolveLocalImagePath(string imageUrl, out string localPath)
+    {
+        localPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return false;
+
+        string? requestPath = null;
+
+        if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+        {
+            var isLocalHost = uri.IsLoopback
+                              || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                              || uri.Host.Equals("127.0.0.1")
+                              || uri.Host.Equals("::1");
+
+            if (!isLocalHost)
+                return false;
+
+            requestPath = WebUtility.UrlDecode(uri.AbsolutePath);
+        }
+        else if (imageUrl.StartsWith('/'))
+        {
+            requestPath = WebUtility.UrlDecode(imageUrl);
+        }
+
+        if (string.IsNullOrWhiteSpace(requestPath))
+            return false;
+
+        var trimmedPath = requestPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        var fullPath = Path.GetFullPath(Path.Combine(wwwroot, trimmedPath));
+        var fullWwwroot = Path.GetFullPath(wwwroot);
+
+        if (!fullPath.StartsWith(fullWwwroot, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        localPath = fullPath;
+        return true;
     }
 }
 

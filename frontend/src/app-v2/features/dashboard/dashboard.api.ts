@@ -17,16 +17,18 @@ export async function getDashboardPosts(): Promise<DashboardPost[]> {
 
   return posts.slice(0, 5).map(p => {
     let platformName = "Unknown";
-    if (p.contentType === 1) platformName = "X";
-    else if (p.contentType === 2) platformName = "LinkedIn";
-    else if (p.contentType === 3) platformName = "Instagram";
-    else if (p.contentType === 4) platformName = "Facebook";
-    else if (p.contentType === 0) platformName = "Blog";
+    if (p.contentType === "TwitterThread") platformName = "X";
+    else if (p.contentType === "LinkedInPost") platformName = "LinkedIn";
+    else if (p.contentType === "InstagramPost") platformName = "Instagram";
+    else if (p.contentType === "FacebookPost") platformName = "Facebook";
+    else if (p.contentType === "BlogPost") platformName = "Blog";
 
     let statusName = "Draft";
-    if (p.status === 1) statusName = "Ready";
-    if (p.status === 2) statusName = "Scheduled";
-    if (p.status === 3) statusName = "Published";
+    if (p.status === "Review") statusName = "Review";
+    if (p.status === "Approved") statusName = "Approved";
+    if (p.status === "Scheduled") statusName = "Scheduled";
+    if (p.status === "Published") statusName = "Published";
+    if (p.status === "Archived") statusName = "Archived";
 
     return {
       id: p.id,
@@ -45,8 +47,8 @@ export async function getDashboardStats(): Promise<DashboardStat[]> {
     requiresAuth: true,
   });
 
-  const scheduledCount = posts.filter(p => p.status === 2).length;
-  const publishedCount = posts.filter(p => p.status === 3).length;
+  const scheduledCount = posts.filter(p => p.status === "Scheduled").length;
+  const publishedCount = posts.filter(p => p.status === "Published").length;
 
   return [
     { value: posts.length.toString(), label: "Total Posts", trend: null, direction: null },

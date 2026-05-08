@@ -1,16 +1,15 @@
 export enum SocialPlatform {
-  Facebook = 0,
-  LinkedIn = 1,
-  Instagram = 2,
-  X = 3,
-  Threads = 4,
-  TikTok = 5,
+  Facebook = "Facebook",
+  LinkedIn = "LinkedIn",
+  Instagram = "Instagram",
+  X = "X",
+  Threads = "Threads",
+  TikTok = "TikTok",
 }
 
 export enum SocialAccountStatus {
-  Active = 0,
-  Disconnected = 1,
-  Error = 2,
+  Active = "Active",
+  Disconnected = "Disconnected",
 }
 
 export interface SocialAccount {
@@ -21,6 +20,7 @@ export interface SocialAccount {
   status: SocialAccountStatus;
   accountHandle: string;
   displayName: string;
+  externalAccountId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +30,7 @@ export interface CreateSocialAccountRequest {
   platform: SocialPlatform;
   accountHandle: string;
   displayName: string;
+  externalAccountId?: string;
 }
 
 export interface UpdateSocialAccountRequest {
@@ -38,4 +39,5 @@ export interface UpdateSocialAccountRequest {
   status: SocialAccountStatus;
   accountHandle: string;
   displayName: string;
+  externalAccountId?: string;
 }

@@ -3,9 +3,6 @@ import {
   Avatar,
   Box,
   Chip,
-  Collapse,
-  Divider,
-  IconButton,
   Paper,
   Stack,
   Table,
@@ -19,7 +16,6 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Select,
   CircularProgress,
   Alert,
 } from "@mui/material";
@@ -27,17 +23,6 @@ import { useTeamMembersQuery } from "./teams.queries";
 import type { TeamMember } from "./teams.type";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(date?: string) {
-  if (!date) return "—";
-  return new Date(date).toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function timeAgo(date?: string) {
   if (!date) return "Never";
@@ -51,13 +36,6 @@ function timeAgo(date?: string) {
 }
 
 // ─── Configs ──────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<string, { color: "success" | "warning" | "error" | "default" | "info" }> = {
-  Accepted:  { color: "success" },
-  Invited:   { color: "warning" },
-  Rejected:  { color: "error"   },
-  Suspended: { color: "default" },
-};
 
 const ROLE_COLOR: Record<string, "primary" | "secondary" | "info" | "warning"> = {
   Admin:  "info",
@@ -165,18 +143,6 @@ export function MembersHistoryPage() {
           onChange={(e) => setSearch(e.target.value)}
           sx={{ flex: 1 }}
         />
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Status</InputLabel>
-          <Select
-            value={statusFilter}
-            label="Status"
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {["All", "Accepted", "Invited", "Rejected", "Suspended"].map((s) => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Role</InputLabel>
           <Select

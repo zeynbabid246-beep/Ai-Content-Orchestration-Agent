@@ -12,9 +12,8 @@ namespace Infrastructure.Services
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _config;
         private readonly ILogger<MetaAuthService> _logger;
-
-        private const string GraphApiBase = "https://graph.facebook.com/v18.0/";
-        private const string OAuthUrl = "https://www.facebook.com/v18.0/dialog/oauth";
+        private readonly string _graphApiBase;
+        private readonly string _oAuthUrl;
 
         public MetaAuthService(
             IHttpClientFactory factory,
@@ -24,6 +23,9 @@ namespace Infrastructure.Services
             _httpClient = factory.CreateClient();
             _config = config;
             _logger = logger;
+            var graphVersion = _config["Meta:GraphApiVersion"] ?? "v22.0";
+            _graphApiBase = $"https://graph.facebook.com/{graphVersion}/";
+            _oAuthUrl = $"https://www.facebook.com/{graphVersion}/dialog/oauth";
         }
 
         public string GetAuthUrl(string state)
@@ -33,7 +35,7 @@ namespace Infrastructure.Services
 
             var scope = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
 
-            return $"{OAuthUrl}?" +
+            return $"{_oAuthUrl}?" +
                    $"client_id={appId}" +
                    $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                    $"&scope={scope}" +
@@ -55,6 +57,7 @@ namespace Infrastructure.Services
             _logger.LogInformation("Fetching pages using long-lived token.");
             var pages = await GetPagesAsync(longLivedToken.AccessToken);
             _logger.LogInformation("Pages fetched successfully.");
+            var tokenExpiry = ResolveFacebookTokenExpiry(longLivedToken.ExpiresIn);
 
             var accounts = new List<SocialAccountAuthDto>();
 
@@ -68,22 +71,9 @@ namespace Infrastructure.Services
                     facebookHandle,
                     page.Name,
                     page.AccessToken,
-                    DateTime.UtcNow.AddSeconds(longLivedToken.ExpiresIn),
+                    tokenExpiry,
                     null));
 
-                if (page.InstagramBusinessAccount != null)
-                {
-                    var instagramHandle = page.InstagramBusinessAccount.Id.Trim();
-                    accounts.Add(new SocialAccountAuthDto(
-                        "Instagram",
-                        page.InstagramBusinessAccount.Id,
-                        page.Name,
-                        instagramHandle,
-                        page.Name,
-                        page.AccessToken,
-                        DateTime.UtcNow.AddSeconds(longLivedToken.ExpiresIn),
-                        null));
-                }
             }
 
             return new SocialAuthResult(accounts);
@@ -96,7 +86,7 @@ namespace Infrastructure.Services
             var redirectUri = _config["Meta:RedirectUri"]!;
 
             var response = await _httpClient.GetAsync(
-                $"{GraphApiBase}oauth/access_token?" +
+                $"{_graphApiBase}oauth/access_token?" +
                 $"client_id={appId}" +
                 $"&client_secret={appSecret}" +
                 $"&code={code}" +
@@ -112,7 +102,7 @@ namespace Infrastructure.Services
             var appSecret = _config["Meta:AppSecret"]!;
 
             var response = await _httpClient.GetAsync(
-                $"{GraphApiBase}oauth/access_token?" +
+                $"{_graphApiBase}oauth/access_token?" +
                 $"grant_type=fb_exchange_token" +
                 $"&client_id={appId}" +
                 $"&client_secret={appSecret}" +
@@ -133,13 +123,25 @@ namespace Infrastructure.Services
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"{GraphApiBase}me/accounts?fields=id,name,access_token,instagram_business_account");
+                $"{_graphApiBase}me/accounts?fields=id,name,access_token");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userToken);
 
             var response = await _httpClient.SendAsync(request);
 
             var result = await response.Content.ReadFromJsonAsync<PagesResponse>();
             return result?.Data ?? new List<MetaPage>();
+        }
+
+        private static DateTime ResolveFacebookTokenExpiry(int expiresInSeconds)
+        {
+            // Facebook page tokens may return 0/empty expiry depending on the app/account setup.
+            // Treat them as long-lived to avoid false immediate-expired states in publication checks.
+            if (expiresInSeconds <= 0)
+            {
+                return DateTime.UtcNow.AddYears(1);
+            }
+
+            return DateTime.UtcNow.AddSeconds(expiresInSeconds);
         }
     }
 
@@ -165,11 +167,5 @@ namespace Infrastructure.Services
         [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
         [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
         [JsonPropertyName("access_token")] public string AccessToken { get; set; } = string.Empty;
-        [JsonPropertyName("instagram_business_account")] public InstagramBusinessAccount? InstagramBusinessAccount { get; set; }
-    }
-
-    public class InstagramBusinessAccount
-    {
-        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
     }
 }

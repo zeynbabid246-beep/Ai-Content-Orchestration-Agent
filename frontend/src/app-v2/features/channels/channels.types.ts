@@ -6,14 +6,28 @@ export interface Channel {
   createdAt: string;
   updatedAt: string;
 }
- 
+
+export interface ChannelBranding {
+  logoUrl?: string | null;
+  theme?: string | null;
+  slogan?: string | null;
+  tone?: string | null;
+}
+
+export interface ChannelConfig {
+  settingsJson?: string;
+}
+
 export interface CreateChannelRequest {
   name: string;
   description?: string;
+  branding?: ChannelBranding;
+  config?: ChannelConfig;
 }
- 
+
 export interface UpdateChannelRequest {
   name: string;
   description?: string;
+  branding?: ChannelBranding;
+  config?: ChannelConfig;
 }
- 

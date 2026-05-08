@@ -20,6 +20,10 @@ OAuth callback processing is split into:
 
 Provider adapters must not invent or return tenant authority.
 
+Current social integration scope:
+- active OAuth + publish support: `Facebook`, `LinkedIn`
+- `Instagram` is intentionally excluded from connect/publish paths until implementation is complete
+
 ## Analytics
 
 Analytics belong to `PostPublication` and are modeled as deduplicated snapshots with source, window, and metric version metadata.
@@ -70,6 +74,7 @@ HTTP boundary:
 - controller routing and model binding,
 - JWT auth pipeline,
 - exception middleware mapping to `400/401/403/404/500`.
+- social auth callback redirects to frontend using `SocialAuth:FrontendRedirectUrl`.
 
 ---
 
@@ -108,6 +113,7 @@ Team name completion endpoint:
 - `Channel.NormalizedName` enforces case-insensitive uniqueness within team.
 - `SocialAccount` is team-scoped and linked to channel.
 - OAuth tokens and secrets are managed through protected credential storage abstractions.
+- social account mutations are allowed for `Admin` and `Editor`.
 
 ### Campaign
 - `Campaign` is team-scoped and soft-deletable.
@@ -159,7 +165,8 @@ Social scheduling notes:
 
 Meta token usage:
 - Facebook posts use page access tokens stored in `SocialAccount.OAuthToken`.
-- Page IDs are stored in `SocialAccount.PlatformAccountId`.
+- Page IDs are stored in `SocialAccount.ExternalAccountId`.
+- Graph API version is configurable through `Meta:GraphApiVersion` (default `v22.0`).
 
 Hangfire scheduling:
 - `PublishScheduledVariantsJob` runs every minute via Hangfire.
@@ -170,6 +177,7 @@ Publish rules:
 - publication endpoint accepts `socialAccountId` and optional `postVariantId`.
 - only `Approved` and `Scheduled` posts are publishable.
 - idempotency is enforced via publication intent matching and optional `idempotencyKey`.
+- social account token expiry is enforced before publish; expired tokens require reconnect.
 
 ---
 

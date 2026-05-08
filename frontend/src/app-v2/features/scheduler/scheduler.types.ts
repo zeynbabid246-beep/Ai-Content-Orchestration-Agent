@@ -1,4 +1,4 @@
-export type EventStatus = "Draft" | "Ready" | "Scheduled" | "Published" | "Deleted";
+export type EventStatus = "Draft" | "Review" | "Approved" | "Scheduled" | "Published" | "Archived";
 
 export interface SchedulerEvent {
   id?: number | string;

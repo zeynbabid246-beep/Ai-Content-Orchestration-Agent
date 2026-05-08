@@ -15,7 +15,7 @@ public record UpdatePostVariantDto(
 );
 
 public record CreateContentPostDto(
-    int ChannelId,
+    int? ChannelId,
     int? CampaignId,
     string? Title,
     ContentType ContentType,
@@ -23,11 +23,12 @@ public record CreateContentPostDto(
     string? Prompt,
     string? AiModel,
     int? AiTokens,
-    IReadOnlyList<CreatePostVariantDto>? PostVariants
+    IReadOnlyList<CreatePostVariantDto>? PostVariants,
+    string? ImageUrl = null
 );
 
 public record UpdateContentPostDto(
-    int ChannelId,
+    int? ChannelId,
     int? CampaignId,
     string? Title,
     ContentType ContentType,
@@ -36,7 +37,8 @@ public record UpdateContentPostDto(
     string? Prompt,
     string? AiModel,
     int? AiTokens,
-    IReadOnlyList<UpdatePostVariantDto>? PostVariants
+    IReadOnlyList<UpdatePostVariantDto>? PostVariants,
+    string? ImageUrl = null
 );
 
 public record TransitionContentPostStatusDto(
@@ -79,6 +81,7 @@ public record ContentPostResponseDto(
     string? Prompt,
     string? AiModel,
     int? AiTokens,
+    string? ImageUrl,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<PostVariantResponseDto> PostVariants

@@ -70,66 +70,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (!requiresAuth) {
     config.headers = { Authorization: undefined };
   }
-
-<<<<<<< HEAD
-  if (requiresAuth) {
-    const token = authStorage.getAccessToken();
-    if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
-  }
-
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-  });
-
-  // Handle 401 — attempt token refresh or force logout
-  if (response.status === 401 && requiresAuth) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
-      // Retry the original request with the new token
-      const retryHeaders = new Headers(finalHeaders);
-      const newToken = authStorage.getAccessToken();
-      if (newToken) retryHeaders.set("Authorization", `Bearer ${newToken}`);
-      const retryResponse = await fetch(`${env.apiBaseUrl}${path}`, { ...rest, headers: retryHeaders });
-      return handleResponse<T>(retryResponse);
-    } else {
-      // Refresh failed — force logout
-      authStorage.clear();
-      window.location.href = "/app/login";
-      throw new Error("Session expired. Please log in again.");
-    }
-  }
-
-  return handleResponse<T>(response);
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  // 204 No Content — nothing to parse
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  let data: unknown = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    const message =
-      (data as { message?: string; error?: string } | null)?.message ??
-      (data as { message?: string; error?: string } | null)?.error ??
-      `Request failed: ${response.status}`;
-    throw new Error(message);
-  }
-
-  return data as T;
-=======
   // 204 No Content — axios returns empty string, normalise to null
   const response = await api.request<T>(config);
   return response.data ?? (null as T);
->>>>>>> a83e84e8 (just done)
 }
 
 // ─── Token refresh ────────────────────────────────────────────────────────────

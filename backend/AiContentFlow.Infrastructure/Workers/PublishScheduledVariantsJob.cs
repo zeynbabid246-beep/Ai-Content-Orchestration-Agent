@@ -8,6 +8,7 @@ namespace AiContentFlow.Infrastructure.Workers;
 public class PublishScheduledVariantsJob
 {
     private const int BatchSize = 25;
+    private static readonly SocialPlatform[] SupportedPublishPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
     private readonly IPublishJobRepository _publishJobRepository;
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublisherFactory _publisherFactory;
@@ -56,6 +57,24 @@ public class PublishScheduledVariantsJob
                     if (socialAccount == null || !socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
                     {
                         publication.MarkFailed("Social account not found or inactive", DateTime.UtcNow);
+                        job.MarkFailed(publication.ErrorMessage, DateTime.UtcNow);
+                        await SaveProgressAsync();
+                        continue;
+                    }
+
+                    if (!SupportedPublishPlatforms.Contains(socialAccount.Platform))
+                    {
+                        publication.MarkFailed($"Publishing for platform '{socialAccount.Platform}' is not enabled yet", DateTime.UtcNow);
+                        job.MarkFailed(publication.ErrorMessage, DateTime.UtcNow);
+                        await SaveProgressAsync();
+                        continue;
+                    }
+
+                    if (socialAccount.TokenExpiry <= DateTime.UtcNow)
+                    {
+                        socialAccount.Status = SocialAccountStatus.Disconnected;
+                        socialAccount.UpdatedAt = DateTime.UtcNow;
+                        publication.MarkFailed("Social account token has expired. Reconnect the account before publishing.", DateTime.UtcNow);
                         job.MarkFailed(publication.ErrorMessage, DateTime.UtcNow);
                         await SaveProgressAsync();
                         continue;
@@ -112,6 +131,7 @@ public class PublishScheduledVariantsJob
 
     private async Task SaveProgressAsync()
     {
+        await _socialAccountRepository.SaveChangesAsync();
         await _publishJobRepository.SaveChangesAsync();
         await _publicationRepository.SaveChangesAsync();
     }

@@ -37,7 +37,7 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         return $"{payloadToken}.{signature}";
     }
 
-    public SocialAuthState ValidateState(string state, string platform, string userId, DateTime utcNow)
+    public SocialAuthState ValidateState(string state, string platform, DateTime utcNow, string? expectedUserId = null)
     {
         var parts = state.Split('.');
         if (parts.Length != 2)
@@ -56,7 +56,8 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         if (payload.ExpiresAt <= utcNow)
             throw new InvalidOperationException("OAuth state has expired");
 
-        if (!string.Equals(payload.UserId, userId, StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(expectedUserId)
+            && !string.Equals(payload.UserId, expectedUserId, StringComparison.Ordinal))
             throw new UnauthorizedAccessException("OAuth state does not belong to the current user");
 
         if (!string.Equals(payload.Platform, NormalizePlatform(platform), StringComparison.OrdinalIgnoreCase))

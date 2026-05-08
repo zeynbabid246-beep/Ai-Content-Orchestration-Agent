@@ -7,6 +7,8 @@ namespace AiContentFlow.Application.Features.SocialAccounts;
 
 public class SocialAccountService : ISocialAccountService
 {
+    private const string DefaultChannelName = "General";
+    private static readonly SocialPlatform[] SupportedPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly IChannelRepository _channelRepository;
     private readonly ITeamRepository _teamRepository;
@@ -30,6 +32,7 @@ public class SocialAccountService : ISocialAccountService
     public async Task<SocialAccountResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateSocialAccountDto dto)
     {
         await _createValidator.ValidateAndThrowAsync(dto);
+        EnsurePlatformIsEnabled(dto.Platform);
 
         _ = await _teamRepository.GetTeamByIdAsync(teamId)
             ?? throw new KeyNotFoundException("Team not found");
@@ -37,21 +40,20 @@ public class SocialAccountService : ISocialAccountService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
+        if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
+            throw new UnauthorizedAccessException("Only Admin or Editor can manage social accounts");
 
-        _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
-            ?? throw new KeyNotFoundException("Channel not found");
+        var resolvedChannelId = await ResolveChannelIdAsync(teamId, dto.ChannelId);
 
         var normalizedHandle = NormalizeRequired(dto.AccountHandle);
 
-        if (await _socialAccountRepository.ExistsAsync(teamId, dto.ChannelId, dto.Platform, normalizedHandle))
+        if (await _socialAccountRepository.ExistsAsync(teamId, resolvedChannelId, dto.Platform, normalizedHandle))
             throw new InvalidOperationException("Social account already exists for this channel and platform");
 
         var socialAccount = new SocialAccount
         {
             TeamId = teamId,
-            ChannelId = dto.ChannelId,
+            ChannelId = resolvedChannelId,
             Platform = dto.Platform,
             Status = SocialAccountStatus.Active,
             AccountHandle = normalizedHandle,
@@ -96,25 +98,25 @@ public class SocialAccountService : ISocialAccountService
     public async Task<SocialAccountResponseDto> UpdateAsync(Guid teamId, int socialAccountId, string requestingUserId, UpdateSocialAccountDto dto)
     {
         await _updateValidator.ValidateAndThrowAsync(dto);
+        EnsurePlatformIsEnabled(dto.Platform);
 
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
+        if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
+            throw new UnauthorizedAccessException("Only Admin or Editor can manage social accounts");
 
-        _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
-            ?? throw new KeyNotFoundException("Channel not found");
+        var resolvedChannelId = await ResolveChannelIdAsync(teamId, dto.ChannelId);
 
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
         var normalizedHandle = NormalizeRequired(dto.AccountHandle);
 
-        if (await _socialAccountRepository.ExistsAsync(teamId, dto.ChannelId, dto.Platform, normalizedHandle, socialAccountId))
+        if (await _socialAccountRepository.ExistsAsync(teamId, resolvedChannelId, dto.Platform, normalizedHandle, socialAccountId))
             throw new InvalidOperationException("Social account already exists for this channel and platform");
 
-        socialAccount.ChannelId = dto.ChannelId;
+        socialAccount.ChannelId = resolvedChannelId;
         socialAccount.Platform = dto.Platform;
         socialAccount.Status = dto.Status;
         socialAccount.AccountHandle = normalizedHandle;
@@ -132,8 +134,8 @@ public class SocialAccountService : ISocialAccountService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage social accounts");
+        if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
+            throw new UnauthorizedAccessException("Only Admin or Editor can manage social accounts");
 
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
@@ -172,5 +174,40 @@ public class SocialAccountService : ISocialAccountService
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static void EnsurePlatformIsEnabled(SocialPlatform platform)
+    {
+        if (!SupportedPlatforms.Contains(platform))
+            throw new InvalidOperationException($"Platform '{platform}' is not enabled yet.");
+    }
+
+    private async Task<int> ResolveChannelIdAsync(Guid teamId, int? requestedChannelId)
+    {
+        if (requestedChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, requestedChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+            return requestedChannelId.Value;
+        }
+
+        var channels = await _channelRepository.GetByTeamAsync(teamId);
+        var existing = channels.FirstOrDefault();
+        if (existing is not null)
+            return existing.Id;
+
+        var channel = new Channel
+        {
+            TeamId = teamId,
+            Name = DefaultChannelName,
+            NormalizedName = DefaultChannelName.ToUpperInvariant(),
+            Description = "Auto-created default channel for direct social posting",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _channelRepository.AddAsync(channel);
+        await _channelRepository.SaveChangesAsync();
+        return channel.Id;
     }
 }

@@ -29,16 +29,19 @@ import {
   useDashboardAnalyticsQuery,
 } from "./dashboard.queries";
 import { usePublishContentPost } from "../content-posts/content-posts.queries";
+import { useSocialAccounts } from "../social-media/social-accounts.queries";
 import { MembersHistoryPage } from "../team/membreHistory";
 import type { PostStatus, PlatformAnalytics } from "./dashboard.types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_COLOR: Record<PostStatus, "success" | "info" | "default" | "secondary"> = {
-  Ready: "success",
+const STATUS_COLOR: Record<PostStatus, "success" | "info" | "default" | "secondary" | "warning"> = {
+  Approved: "success",
+  Review: "info",
   Scheduled: "info",
   Draft: "default",
   Published: "secondary",
+  Archived: "warning",
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
@@ -505,14 +508,21 @@ function OverviewTab() {
   const navigate = useNavigate();
   const { data: posts = [] } = useDashboardPostsQuery();
   const { data: stats = [] } = useDashboardStatsQuery();
+  const { data: socialAccounts = [] } = useSocialAccounts();
   const publishMutation = usePublishContentPost();
 
   const handlePublish = (id: number) => {
+    const activeAccount = socialAccounts.find((account) => account.status === "Active");
+    if (!activeAccount) {
+      return;
+    }
+
     publishMutation.mutate({
       id,
       data: {
-        platformPostId: `post-${Date.now()}`,
-        platformPostUrl: `https://social.example.com/post/${id}`,
+        socialAccountId: activeAccount.id,
+        postVariantId: null,
+        idempotencyKey: `publish-${id}-${Date.now()}`,
       },
     });
   };
@@ -526,7 +536,7 @@ function OverviewTab() {
       )}
       {publishMutation.isError && (
         <Alert severity="error" onClose={() => publishMutation.reset()}>
-          Failed to publish post. Only scheduled posts can be published.
+          Failed to publish post. Make sure you have an active social account and the post is publishable.
         </Alert>
       )}
       <Grid container spacing={2}>
@@ -611,7 +621,7 @@ function OverviewTab() {
                     aria-label="Publish post"
                     size="small"
                     onClick={() => handlePublish(post.id)}
-                    disabled={post.status !== "Scheduled" || publishMutation.isPending}
+                    disabled={post.status !== "Scheduled" || publishMutation.isPending || !socialAccounts.some((account) => account.status === "Active")}
                     title={post.status === "Scheduled" ? "Publish now" : "Only scheduled posts can be published"}
                   >
                     ➤

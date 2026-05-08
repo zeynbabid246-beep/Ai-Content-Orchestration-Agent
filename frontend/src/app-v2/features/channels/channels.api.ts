@@ -30,6 +30,19 @@ export async function createChannel(payload: CreateChannelRequest): Promise<Chan
     body: JSON.stringify({
       name: payload.name,
       description: payload.description ?? null,
+      branding: {
+        logoUrl: payload.branding?.logoUrl ?? null,
+        theme: payload.branding?.theme ?? "default",
+        slogan: payload.branding?.slogan ?? null,
+        tone: payload.branding?.tone ?? "professional",
+      },
+      config: {
+        settingsJson:
+          payload.config?.settingsJson ??
+          JSON.stringify({
+            timezone: "UTC",
+          }),
+      },
     }),
   });
 }
@@ -42,6 +55,19 @@ export async function updateChannel(channelId: number, payload: UpdateChannelReq
     body: JSON.stringify({
       name: payload.name,
       description: payload.description ?? null,
+      branding: {
+        logoUrl: payload.branding?.logoUrl ?? null,
+        theme: payload.branding?.theme ?? "default",
+        slogan: payload.branding?.slogan ?? null,
+        tone: payload.branding?.tone ?? "professional",
+      },
+      config: {
+        settingsJson:
+          payload.config?.settingsJson ??
+          JSON.stringify({
+            timezone: "UTC",
+          }),
+      },
     }),
   });
 }

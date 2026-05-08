@@ -1,9 +1,9 @@
 export enum CampaignStatus {
-  Draft = 0,
-  Active = 1,
-  Paused = 2,
-  Completed = 3,
-  Archived = 4,
+  Draft = "Draft",
+  Active = "Active",
+  Paused = "Paused",
+  Completed = "Completed",
+  Archived = "Archived",
 }
 
 export interface Campaign {

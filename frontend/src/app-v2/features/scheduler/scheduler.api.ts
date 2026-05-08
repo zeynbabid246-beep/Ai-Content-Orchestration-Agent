@@ -8,7 +8,48 @@ function getTeamId(): string {
   return teamId;
 }
 
-// TODO: Replace with apiRequest<SchedulerEventMap>("/scheduler/events", { requiresAuth: true })
+interface SocialAccountLite {
+  id: number;
+  channelId: number;
+  platform: "Facebook" | "LinkedIn" | string;
+  status: string;
+}
+
+function toEventStatus(contentStatus: string): EventStatus {
+  if (contentStatus === "Review") return "Review";
+  if (contentStatus === "Approved") return "Approved";
+  if (contentStatus === "Scheduled") return "Scheduled";
+  if (contentStatus === "Published") return "Published";
+  if (contentStatus === "Archived") return "Archived";
+  return "Draft";
+}
+
+function toContentStatus(eventStatus: EventStatus): "Draft" | "Review" | "Approved" | "Scheduled" | "Published" | "Archived" {
+  if (eventStatus === "Review") return "Review";
+  if (eventStatus === "Approved") return "Approved";
+  if (eventStatus === "Scheduled") return "Scheduled";
+  if (eventStatus === "Published") return "Published";
+  if (eventStatus === "Archived") return "Archived";
+  return "Draft";
+}
+
+function toContentType(platform: string): "FacebookPost" | "LinkedInPost" {
+  return platform === "Facebook" ? "FacebookPost" : "LinkedInPost";
+}
+
+async function getDefaultActiveSocialAccount(teamId: string): Promise<SocialAccountLite> {
+  const socialAccounts = await apiRequest<SocialAccountLite[]>(`/teams/${teamId}/social-accounts`, {
+    requiresAuth: true,
+  });
+
+  const activeAccount = socialAccounts.find((account) => account.status === "Active");
+  if (!activeAccount) {
+    throw new Error("No active social account found. Connect Facebook or LinkedIn first.");
+  }
+
+  return activeAccount;
+}
+
 export async function getSchedulerEvents(): Promise<SchedulerEventMap> {
   const teamId = getTeamId();
   const posts = await apiRequest<any[]>(`/teams/${teamId}/content-posts`, {
@@ -29,11 +70,7 @@ export async function getSchedulerEvents(): Promise<SchedulerEventMap> {
     const h = String(dateObj.getHours()).padStart(2, "0");
     const min = String(dateObj.getMinutes()).padStart(2, "0");
     
-    let status: EventStatus = "Draft";
-    if (post.status === 1) status = "Ready";
-    if (post.status === 2) status = "Scheduled";
-    if (post.status === 3) status = "Published";
-    if (post.status === 4) status = "Deleted";
+    const status = toEventStatus(post.status);
 
     let notes = "";
     let color = "#1976d2";
@@ -63,11 +100,21 @@ export async function getSchedulerEvents(): Promise<SchedulerEventMap> {
 
 export async function createSchedulerEvent(dateKey: string, event: SchedulerEvent): Promise<{ dateKey: string; event: SchedulerEvent }> {
   const teamId = getTeamId();
+  const activeAccount = await getDefaultActiveSocialAccount(teamId);
   
   const rawData = {
+    channelId: activeAccount.channelId,
     title: event.title,
-    contentType: 0, 
+    contentType: toContentType(activeAccount.platform),
     contentJson: JSON.stringify({ notes: event.notes, color: event.color }),
+    prompt: `Scheduled from calendar: ${event.title}`,
+    postVariants: [
+      {
+        platform: activeAccount.platform,
+        contentJson: JSON.stringify({ notes: event.notes, color: event.color }),
+        title: event.title,
+      },
+    ],
   };
 
   const createdPost = await apiRequest<any>(`/teams/${teamId}/content-posts`, {
@@ -76,11 +123,11 @@ export async function createSchedulerEvent(dateKey: string, event: SchedulerEven
     body: JSON.stringify(rawData),
   });
 
-  // Transition to Ready before scheduling
+  // Scheduling requires the post to be publishable first.
   await apiRequest<any>(`/teams/${teamId}/content-posts/${createdPost.id}/workflow/transition`, {
     method: "POST",
     requiresAuth: true,
-    body: JSON.stringify({ status: 1 }), // Ready status
+    body: JSON.stringify({ status: "Approved" }),
   });
 
   const [hours, minutes] = event.time.split(":").map(Number);
@@ -90,26 +137,27 @@ export async function createSchedulerEvent(dateKey: string, event: SchedulerEven
   await apiRequest<any>(`/teams/${teamId}/content-posts/${createdPost.id}/workflow/schedule`, {
     method: "POST",
     requiresAuth: true,
-    body: JSON.stringify({ scheduledAt: scheduledDate.toISOString() }),
+    body: JSON.stringify({
+      socialAccountId: activeAccount.id,
+      postVariantId: null,
+      scheduledAt: scheduledDate.toISOString(),
+      idempotencyKey: `scheduler-${createdPost.id}-${scheduledDate.getTime()}`,
+    }),
   });
 
-  return { dateKey, event: { ...event, id: createdPost.id } };
+  return { dateKey, event: { ...event, id: createdPost.id, status: "Scheduled" } };
 }
 
 export async function updateSchedulerEvent(dateKey: string, event: SchedulerEvent): Promise<{ dateKey: string; event: SchedulerEvent }> {
   const teamId = getTeamId();
-  
-  let mappedStatus = 0; // Draft
-  if (event.status === "Ready") mappedStatus = 1;
-  if (event.status === "Scheduled") mappedStatus = 2;
-  if (event.status === "Published") mappedStatus = 3;
-  if (event.status === "Deleted") mappedStatus = 4;
+  const activeAccount = await getDefaultActiveSocialAccount(teamId);
   
   const rawData = {
+    channelId: activeAccount.channelId,
     title: event.title,
-    contentType: 0, 
+    contentType: toContentType(activeAccount.platform),
     contentJson: JSON.stringify({ notes: event.notes, color: event.color }),
-    status: mappedStatus
+    status: toContentStatus(event.status),
   };
 
   await apiRequest<any>(`/teams/${teamId}/content-posts/${event.id}`, {
@@ -118,26 +166,28 @@ export async function updateSchedulerEvent(dateKey: string, event: SchedulerEven
     body: JSON.stringify(rawData),
   });
 
-  // Automatically ensure transition to Ready if we are going to schedule it again
-  try {
+  if (event.status === "Scheduled") {
     await apiRequest<any>(`/teams/${teamId}/content-posts/${event.id}/workflow/transition`, {
       method: "POST",
       requiresAuth: true,
-      body: JSON.stringify({ status: 1 }), // Ready
+      body: JSON.stringify({ status: "Approved" }),
     });
-  } catch (e) {
-    // If it's already ready or advanced, ignore
+
+    const [hours, minutes] = event.time.split(":").map(Number);
+    const [yy, mm, dd] = dateKey.split("-").map(Number);
+    const scheduledDate = new Date(Date.UTC(yy, mm - 1, dd, hours, minutes));
+
+    await apiRequest<any>(`/teams/${teamId}/content-posts/${event.id}/workflow/schedule`, {
+      method: "POST",
+      requiresAuth: true,
+      body: JSON.stringify({
+        socialAccountId: activeAccount.id,
+        postVariantId: null,
+        scheduledAt: scheduledDate.toISOString(),
+        idempotencyKey: `scheduler-${event.id}-${scheduledDate.getTime()}`,
+      }),
+    });
   }
-
-  const [hours, minutes] = event.time.split(":").map(Number);
-  const [yy, mm, dd] = dateKey.split("-").map(Number);
-  const scheduledDate = new Date(Date.UTC(yy, mm - 1, dd, hours, minutes));
-
-  await apiRequest<any>(`/teams/${teamId}/content-posts/${event.id}/workflow/schedule`, {
-    method: "POST",
-    requiresAuth: true,
-    body: JSON.stringify({ scheduledAt: scheduledDate.toISOString() }),
-  });
 
   return { dateKey, event };
 }

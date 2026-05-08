@@ -1,21 +1,31 @@
 export enum ContentType {
-  BlogPost = 0,
-  TwitterThread = 1,
-  LinkedInPost = 2,
-  InstagramPost = 3,
-  FacebookPost = 4,
+  BlogPost = "BlogPost",
+  TwitterThread = "TwitterThread",
+  LinkedInPost = "LinkedInPost",
+  InstagramPost = "InstagramPost",
+  FacebookPost = "FacebookPost",
 }
 
 export enum ContentStatus {
-  Draft = 0,
-  Ready = 1,
-  Scheduled = 2,
-  Published = 3,
-  Deleted = 4,
+  Draft = "Draft",
+  Review = "Review",
+  Approved = "Approved",
+  Scheduled = "Scheduled",
+  Published = "Published",
+  Archived = "Archived",
+}
+
+export enum SocialPlatform {
+  Facebook = "Facebook",
+  LinkedIn = "LinkedIn",
+  Instagram = "Instagram",
+  X = "X",
+  Threads = "Threads",
+  TikTok = "TikTok",
 }
 
 export interface ContentPostVariant {
-  platform: number;
+  platform: SocialPlatform;
   contentJson: string;
   title: string;
 }
@@ -28,6 +38,7 @@ export interface ContentPost {
   title: string;
   contentType: ContentType;
   contentJson: string;
+  imageUrl?: string | null;
   status: ContentStatus;
   prompt: string;
   aiModel: string;
@@ -41,10 +52,12 @@ export interface ContentPost {
 
 export interface CreateContentPostRequest {
   channelId?: number | null;
+  campaignId?: number | null;
   socialAccountId?: number | null;
   title: string;
   contentType: ContentType;
   contentJson: string;
+  imageUrl?: string | null;
   prompt?: string;
   aiModel?: string;
   aiTokens?: number;
@@ -53,10 +66,12 @@ export interface CreateContentPostRequest {
 
 export interface UpdateContentPostRequest {
   channelId?: number | null;
+  campaignId?: number | null;
   socialAccountId?: number | null;
   title: string;
   contentType: ContentType;
   contentJson: string;
+  imageUrl?: string | null;
   status?: ContentStatus;
   prompt?: string;
   aiModel?: string;
@@ -69,10 +84,14 @@ export interface TransitionContentPostStatusRequest {
 }
 
 export interface ScheduleContentPostRequest {
+  socialAccountId: number;
+  postVariantId?: number | null;
   scheduledAt: string;
+  idempotencyKey?: string;
 }
 
 export interface PublishContentPostRequest {
-  platformPostId?: string;
-  platformPostUrl?: string;
+  socialAccountId: number;
+  postVariantId?: number | null;
+  idempotencyKey?: string;
 }

@@ -35,22 +35,22 @@ public class SocialAccountRepository : ISocialAccountRepository
             .ToListAsync();
     }
 
-    public async Task<bool> ExistsAsync(Guid teamId, int channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null)
+    public async Task<bool> ExistsAsync(Guid teamId, int? channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null)
     {
         return await _context.SocialAccounts.AnyAsync(sa =>
             sa.TeamId == teamId
-            && sa.ChannelId == channelId
+            && sa.ChannelId == (channelId ?? sa.ChannelId)
             && sa.Platform == platform
             && !sa.IsDeleted
             && sa.AccountHandle.ToLower() == normalizedHandle.ToLower()
             && (!excludeSocialAccountId.HasValue || sa.Id != excludeSocialAccountId.Value));
     }
 
-    public async Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int channelId, SocialPlatform platform, string externalAccountId)
+    public async Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int? channelId, SocialPlatform platform, string externalAccountId)
     {
         return await _context.SocialAccounts.FirstOrDefaultAsync(sa =>
             sa.TeamId == teamId
-            && sa.ChannelId == channelId
+            && sa.ChannelId == (channelId ?? sa.ChannelId)
             && sa.Platform == platform
             && sa.ExternalAccountId == externalAccountId
             && !sa.IsDeleted);

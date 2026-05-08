@@ -7,7 +7,7 @@ public interface ISocialAccountRepository
     Task AddAsync(SocialAccount socialAccount);
     Task<SocialAccount?> GetByIdAsync(Guid teamId, int socialAccountId);
     Task<List<SocialAccount>> GetByTeamAsync(Guid teamId);
-    Task<bool> ExistsAsync(Guid teamId, int channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null);
-    Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int channelId, SocialPlatform platform, string externalAccountId);
+    Task<bool> ExistsAsync(Guid teamId, int? channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null);
+    Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int? channelId, SocialPlatform platform, string externalAccountId);
     Task SaveChangesAsync();
 }

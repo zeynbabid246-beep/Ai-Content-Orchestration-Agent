@@ -5,10 +5,11 @@ import { ContentStatus, ContentType } from "../content-posts/content-posts.types
 const getStatusLabel = (status: ContentStatus) => {
   switch (status) {
     case ContentStatus.Draft: return "Draft";
-    case ContentStatus.Ready: return "Ready";
+    case ContentStatus.Review: return "Review";
+    case ContentStatus.Approved: return "Approved";
     case ContentStatus.Scheduled: return "Scheduled";
     case ContentStatus.Published: return "Published";
-    case ContentStatus.Deleted: return "Deleted";
+    case ContentStatus.Archived: return "Archived";
     default: return "Unknown";
   }
 };
@@ -16,10 +17,11 @@ const getStatusLabel = (status: ContentStatus) => {
 const getStatusColor = (status: ContentStatus) => {
   switch (status) {
     case ContentStatus.Draft: return "default";
-    case ContentStatus.Ready: return "info";
+    case ContentStatus.Review: return "info";
+    case ContentStatus.Approved: return "success";
     case ContentStatus.Scheduled: return "warning";
     case ContentStatus.Published: return "success";
-    case ContentStatus.Deleted: return "error";
+    case ContentStatus.Archived: return "default";
     default: return "default";
   }
 };

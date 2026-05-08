@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace AiContentFlow.API.Controllers;
 
@@ -9,15 +10,19 @@ namespace AiContentFlow.API.Controllers;
 public class SocialAuthController : ControllerBase
 {
     private readonly AiContentFlow.Application.Features.SocialAuth.SocialAuthService _socialAuthService;
+    private readonly IConfiguration _configuration;
 
-    public SocialAuthController(AiContentFlow.Application.Features.SocialAuth.SocialAuthService socialAuthService)
+    public SocialAuthController(
+        AiContentFlow.Application.Features.SocialAuth.SocialAuthService socialAuthService,
+        IConfiguration configuration)
     {
         _socialAuthService = socialAuthService;
+        _configuration = configuration;
     }
 
     // GET /api/auth/linkedin/login?teamId=...&channelId=1
     [HttpGet("{platform}/login")]
-    public async Task<IActionResult> Login([FromRoute] string platform, [FromQuery] Guid teamId, [FromQuery] int channelId)
+    public async Task<IActionResult> Login([FromRoute] string platform, [FromQuery] Guid teamId, [FromQuery] int? channelId = null)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
@@ -26,13 +31,13 @@ public class SocialAuthController : ControllerBase
         if (teamId == Guid.Empty)
             return BadRequest(new { error = "Invalid teamId" });
 
-        if (channelId <= 0)
+        if (channelId.HasValue && channelId.Value <= 0)
             return BadRequest(new { error = "Invalid channelId" });
 
         try
         {
             var result = await _socialAuthService.CreateLoginUrlAsync(teamId, channelId, userId, platform);
-            return Redirect(result.AuthorizationUrl);
+            return Ok(result);
         }
         catch (NotSupportedException ex)
         {
@@ -41,6 +46,7 @@ public class SocialAuthController : ControllerBase
     }
 
     // GET /api/auth/linkedin/callback?code=...&state=...
+    [AllowAnonymous]
     [HttpGet("{platform}/callback")]
     public async Task<IActionResult> Callback(
         [FromRoute] string platform,
@@ -53,22 +59,19 @@ public class SocialAuthController : ControllerBase
         if (string.IsNullOrEmpty(state))
             return BadRequest(new { error = "State parameter missing" });
 
-        var userId = GetCurrentUserId();
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized("User ID not found in token");
-
         try
         {
-            var result = await _socialAuthService.HandleCallbackAsync(platform, code, state, userId);
-            return Ok(result);
+            var userId = GetCurrentUserId();
+            _ = await _socialAuthService.HandleCallbackAsync(platform, code, state, userId);
+            return Redirect(BuildFrontendRedirectUrl(platform, true, null));
         }
         catch (NotSupportedException ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return Redirect(BuildFrontendRedirectUrl(platform, false, ex.Message));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return BadRequest(new { error = "Social authorization failed" });
+            return Redirect(BuildFrontendRedirectUrl(platform, false, ex.Message));
         }
     }
 
@@ -76,5 +79,16 @@ public class SocialAuthController : ControllerBase
     {
         return User.FindFirst("sub")?.Value
                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    }
+
+    private string BuildFrontendRedirectUrl(string platform, bool success, string error)
+    {
+        var baseUrl = _configuration["SocialAuth:FrontendRedirectUrl"] ?? "http://localhost:5173/app/generate";
+        var separator = baseUrl.Contains('?') ? "&" : "?";
+        var status = success ? "success" : "error";
+        var query = $"{separator}socialAuthStatus={status}&platform={Uri.EscapeDataString(platform)}";
+        if (!string.IsNullOrWhiteSpace(error))
+            query += $"&socialAuthError={Uri.EscapeDataString(error)}";
+        return $"{baseUrl}{query}";
     }
 }

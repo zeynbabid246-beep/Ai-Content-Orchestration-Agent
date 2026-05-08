@@ -173,10 +173,11 @@ export function SchedulerPage() {
               <TextField type="time" label="Time" value={form.time} onChange={(event) => setForm((prev) => ({ ...prev, time: event.target.value }))} fullWidth />
               <TextField select label="Status" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as EventStatus }))} fullWidth>
                 <MenuItem value="Draft">Draft</MenuItem>
-                <MenuItem value="Ready">Ready</MenuItem>
+                <MenuItem value="Review">Review</MenuItem>
+                <MenuItem value="Approved">Approved</MenuItem>
                 <MenuItem value="Scheduled">Scheduled</MenuItem>
-                 <MenuItem value="Published">Published</MenuItem>
-                  <MenuItem value="Deleted">Deleted</MenuItem>
+                <MenuItem value="Published">Published</MenuItem>
+                <MenuItem value="Archived">Archived</MenuItem>
               </TextField>
             </Stack>
             <TextField multiline minRows={3} label="Notes" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />

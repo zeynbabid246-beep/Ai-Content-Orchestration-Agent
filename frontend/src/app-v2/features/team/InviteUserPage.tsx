@@ -1,11 +1,11 @@
 import { useState } from "react";
-
 import {
   Alert,
   Avatar,
   Box,
   Button,
   Chip,
+  CircularProgress,
   MenuItem,
   Paper,
   Stack,
@@ -16,15 +16,13 @@ import {
   TableRow,
   TextField,
   Typography,
-  CircularProgress,
 } from "@mui/material";
-import { useState } from "react";
 import { authStorage } from "../../shared/lib/storage";
 import {
-  useTeamMembersQuery,
   useInviteMemberMutation,
-  useUpdateRoleMutation,
   useRemoveMemberMutation,
+  useTeamMembersQuery,
+  useUpdateRoleMutation,
 } from "./teams.queries";
 import type { TeamRole } from "./teams.type";
 
@@ -55,15 +53,7 @@ function getAvatarColor(userId: string) {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-let colorIdx = 2;
-let memberId = 10;
-
 export function InviteUserPage() {
-  const [members, setMembers] = useState(INITIAL_MEMBERS);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Member["role"]>("Editor");
-  const [error, setError] = useState("");
-
   const teamRole = authStorage.getTeamRole();
   const isAdmin = teamRole === "Admin";
 
@@ -143,8 +133,6 @@ export function InviteUserPage() {
             >
               <MenuItem value="Editor">Editor</MenuItem>
               <MenuItem value="Viewer">Viewer</MenuItem>
-            <MenuItem value="Admin">Admin</MenuItem>
-            <MenuItem value="Commenter">Commenter</MenuItem>
             </TextField>
             <Button
               variant="contained"
@@ -186,7 +174,6 @@ export function InviteUserPage() {
             <TableHead>
               <TableRow>
                 <TableCell>Member</TableCell>
-              <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Joined At</TableCell>
                 {isAdmin && <TableCell align="right">Actions</TableCell>}
