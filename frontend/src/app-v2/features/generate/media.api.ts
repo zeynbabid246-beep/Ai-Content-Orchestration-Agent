@@ -39,5 +39,6 @@ export async function uploadGenerateImage(file: File): Promise<UploadImageRespon
     throw new Error(error?.message ?? "Image upload failed.");
   }
 
-  return response.json() as Promise<UploadImageResponse>;
+  const data = (await response.json()) as UploadImageResponse;
+  return data;
 }

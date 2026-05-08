@@ -39,7 +39,8 @@ public class SocialAccountRepository : ISocialAccountRepository
     {
         return await _context.SocialAccounts.AnyAsync(sa =>
             sa.TeamId == teamId
-            && sa.ChannelId == (channelId ?? sa.ChannelId)
+            && channelId.HasValue
+            && sa.ChannelId == channelId.Value
             && sa.Platform == platform
             && !sa.IsDeleted
             && sa.AccountHandle.ToLower() == normalizedHandle.ToLower()
@@ -50,7 +51,8 @@ public class SocialAccountRepository : ISocialAccountRepository
     {
         return await _context.SocialAccounts.FirstOrDefaultAsync(sa =>
             sa.TeamId == teamId
-            && sa.ChannelId == (channelId ?? sa.ChannelId)
+            && channelId.HasValue
+            && sa.ChannelId == channelId.Value
             && sa.Platform == platform
             && sa.ExternalAccountId == externalAccountId
             && !sa.IsDeleted);
