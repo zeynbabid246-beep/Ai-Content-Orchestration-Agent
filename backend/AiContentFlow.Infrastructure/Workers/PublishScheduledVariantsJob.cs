@@ -93,7 +93,14 @@ public class PublishScheduledVariantsJob
                     }
 
                     if (variant == null)
-                        throw new InvalidOperationException("Post variant not found for publication");
+                    {
+                        publication.MarkFailed(
+                            "Post variant not found for publication. Re-save the post with a variant for this platform, then publish again.",
+                            DateTime.UtcNow);
+                        job.MarkFailed(publication.ErrorMessage ?? "Variant missing", DateTime.UtcNow);
+                        await SaveProgressAsync();
+                        continue;
+                    }
 
                     var publisher = _publisherFactory.GetPublisher(socialAccount.Platform);
                     publication.MarkPublishing(DateTime.UtcNow);

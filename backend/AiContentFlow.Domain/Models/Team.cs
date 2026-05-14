@@ -12,6 +12,7 @@ public class Team
     public ICollection<SocialAccount> SocialAccounts { get; set; } = [];
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<PostPublication> Publications { get; set; } = [];
+    public TeamBrandStudio? BrandStudio { get; set; }
     // public ICollection<Channel> Channels {get;set;}=[];
     //public ICollection<Lead> Leads {get;set;}=[];
 }

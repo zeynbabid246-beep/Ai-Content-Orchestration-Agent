@@ -1,30 +1,68 @@
-import { GrOverview } from "react-icons/gr";
-
 /**
- * Centralized route constants.
- * Import ROUTES instead of hardcoding path strings throughout the app.
+ * Centralized route constants & builders.
+ *
+ * Top-level paths are exposed as constants (ROUTES).
+ * Nested entity paths use builder functions so callers never construct paths by string concatenation.
  */
 export const ROUTES = {
   // Auth
   login: "/app/login",
   register: "/app/register",
 
-  // Core
+  // Workspace
   dashboard: "/app/dashboard",
-  analytics: "/app/analytics",
   generate: "/app/generate",
-  scheduler: "/app/scheduler",
-  GrOverview: "/app/overview",
-  activity :"/app/activity",
-
-  // Platforms
-  channels: "/app/channels",
   contentFeed: "/app/content-feed",
-  contentType: "/app/content-type",
+  scheduler: "/app/scheduler",
+
+  // Operations
+  channels: "/app/channels",
+  campaigns: "/app/campaigns",
 
   // Team
+  brandStudio: "/app/brand-studio",
   inviteUser: "/app/invite-user",
   profile: "/app/profile",
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
+
+/**
+ * Channel-scoped path builders.
+ * All channel workspace sub-pages live under /app/channels/:channelId/...
+ */
+export const channelPaths = {
+  root: (channelId: number | string) => `${ROUTES.channels}/${channelId}`,
+  overview: (channelId: number | string) => `${ROUTES.channels}/${channelId}/overview`,
+  campaigns: (channelId: number | string) => `${ROUTES.channels}/${channelId}/campaigns`,
+  content: (channelId: number | string) => `${ROUTES.channels}/${channelId}/content`,
+  publishing: (channelId: number | string) => `${ROUTES.channels}/${channelId}/publishing`,
+  analytics: (channelId: number | string) => `${ROUTES.channels}/${channelId}/analytics`,
+  settings: (channelId: number | string) => `${ROUTES.channels}/${channelId}/settings`,
+};
+
+/**
+ * Campaign-scoped path builders.
+ * Campaigns ALWAYS live under their parent channel: /app/channels/:channelId/campaigns/:campaignId
+ */
+export const campaignPaths = {
+  root: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}`,
+  overview: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/overview`,
+  posts: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/posts`,
+  newPost: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/posts/new`,
+  post: (
+    channelId: number | string,
+    campaignId: number | string,
+    postId: number | string
+  ) => `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/posts/${postId}`,
+  timeline: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/timeline`,
+  analytics: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/analytics`,
+  settings: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/settings`,
+};

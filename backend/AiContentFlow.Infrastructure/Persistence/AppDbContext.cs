@@ -22,6 +22,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PostPublication> PostPublications { get; set; }
     public DbSet<PublishJob> PublishJobs { get; set; }
     public DbSet<PublicationAnalytics> PublicationAnalytics { get; set; }
+    public DbSet<TeamBrandStudio> TeamBrandStudios { get; set; }
+    public DbSet<BrandImportJob> BrandImportJobs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -47,6 +49,43 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(t => t.Id);
             entity.Property(t => t.Name).IsRequired().HasMaxLength(100);
             entity.Property(t => t.IsNameSetupRequired).HasDefaultValue(false);
+        });
+
+        builder.Entity<TeamBrandStudio>(entity =>
+        {
+            entity.HasKey(studio => studio.Id);
+            entity.Property(studio => studio.WebsiteUrl).HasMaxLength(500);
+            entity.Property(studio => studio.CompanyName).HasMaxLength(200);
+            entity.Property(studio => studio.Description).HasMaxLength(2000);
+            entity.Property(studio => studio.Mission).HasMaxLength(1000);
+            entity.Property(studio => studio.TargetAudience).HasMaxLength(1000);
+            entity.Property(studio => studio.KeywordsJson).IsRequired().HasColumnType("jsonb");
+            entity.Property(studio => studio.ToneOfVoice).HasMaxLength(500);
+            entity.Property(studio => studio.CreatedAt).IsRequired();
+            entity.Property(studio => studio.UpdatedAt).IsRequired();
+            entity.HasIndex(studio => studio.TeamId).IsUnique();
+
+            entity.HasOne(studio => studio.Team)
+                .WithOne(team => team.BrandStudio)
+                .HasForeignKey<TeamBrandStudio>(studio => studio.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<BrandImportJob>(entity =>
+        {
+            entity.HasKey(job => job.Id);
+            entity.Property(job => job.Status).HasConversion<int>();
+            entity.Property(job => job.WebsiteUrl).IsRequired().HasMaxLength(500);
+            entity.Property(job => job.Error).HasMaxLength(4000);
+            entity.Property(job => job.RawSnapshot).HasColumnType("jsonb");
+            entity.Property(job => job.CreatedAt).IsRequired();
+            entity.HasIndex(job => new { job.TeamId, job.Status });
+            entity.HasIndex(job => new { job.TeamId, job.CreatedAt });
+
+            entity.HasOne(job => job.TeamBrandStudio)
+                .WithMany(studio => studio.ImportJobs)
+                .HasForeignKey(job => job.TeamBrandStudioId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<UserTeam>(entity =>

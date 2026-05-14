@@ -22,6 +22,55 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.BrandImportJob", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("RawSnapshot")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamBrandStudioId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("WebsiteUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamBrandStudioId");
+
+                    b.HasIndex("TeamId", "CreatedAt");
+
+                    b.HasIndex("TeamId", "Status");
+
+                    b.ToTable("BrandImportJobs");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
                 {
                     b.Property<int>("Id")
@@ -619,6 +668,59 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("Teams");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamBrandStudio", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("KeywordsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Mission")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("TargetAudience")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ToneOfVoice")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WebsiteUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId")
+                        .IsUnique();
+
+                    b.ToTable("TeamBrandStudios");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.UserTeam", b =>
                 {
                     b.Property<Guid>("Id")
@@ -892,6 +994,17 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.BrandImportJob", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.TeamBrandStudio", "TeamBrandStudio")
+                        .WithMany("ImportJobs")
+                        .HasForeignKey("TeamBrandStudioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TeamBrandStudio");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.Campaign", b =>
                 {
                     b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
@@ -1056,6 +1169,17 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("Team");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamBrandStudio", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
+                        .WithOne("BrandStudio")
+                        .HasForeignKey("AiContentFlow.Domain.Models.TeamBrandStudio", "TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.UserTeam", b =>
                 {
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
@@ -1179,6 +1303,8 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.Team", b =>
                 {
+                    b.Navigation("BrandStudio");
+
                     b.Navigation("Campaigns");
 
                     b.Navigation("Channels");
@@ -1190,6 +1316,11 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("SocialAccounts");
 
                     b.Navigation("UserTeams");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamBrandStudio", b =>
+                {
+                    b.Navigation("ImportJobs");
                 });
 
             modelBuilder.Entity("AiContentFlow.Infrastructure.Identity.ApplicationUser", b =>

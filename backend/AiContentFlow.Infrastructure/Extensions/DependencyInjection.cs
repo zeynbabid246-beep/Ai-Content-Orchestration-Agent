@@ -2,6 +2,7 @@
 using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.Analytics;
 using AiContentFlow.Application.Features.Auth;
+using AiContentFlow.Application.Features.BrandStudio;
 using AiContentFlow.Application.Features.Campaigns;
 using AiContentFlow.Application.Features.Channels;
 using AiContentFlow.Application.Features.ContentPosts;
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IPostPublicationRepository, PostPublicationRepository>();
         services.AddScoped<IPublishJobRepository, PublishJobRepository>();
         services.AddScoped<IPublicationAnalyticsRepository, PublicationAnalyticsRepository>();
+        services.AddScoped<IBrandStudioRepository, BrandStudioRepository>();
         services.AddScoped<IApplicationTransaction, EfCoreApplicationTransaction>();
         services.AddScoped<ISocialAuthStateService, SignedSocialAuthStateService>();
         services.AddScoped<ISocialCredentialStore, ProtectedSocialCredentialStore>();
@@ -76,6 +78,8 @@ public static class DependencyInjection
         services.AddScoped<ISocialAccountService, SocialAccountService>();
         services.AddScoped<IPublicationService, PublicationService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IBrandStudioService, BrandStudioService>();
+        services.AddScoped<IBrandImportProcessor, BrandImportProcessor>();
         services.AddScoped<AiContentFlow.Application.Features.SocialAuth.SocialAuthService>();
         services.AddScoped<ICampaignService, CampaignService>();
 
@@ -102,6 +106,8 @@ public static class DependencyInjection
         // 7. Background Jobs
         services.AddScoped<PublishScheduledVariantsJob>();
         services.AddScoped<SyncPublicationAnalyticsJob>();
+        services.AddScoped<BrandImportWorker>();
+        services.AddScoped<IBrandImportJobScheduler, HangfireBrandImportJobScheduler>();
 
         
 

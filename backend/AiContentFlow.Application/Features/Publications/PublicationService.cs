@@ -55,13 +55,15 @@ public class PublicationService : IPublicationService
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
         EnsureTokenIsValid(socialAccount);
 
-        var postVariant = await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId);
+        var postVariant = EnsureVariantResolved(
+            await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId),
+            socialAccount.Platform);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
         var existingPublication = await FindExistingPublicationAsync(
             teamId,
             contentPost.Id,
             socialAccount.Id,
-            postVariant?.Id,
+            postVariant.Id,
             dto.ScheduledAt,
             idempotencyKey);
 
@@ -72,7 +74,7 @@ public class PublicationService : IPublicationService
         {
             TeamId = teamId,
             ContentPostId = contentPost.Id,
-            PostVariantId = postVariant?.Id,
+            PostVariantId = postVariant.Id,
             SocialAccountId = socialAccount.Id,
             Status = PublicationStatus.Scheduled,
             ScheduledAt = dto.ScheduledAt,
@@ -116,13 +118,15 @@ public class PublicationService : IPublicationService
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
         EnsureTokenIsValid(socialAccount);
 
-        var postVariant = await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId);
+        var postVariant = EnsureVariantResolved(
+            await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId),
+            socialAccount.Platform);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
         var existingPublication = await FindExistingPublicationAsync(
             teamId,
             contentPost.Id,
             socialAccount.Id,
-            postVariant?.Id,
+            postVariant.Id,
             null,
             idempotencyKey);
 
@@ -133,7 +137,7 @@ public class PublicationService : IPublicationService
         {
             TeamId = teamId,
             ContentPostId = contentPost.Id,
-            PostVariantId = postVariant?.Id,
+            PostVariantId = postVariant.Id,
             SocialAccountId = socialAccount.Id,
             Status = PublicationStatus.Queued,
             IdempotencyKey = idempotencyKey,
@@ -185,6 +189,17 @@ public class PublicationService : IPublicationService
 
         var variants = await _postVariantRepository.GetByContentPostIdAsync(contentPost.TeamId, contentPost.Id);
         return variants.FirstOrDefault(v => v.Platform == socialAccount.Platform);
+    }
+
+    private static PostVariant EnsureVariantResolved(PostVariant? variant, SocialPlatform platform)
+    {
+        if (variant is null)
+        {
+            throw new InvalidOperationException(
+                $"No saved post variant exists for {platform}. Add a variant for this platform on the post and save before scheduling or publishing.");
+        }
+
+        return variant;
     }
 
     private async Task<PostPublication?> FindExistingPublicationAsync(
