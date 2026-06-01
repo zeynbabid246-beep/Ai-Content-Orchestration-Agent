@@ -2,6 +2,7 @@ using AiContentFlow.Domain.Models;
 using AiContentFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AiContentFlow.Infrastructure.Persistence;
 
@@ -54,16 +55,48 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<TeamBrandStudio>(entity =>
         {
             entity.HasKey(studio => studio.Id);
+            entity.Property(studio => studio.OrgId).HasMaxLength(120);
             entity.Property(studio => studio.WebsiteUrl).HasMaxLength(500);
-            entity.Property(studio => studio.CompanyName).HasMaxLength(200);
-            entity.Property(studio => studio.Description).HasMaxLength(2000);
-            entity.Property(studio => studio.Mission).HasMaxLength(1000);
-            entity.Property(studio => studio.TargetAudience).HasMaxLength(1000);
-            entity.Property(studio => studio.KeywordsJson).IsRequired().HasColumnType("jsonb");
-            entity.Property(studio => studio.ToneOfVoice).HasMaxLength(500);
+            entity.Property(studio => studio.BrandName).HasMaxLength(200);
+            entity.Property(studio => studio.BrandSummary).HasMaxLength(2000);
+            entity.Property(studio => studio.Slogan).HasMaxLength(300);
+            entity.Property(studio => studio.BusinessInfo).HasMaxLength(4000);
+            entity.Property(studio => studio.Email).HasMaxLength(320);
+            entity.Property(studio => studio.VisualLogoUrl).HasMaxLength(1000);
+            entity.Property(studio => studio.VisualFaviconUrl).HasMaxLength(1000);
+            entity.Property(studio => studio.VisualStyle).HasMaxLength(500);
+            entity.Property(studio => studio.VisualHeroText).HasMaxLength(300);
+            entity.Property(studio => studio.VisualScreenshotPath).HasMaxLength(500);
+            entity.Property(studio => studio.VisualRenderMode).HasMaxLength(50);
+            entity.Property(studio => studio.EnrichedBrandArchetype).HasMaxLength(200);
+            entity.Property(studio => studio.EnrichedPositioningStatement).HasMaxLength(2000);
+            entity.Property(studio => studio.EnrichedVisualDirectionNotes).HasMaxLength(2000);
+            entity.Property(studio => studio.EnrichedLinkedInVoice).HasMaxLength(2000);
+            entity.Property(studio => studio.EnrichedAdCopyStyle).HasMaxLength(2000);
+            entity.Property(studio => studio.DefaultToneOfVoice).HasMaxLength(500);
+            entity.Property(studio => studio.DefaultTargetAudience).HasMaxLength(1000);
+            entity.Property(studio => studio.DefaultMission).HasMaxLength(1000);
+            entity.Property(studio => studio.DefaultBrandSummary).HasMaxLength(2000);
+            entity.Property(studio => studio.DefaultCampaignObjective).HasMaxLength(120);
             entity.Property(studio => studio.CreatedAt).IsRequired();
             entity.Property(studio => studio.UpdatedAt).IsRequired();
             entity.HasIndex(studio => studio.TeamId).IsUnique();
+
+            ConfigureStringList(entity, studio => studio.ValueProposition);
+            ConfigureStringList(entity, studio => studio.ToneOfVoice);
+            ConfigureStringList(entity, studio => studio.AudienceSignals);
+            ConfigureStringList(entity, studio => studio.ContentPillars);
+            ConfigureStringList(entity, studio => studio.KeyMessages);
+            ConfigureStringList(entity, studio => studio.VisualPrimaryColors);
+            ConfigureStringList(entity, studio => studio.VisualSecondaryColors);
+            ConfigureStringList(entity, studio => studio.VisualFontFamilies);
+            ConfigureStringList(entity, studio => studio.VisualImageUrls);
+            ConfigureStringList(entity, studio => studio.VisualCtaTexts);
+            ConfigureStringList(entity, studio => studio.EnrichedBrandPersonality);
+            ConfigureStringList(entity, studio => studio.VoiceGuidelinesDo);
+            ConfigureStringList(entity, studio => studio.VoiceGuidelinesDont);
+            ConfigureStringList(entity, studio => studio.EnrichedMessagingPriorities);
+            ConfigureStringList(entity, studio => studio.DefaultContentPillars);
 
             entity.HasOne(studio => studio.Team)
                 .WithOne(team => team.BrandStudio)
@@ -180,6 +213,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.HasQueryFilter(sa => !sa.IsDeleted);
         });
 
+        builder.Entity<ChannelBranding>(entity =>
+        {
+            entity.HasKey(cb => cb.Id);
+            entity.Property(cb => cb.LogoUrl).HasMaxLength(1000);
+            entity.Property(cb => cb.Theme).HasMaxLength(100);
+            entity.Property(cb => cb.Slogan).HasMaxLength(300);
+            entity.Property(cb => cb.Tone).HasMaxLength(300);
+            entity.Property(cb => cb.TargetAudience).HasMaxLength(1000);
+            entity.Property(cb => cb.KeywordsCsv).HasMaxLength(4000);
+            entity.Property(cb => cb.ContentPillarsCsv).HasMaxLength(4000);
+            entity.Property(cb => cb.Mission).HasMaxLength(1000);
+            entity.Property(cb => cb.BrandSummary).HasMaxLength(2000);
+            entity.Property(cb => cb.Goal).HasMaxLength(120);
+            entity.Property(cb => cb.CreatedAt).IsRequired();
+            entity.Property(cb => cb.UpdatedAt).IsRequired();
+        });
+
         builder.Entity<PostVariant>(entity =>
         {
             entity.HasKey(pv => pv.Id);
@@ -196,6 +246,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Name).IsRequired().HasMaxLength(150);
             entity.Property(c => c.Description).HasMaxLength(1000);
+            entity.Property(c => c.Objective).HasMaxLength(120);
+            entity.Property(c => c.ToneOfVoiceOverride).HasMaxLength(300);
+            entity.Property(c => c.TargetAudienceOverride).HasMaxLength(1000);
             entity.Property(c => c.Status).HasConversion<int>();
             entity.Property(c => c.CreatedAt).IsRequired();
             entity.Property(c => c.UpdatedAt).IsRequired();
@@ -290,5 +343,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(pa => pa.PostPublicationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+    }
+
+    private static void ConfigureStringList<TEntity>(
+        EntityTypeBuilder<TEntity> entity,
+        System.Linq.Expressions.Expression<Func<TEntity, List<string>>> navigationExpression)
+        where TEntity : class
+    {
+        entity.Property(navigationExpression).HasColumnType("text[]");
     }
 }

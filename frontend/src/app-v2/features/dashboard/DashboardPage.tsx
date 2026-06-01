@@ -146,7 +146,7 @@ function DonutChart({
         offset += dash;
         return el;
       })}
-      <circle cx={cx} cy={cy} r={28} fill="#1a1625" />
+      <circle cx={cx} cy={cy} r={28} fill="#ffffff" />
     </svg>
   );
 }
@@ -164,7 +164,7 @@ function PlatformCard({
   selected: boolean;
   onClick: () => void;
 }) {
-  const audienceColors = ["#a78bfa", "#f59e0b"];
+  const audienceColors = ["#2563eb", "#f59e0b"];
   const donutSegments = platform.topAudience.map((a, i) => ({
     label: a.type,
     value: a.percentage,
@@ -370,7 +370,16 @@ function AnalyticsTab() {
   const { data: analytics } = useDashboardAnalyticsQuery();
   const [selectedPlatform, setSelectedPlatform] = useState(0);
 
-  if (!analytics) return null;
+  if (!analytics) {
+    return (
+      <Paper sx={{ p: 4, textAlign: "center" }}>
+        <Typography variant="h6">Analytics coming soon</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Real engagement metrics will appear here once platform analytics sync is enabled.
+        </Typography>
+      </Paper>
+    );
+  }
 
   const platform = analytics.platforms[selectedPlatform];
   const maxFollowers = Math.max(...analytics.platforms.map((p) => p.followers));

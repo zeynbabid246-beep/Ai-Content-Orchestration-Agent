@@ -4,7 +4,13 @@ public record ChannelBrandingDto(
     string? LogoUrl,
     string? Theme,
     string? Slogan,
-    string? Tone);
+    string? Tone,
+    string? TargetAudience,
+    IReadOnlyList<string>? Keywords,
+    IReadOnlyList<string>? ContentPillars,
+    string? Mission,
+    string? BrandSummary,
+    string? Goal);
 
 public record ChannelConfigDto(
     string? SettingsJson);

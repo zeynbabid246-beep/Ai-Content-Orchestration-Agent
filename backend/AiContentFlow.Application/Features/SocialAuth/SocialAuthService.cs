@@ -9,7 +9,8 @@ namespace AiContentFlow.Application.Features.SocialAuth;
 public class SocialAuthService
 {
     private const string DefaultChannelName = "General";
-    private static readonly SocialPlatform[] SupportedAuthPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
+    private static readonly SocialPlatform[] SupportedAuthPlatforms =
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly IAuthServiceFactory _authServiceFactory;
     private readonly IChannelRepository _channelRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;

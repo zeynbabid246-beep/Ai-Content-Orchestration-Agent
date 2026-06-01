@@ -212,6 +212,30 @@ public class TeamService : ITeamService
         await _repo.SaveChangesAsync();
     }
 
+    public async Task<List<UserTeamSummaryDto>> GetMyTeamsAsync(string userId)
+    {
+        if (!await _repo.UserExistsAsync(userId))
+            throw new KeyNotFoundException("User not found");
+
+        var teams = await _repo.GetTeamsForUserAsync(userId);
+        return teams.Select(t => new UserTeamSummaryDto(
+            t.Team.Id,
+            t.Team.Name,
+            t.UserTeam.Role.ToString(),
+            t.UserTeam.JoinedAt)).ToList();
+    }
+
+    public async Task<SwitchTeamResponseDto> SwitchTeamAsync(string userId, SwitchTeamDto dto)
+    {
+        var membership = await _repo.GetUserMembershipAsync(dto.TeamId, userId)
+            ?? throw new UnauthorizedAccessException("Not a member of this team");
+
+        var team = await _repo.GetTeamByIdAsync(dto.TeamId)
+            ?? throw new KeyNotFoundException("Team not found");
+
+        return new SwitchTeamResponseDto(team.Id, team.Name, membership.Role.ToString());
+    }
+
     public async Task UpdateMemberRoleAsync(Guid teamId, string requestingUserId, UpdateMemberRoleDto dto)
     {
         _ = await _repo.GetTeamByIdAsync(teamId)

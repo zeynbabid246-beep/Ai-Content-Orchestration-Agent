@@ -6,7 +6,8 @@ namespace AiContentFlow.Application.Features.Publications;
 
 public class PublicationService : IPublicationService
 {
-    private static readonly SocialPlatform[] SupportedPublishPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
+    private static readonly SocialPlatform[] SupportedPublishPlatforms =
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly IPostVariantRepository _postVariantRepository;
@@ -50,6 +51,7 @@ public class PublicationService : IPublicationService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, dto.SocialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
+        EnsureAccountMatchesPostScope(contentPost, socialAccount);
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
@@ -113,6 +115,7 @@ public class PublicationService : IPublicationService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, dto.SocialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
+        EnsureAccountMatchesPostScope(contentPost, socialAccount);
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
@@ -242,8 +245,24 @@ public class PublicationService : IPublicationService
             return;
         }
 
+        if (socialAccount.Platform == SocialPlatform.Instagram
+            && socialAccount.TokenExpiry <= DateTime.UtcNow.AddHours(24))
+        {
+            throw new InvalidOperationException(
+                "Instagram token is near expiry. Reconnect the account before publishing.");
+        }
+
         if (socialAccount.TokenExpiry <= DateTime.UtcNow)
             throw new InvalidOperationException("Social account token has expired. Reconnect the account before publishing.");
+    }
+
+    private static void EnsureAccountMatchesPostScope(ContentPost contentPost, SocialAccount socialAccount)
+    {
+        if (contentPost.ChannelId != socialAccount.ChannelId)
+        {
+            throw new InvalidOperationException(
+                "Selected social account does not belong to the same channel as this post.");
+        }
     }
 
     private static string? Normalize(string? value)

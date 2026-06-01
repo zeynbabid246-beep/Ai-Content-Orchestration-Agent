@@ -17,6 +17,28 @@ public class TeamController : ControllerBase
         _teamService = teamService ?? throw new ArgumentNullException(nameof(teamService));
     }
 
+    [HttpGet("mine")]
+    public async Task<ActionResult<List<UserTeamSummaryDto>>> GetMyTeams()
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var teams = await _teamService.GetMyTeamsAsync(userId);
+        return Ok(teams);
+    }
+
+    [HttpPost("switch")]
+    public async Task<ActionResult<SwitchTeamResponseDto>> SwitchTeam([FromBody] SwitchTeamDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _teamService.SwitchTeamAsync(userId, dto);
+        return Ok(result);
+    }
+
     [HttpPost]
     public async Task<ActionResult<TeamResponseDto>> CreateTeam([FromBody] CreateTeamDto dto)
     {

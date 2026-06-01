@@ -1,3 +1,4 @@
+using AiContentFlow.API.Security;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -49,6 +50,10 @@ public class MediaController : ControllerBase
 
         if (!AllowedMimeTypes.Contains(file.ContentType))
             return BadRequest(new { message = "Unsupported image format. Allowed: jpeg, png, webp, gif." });
+
+        await using var validationStream = file.OpenReadStream();
+        if (!ImageFileValidator.TryValidate(validationStream, file.ContentType, out var validationError))
+            return BadRequest(new { message = validationError });
 
         var uploadsRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", teamId.ToString("N"));
         Directory.CreateDirectory(uploadsRoot);

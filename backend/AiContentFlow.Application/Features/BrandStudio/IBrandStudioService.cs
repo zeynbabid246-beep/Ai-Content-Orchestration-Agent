@@ -7,4 +7,6 @@ public interface IBrandStudioService
     Task<BrandStudioSnapshotDto> GetAsync(Guid teamId, string requestingUserId);
     Task<CreateBrandImportResponseDto> StartImportAsync(Guid teamId, string requestingUserId, CreateBrandImportDto dto);
     Task<BrandImportJobDto> GetJobAsync(Guid teamId, int jobId, string requestingUserId);
+    Task<List<BrandImportJobDto>> GetJobsAsync(Guid teamId, string requestingUserId);
+    Task<TeamBrandStudioDto> UpdateAsync(Guid teamId, string requestingUserId, UpdateBrandStudioDto dto);
 }

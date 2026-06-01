@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { authStorage } from "../lib/storage";
 import { ROUTES } from "../lib/routes";
+import { TeamSwitcher } from "../../features/team/TeamSwitcher";
 
 const SIDEBAR_COLLAPSE_KEY = "app.sidebar.collapsed";
 const DRAWER_WIDTH_EXPANDED = 252;
@@ -145,10 +146,10 @@ export function AppShell() {
                 width: 28,
                 height: 28,
                 borderRadius: 1,
-                background: "linear-gradient(135deg, #d4af7a 0%, #b8893e 100%)",
+                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                 display: "grid",
                 placeItems: "center",
-                color: "#1a0f1e",
+                color: "#ffffff",
                 fontWeight: 800,
                 fontSize: 13,
               }}
@@ -165,10 +166,10 @@ export function AppShell() {
               width: 28,
               height: 28,
               borderRadius: 1,
-              background: "linear-gradient(135deg, #d4af7a 0%, #b8893e 100%)",
+              background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
               display: "grid",
               placeItems: "center",
-              color: "#1a0f1e",
+              color: "#ffffff",
               fontWeight: 800,
               fontSize: 13,
             }}
@@ -395,8 +396,9 @@ export function AppShell() {
               </Stack>
 
               <Stack direction="row" spacing={2} alignItems="center">
+                <TeamSwitcher />
                 <Typography variant="caption" color="text.secondary">
-                  Signed in as <strong style={{ color: "rgba(255,255,255,0.85)" }}>{username}</strong>
+                  Signed in as <strong style={{ color: "#0f172a" }}>{username}</strong>
                 </Typography>
               </Stack>
             </Toolbar>

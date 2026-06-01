@@ -7,10 +7,14 @@ namespace AiContentFlow.Application.Features.BrandStudio;
 public class BrandImportProcessor : IBrandImportProcessor
 {
     private readonly IBrandStudioRepository _brandStudioRepository;
+    private readonly ILocalAiBackendClient _localAiBackendClient;
 
-    public BrandImportProcessor(IBrandStudioRepository brandStudioRepository)
+    public BrandImportProcessor(
+        IBrandStudioRepository brandStudioRepository,
+        ILocalAiBackendClient localAiBackendClient)
     {
         _brandStudioRepository = brandStudioRepository;
+        _localAiBackendClient = localAiBackendClient;
     }
 
     public async Task ProcessAsync(int importJobId, CancellationToken cancellationToken = default)
@@ -18,42 +22,36 @@ public class BrandImportProcessor : IBrandImportProcessor
         var job = await _brandStudioRepository.GetJobByIdForProcessingAsync(importJobId)
             ?? throw new KeyNotFoundException("Brand import job not found");
 
+        if (job.Status != BrandImportJobStatus.Queued && job.Status != BrandImportJobStatus.Processing)
+        {
+            return;
+        }
+
         var utcNow = DateTime.UtcNow;
         job.MarkProcessing(utcNow);
         await _brandStudioRepository.SaveChangesAsync();
 
-        await Task.Delay(TimeSpan.FromSeconds(4), cancellationToken);
-
-        var brandStudio = job.TeamBrandStudio
-            ?? throw new InvalidOperationException("Brand Studio profile missing for import job");
-
-        var host = new Uri(job.WebsiteUrl).Host.Replace("www.", string.Empty);
-        var companyName = BuildCompanyName(host);
-        var keywords = new[] { "brand context", "content operations", "team intelligence" };
-
-        brandStudio.WebsiteUrl = job.WebsiteUrl;
-        brandStudio.CompanyName = companyName;
-        brandStudio.Description = $"{companyName} brand profile imported from the company website. AI extraction is not enabled yet.";
-        brandStudio.Mission = "Placeholder mission pending AI extraction";
-        brandStudio.TargetAudience = "Placeholder audience pending AI extraction";
-        brandStudio.ToneOfVoice = "Professional, clear, trustworthy";
-        brandStudio.KeywordsJson = JsonSerializer.Serialize(keywords);
-        brandStudio.UpdatedAt = DateTime.UtcNow;
-
-        job.MarkCompleted(DateTime.UtcNow, JsonSerializer.Serialize(new
+        try
         {
-            source = job.WebsiteUrl,
-            extractionMode = "mock",
-            note = "Real scraping and AI extraction are intentionally not implemented yet."
-        }));
+            var brandStudio = job.TeamBrandStudio
+                ?? throw new InvalidOperationException("Brand Studio profile missing for import job");
 
-        await _brandStudioRepository.SaveChangesAsync();
-    }
+            var correlationId = Guid.NewGuid().ToString("N");
+            var orgId = $"team_{job.TeamId:N}";
+            var payload = await _localAiBackendClient.AnalyzeBrandAsync(orgId, job.WebsiteUrl, correlationId, cancellationToken);
 
-    private static string BuildCompanyName(string host)
-    {
-        var firstSegment = host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Company";
-        return string.Join(' ', firstSegment.Split('-', StringSplitOptions.RemoveEmptyEntries))
-            .Trim();
+            BrandProfileMapper.ApplyAiPayload(brandStudio, payload, job.WebsiteUrl, orgId);
+            brandStudio.UpdatedAt = DateTime.UtcNow;
+
+            job.MarkCompleted(DateTime.UtcNow, JsonSerializer.Serialize(payload));
+
+            await _brandStudioRepository.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            job.MarkFailed(ex.Message, DateTime.UtcNow);
+            await _brandStudioRepository.SaveChangesAsync();
+            throw;
+        }
     }
 }

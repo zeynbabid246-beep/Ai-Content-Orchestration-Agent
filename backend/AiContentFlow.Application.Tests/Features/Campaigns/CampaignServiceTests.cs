@@ -77,6 +77,14 @@ public class CampaignServiceTests
         Mock<ITeamRepository> teamRepo,
         Mock<IChannelRepository> channelRepo)
     {
-        return new CampaignService(campaignRepo.Object, contentPostRepo.Object, teamRepo.Object, channelRepo.Object);
+        var brandStudioRepo = new Mock<IBrandStudioRepository>();
+        var publicationService = new Mock<AiContentFlow.Application.Features.Publications.IPublicationService>();
+        return new CampaignService(
+            campaignRepo.Object,
+            contentPostRepo.Object,
+            teamRepo.Object,
+            channelRepo.Object,
+            brandStudioRepo.Object,
+            publicationService.Object);
     }
 }

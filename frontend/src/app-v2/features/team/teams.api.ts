@@ -1,11 +1,29 @@
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
-import type { TeamMember, InviteRequest, UpdateRoleRequest } from "./teams.type";
+import type {
+  TeamMember,
+  InviteRequest,
+  UpdateRoleRequest,
+  UserTeamSummary,
+  SwitchTeamResponse,
+} from "./teams.type";
 
 function getTeamId(): string {
   const teamId = authStorage.getTeamId();
   if (!teamId) throw new Error("No team found. Please log in again.");
   return teamId;
+}
+
+export async function getMyTeams(): Promise<UserTeamSummary[]> {
+  return apiRequest<UserTeamSummary[]>("/Team/mine", { requiresAuth: true });
+}
+
+export async function switchTeam(teamId: string): Promise<SwitchTeamResponse> {
+  return apiRequest<SwitchTeamResponse>("/Team/switch", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({ teamId }),
+  });
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {

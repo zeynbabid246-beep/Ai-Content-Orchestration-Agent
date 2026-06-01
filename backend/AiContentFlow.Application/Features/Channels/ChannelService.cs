@@ -1,3 +1,4 @@
+using AiContentFlow.Application.Common.Authorization;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Channels.Dtos;
 using AiContentFlow.Domain.Models;
@@ -9,17 +10,20 @@ public class ChannelService : IChannelService
 {
     private readonly IChannelRepository _channelRepository;
     private readonly ITeamRepository _teamRepository;
+    private readonly IBrandStudioRepository _brandStudioRepository;
     private readonly IValidator<CreateChannelDto> _createValidator;
     private readonly IValidator<UpdateChannelDto> _updateValidator;
 
     public ChannelService(
         IChannelRepository channelRepository,
         ITeamRepository teamRepository,
+        IBrandStudioRepository brandStudioRepository,
         IValidator<CreateChannelDto> createValidator,
         IValidator<UpdateChannelDto> updateValidator)
     {
         _channelRepository = channelRepository;
         _teamRepository = teamRepository;
+        _brandStudioRepository = brandStudioRepository;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -34,8 +38,7 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage channels");
+        TeamAuthorization.EnsureCanManageChannels(membership);
 
         var name = NormalizeRequired(dto.Name);
         var normalizedName = NormalizeKey(name);
@@ -43,13 +46,15 @@ public class ChannelService : IChannelService
         if (await _channelRepository.ExistsByNameAsync(teamId, normalizedName))
             throw new InvalidOperationException("Channel name already exists for this team");
 
+        var defaults = await _brandStudioRepository.GetByTeamAsync(teamId);
+
         var channel = new Channel
         {
             TeamId = teamId,
             Name = name,
             NormalizedName = normalizedName,
             Description = Normalize(dto.Description),
-            Branding = MapBranding(dto.Branding),
+            Branding = MapBranding(dto.Branding, defaults),
             Config = MapConfig(dto.Config),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -94,8 +99,7 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage channels");
+        TeamAuthorization.EnsureCanManageChannels(membership);
 
         var channel = await _channelRepository.GetByIdAsync(teamId, channelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -123,8 +127,7 @@ public class ChannelService : IChannelService
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
             ?? throw new UnauthorizedAccessException("Not a team member");
 
-        if (membership.Role != TeamRole.Admin)
-            throw new UnauthorizedAccessException("Only Admin can manage channels");
+        TeamAuthorization.EnsureCanManageChannels(membership);
 
         var channel = await _channelRepository.GetByIdAsync(teamId, channelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -149,19 +152,25 @@ public class ChannelService : IChannelService
             channel.UpdatedAt);
     }
 
-    private static ChannelBranding? MapBranding(ChannelBrandingDto? dto)
+    private static ChannelBranding? MapBranding(ChannelBrandingDto? dto, TeamBrandStudio? defaults = null)
     {
-        if (dto is null)
+        if (dto is null && defaults is null)
         {
             return null;
         }
 
         return new ChannelBranding
         {
-            LogoUrl = Normalize(dto.LogoUrl),
-            Theme = Normalize(dto.Theme),
-            Slogan = Normalize(dto.Slogan),
-            Tone = Normalize(dto.Tone),
+            LogoUrl = Normalize(dto?.LogoUrl),
+            Theme = Normalize(dto?.Theme),
+            Slogan = Normalize(dto?.Slogan),
+            Tone = Normalize(dto?.Tone) ?? defaults?.DefaultToneOfVoice,
+            TargetAudience = Normalize(dto?.TargetAudience) ?? defaults?.DefaultTargetAudience,
+            KeywordsCsv = ToCsv(dto?.Keywords) ?? JoinList(defaults?.ContentPillars),
+            ContentPillarsCsv = ToCsv(dto?.ContentPillars) ?? JoinList(defaults?.DefaultContentPillars),
+            Mission = Normalize(dto?.Mission) ?? defaults?.DefaultMission,
+            BrandSummary = Normalize(dto?.BrandSummary) ?? defaults?.DefaultBrandSummary,
+            Goal = Normalize(dto?.Goal) ?? defaults?.DefaultCampaignObjective,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -176,7 +185,7 @@ public class ChannelService : IChannelService
 
         return new ChannelConfig
         {
-            SettingsJson = dto.SettingsJson?.Trim() ?? string.Empty,
+            SettingsJson = dto?.SettingsJson?.Trim() ?? string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -198,6 +207,12 @@ public class ChannelService : IChannelService
         existing.Theme = Normalize(dto.Theme);
         existing.Slogan = Normalize(dto.Slogan);
         existing.Tone = Normalize(dto.Tone);
+        existing.TargetAudience = Normalize(dto.TargetAudience);
+        existing.KeywordsCsv = ToCsv(dto.Keywords);
+        existing.ContentPillarsCsv = ToCsv(dto.ContentPillars);
+        existing.Mission = Normalize(dto.Mission);
+        existing.BrandSummary = Normalize(dto.BrandSummary);
+        existing.Goal = Normalize(dto.Goal);
         existing.UpdatedAt = DateTime.UtcNow;
         return existing;
     }
@@ -227,7 +242,13 @@ public class ChannelService : IChannelService
                 branding.LogoUrl,
                 branding.Theme,
                 branding.Slogan,
-                branding.Tone);
+                branding.Tone,
+                branding.TargetAudience,
+                ReadCsv(branding.KeywordsCsv),
+                ReadCsv(branding.ContentPillarsCsv),
+                branding.Mission,
+                branding.BrandSummary,
+                branding.Goal);
     }
 
     private static ChannelConfigDto? MapConfig(ChannelConfig? config)
@@ -254,5 +275,36 @@ public class ChannelService : IChannelService
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static IReadOnlyList<string>? ReadCsv(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+            return null;
+
+        return csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? ToCsv(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count == 0)
+            return null;
+
+        return string.Join(", ", values
+            .Select(v => v?.Trim())
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v!)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string? JoinList(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count == 0)
+            return null;
+
+        return string.Join(", ", values);
     }
 }

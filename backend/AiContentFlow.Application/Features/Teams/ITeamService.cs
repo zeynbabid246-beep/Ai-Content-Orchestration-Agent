@@ -10,4 +10,6 @@ public interface ITeamService
     Task InviteUserAsync(Guid teamId, string requestingUserId, InviteUserDto dto);
     Task RemoveUserAsync(Guid teamId, string requestingUserId, string targetUserId);
     Task UpdateMemberRoleAsync(Guid teamId, string requestingUserId, UpdateMemberRoleDto dto);
+    Task<List<UserTeamSummaryDto>> GetMyTeamsAsync(string userId);
+    Task<SwitchTeamResponseDto> SwitchTeamAsync(string userId, SwitchTeamDto dto);
 }

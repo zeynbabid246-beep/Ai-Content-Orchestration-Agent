@@ -58,7 +58,12 @@ export async function getDashboardStats(): Promise<DashboardStat[]> {
   ];
 }
 
-export async function getDashboardAnalytics(): Promise<AnalyticsData> {
+export async function getDashboardAnalytics(): Promise<AnalyticsData | null> {
+  // Real platform analytics sync is not available yet.
+  return null;
+}
+
+export async function getDashboardAnalyticsLegacyMock(): Promise<AnalyticsData> {
   return {
     platforms: [
       {

@@ -58,6 +58,13 @@ public class SocialAccountRepository : ISocialAccountRepository
             && !sa.IsDeleted);
     }
 
+    public async Task<List<SocialAccount>> GetExpiringBeforeAsync(DateTime thresholdUtc)
+    {
+        return await _context.SocialAccounts
+            .Where(sa => !sa.IsDeleted && sa.IsActive && sa.TokenExpiry <= thresholdUtc)
+            .ToListAsync();
+    }
+
     public async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();

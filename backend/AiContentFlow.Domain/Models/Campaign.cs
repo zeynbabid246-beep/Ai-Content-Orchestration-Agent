@@ -9,6 +9,9 @@ public class Campaign
     public Channel? Channel { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? Objective { get; set; }
+    public string? ToneOfVoiceOverride { get; set; }
+    public string? TargetAudienceOverride { get; set; }
     public CampaignStatus Status { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }

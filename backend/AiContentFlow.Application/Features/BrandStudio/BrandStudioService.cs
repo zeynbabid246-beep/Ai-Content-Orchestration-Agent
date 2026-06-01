@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.BrandStudio.Dtos;
 using AiContentFlow.Domain.Models;
@@ -30,7 +29,7 @@ public class BrandStudioService : IBrandStudioService
         await EnsureTeamMemberAsync(teamId, requestingUserId);
 
         var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId);
-        return new BrandStudioSnapshotDto(brandStudio is null ? null : Map(brandStudio));
+        return new BrandStudioSnapshotDto(brandStudio is null ? null : BrandProfileMapper.Map(brandStudio));
     }
 
     public async Task<CreateBrandImportResponseDto> StartImportAsync(
@@ -44,6 +43,10 @@ public class BrandStudioService : IBrandStudioService
         var utcNow = DateTime.UtcNow;
         var websiteUrl = dto.WebsiteUrl.Trim();
         var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId);
+
+        await _brandStudioRepository.FailActiveJobsAsync(
+            teamId,
+            "Superseded by a newer brand import request.");
 
         if (brandStudio is null)
         {
@@ -80,7 +83,7 @@ public class BrandStudioService : IBrandStudioService
 
         brandStudio.ImportJobs.Add(importJob);
 
-        return new CreateBrandImportResponseDto(Map(brandStudio), Map(importJob));
+        return new CreateBrandImportResponseDto(BrandProfileMapper.Map(brandStudio), BrandProfileMapper.MapJob(importJob));
     }
 
     public async Task<BrandImportJobDto> GetJobAsync(Guid teamId, int jobId, string requestingUserId)
@@ -90,7 +93,28 @@ public class BrandStudioService : IBrandStudioService
         var job = await _brandStudioRepository.GetJobByIdAsync(teamId, jobId)
             ?? throw new KeyNotFoundException("Brand import job not found");
 
-        return Map(job);
+        return BrandProfileMapper.MapJob(job);
+    }
+
+    public async Task<List<BrandImportJobDto>> GetJobsAsync(Guid teamId, string requestingUserId)
+    {
+        await EnsureTeamMemberAsync(teamId, requestingUserId);
+        var jobs = await _brandStudioRepository.GetRecentJobsAsync(teamId);
+        return jobs.Select(BrandProfileMapper.MapJob).ToList();
+    }
+
+    public async Task<TeamBrandStudioDto> UpdateAsync(Guid teamId, string requestingUserId, UpdateBrandStudioDto dto)
+    {
+        await EnsureTeamAdminAsync(teamId, requestingUserId);
+
+        var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId)
+            ?? throw new KeyNotFoundException("Brand Studio profile not found");
+
+        BrandProfileMapper.ApplyUpdate(brandStudio, dto);
+        brandStudio.UpdatedAt = DateTime.UtcNow;
+        await _brandStudioRepository.SaveChangesAsync();
+
+        return BrandProfileMapper.Map(brandStudio);
     }
 
     private async Task EnsureTeamMemberAsync(Guid teamId, string requestingUserId)
@@ -112,57 +136,5 @@ public class BrandStudioService : IBrandStudioService
 
         if (membership.Role != TeamRole.Admin)
             throw new UnauthorizedAccessException("Only Admin can import Brand Studio context");
-    }
-
-    private static TeamBrandStudioDto Map(TeamBrandStudio brandStudio)
-    {
-        var latestJob = brandStudio.ImportJobs
-            .OrderByDescending(job => job.CreatedAt)
-            .ThenByDescending(job => job.Id)
-            .FirstOrDefault();
-
-        return new TeamBrandStudioDto(
-            brandStudio.Id,
-            brandStudio.TeamId,
-            brandStudio.WebsiteUrl,
-            brandStudio.CompanyName,
-            brandStudio.Description,
-            brandStudio.Mission,
-            brandStudio.TargetAudience,
-            ReadKeywords(brandStudio.KeywordsJson),
-            brandStudio.ToneOfVoice,
-            brandStudio.CreatedAt,
-            brandStudio.UpdatedAt,
-            latestJob is null ? null : Map(latestJob));
-    }
-
-    private static BrandImportJobDto Map(BrandImportJob job)
-    {
-        return new BrandImportJobDto(
-            job.Id,
-            job.TeamBrandStudioId,
-            job.Status.ToString().ToLowerInvariant(),
-            job.WebsiteUrl,
-            job.StartedAt,
-            job.CompletedAt,
-            job.Error,
-            job.CreatedAt);
-    }
-
-    private static IReadOnlyList<string> ReadKeywords(string? keywordsJson)
-    {
-        if (string.IsNullOrWhiteSpace(keywordsJson))
-        {
-            return [];
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(keywordsJson) ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
     }
 }

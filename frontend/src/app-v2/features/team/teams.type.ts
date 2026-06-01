@@ -2,6 +2,19 @@
 
 export type TeamRole = "Admin" | "Editor" | "Viewer";
 
+export type UserTeamSummary = {
+  teamId: string;
+  teamName: string;
+  role: TeamRole;
+  joinedAt: string;
+};
+
+export type SwitchTeamResponse = {
+  teamId: string;
+  teamName: string;
+  teamRole: TeamRole;
+};
+
 export interface TeamMember {
   userId: string;
   username: string;

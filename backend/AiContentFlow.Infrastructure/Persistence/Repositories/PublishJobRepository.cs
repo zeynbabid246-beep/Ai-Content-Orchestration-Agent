@@ -39,6 +39,18 @@ public class PublishJobRepository : IPublishJobRepository
         return dueJobs;
     }
 
+    public async Task<List<PublishJob>> GetByTeamAndStatusAsync(Guid teamId, PublishJobStatus status, int take = 50)
+    {
+        return await _context.PublishJobs
+            .Include(j => j.PostPublication)
+            .Where(j => j.PostPublication != null
+                        && j.PostPublication.TeamId == teamId
+                        && j.Status == status)
+            .OrderByDescending(j => j.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+    }
+
     public async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();

@@ -1,11 +1,13 @@
 ﻿using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Application.Features.Auth.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AiContentFlow.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting("auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

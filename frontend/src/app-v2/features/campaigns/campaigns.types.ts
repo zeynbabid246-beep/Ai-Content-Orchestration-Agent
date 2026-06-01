@@ -12,6 +12,9 @@ export interface Campaign {
   name: string;
   description: string | null;
   channelId: number | null;
+  objective: string | null;
+  toneOfVoiceOverride: string | null;
+  targetAudienceOverride: string | null;
   status: CampaignStatus;
   createdAt: string;
   updatedAt: string;
@@ -22,6 +25,9 @@ export interface CreateCampaignRequest {
   description?: string;
   channelId?: number | null;
   status?: CampaignStatus;
+  objective?: string;
+  toneOfVoiceOverride?: string;
+  targetAudienceOverride?: string;
 }
 
 export interface UpdateCampaignRequest {
@@ -29,4 +35,7 @@ export interface UpdateCampaignRequest {
   description?: string;
   channelId?: number | null;
   status: CampaignStatus;
+  objective?: string;
+  toneOfVoiceOverride?: string;
+  targetAudienceOverride?: string;
 }

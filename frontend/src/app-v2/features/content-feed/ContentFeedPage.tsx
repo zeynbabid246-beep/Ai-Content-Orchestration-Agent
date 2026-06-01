@@ -1,5 +1,7 @@
 import { Box, Paper, Typography, Stack, Button, CircularProgress, Card, CardContent, Chip } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import { useContentPosts } from "../content-posts/content-posts.queries";
+import { ROUTES } from "../../shared/lib/routes";
 import { ContentStatus, ContentType } from "../content-posts/content-posts.types";
 
 const getStatusLabel = (status: ContentStatus) => {
@@ -38,6 +40,7 @@ const getContentTypeLabel = (type: ContentType) => {
 };
 
 export function ContentFeedPage() {
+  const navigate = useNavigate();
   const { data: posts, isLoading, error } = useContentPosts();
 
   return (
@@ -103,7 +106,9 @@ export function ContentFeedPage() {
           <Typography variant="body2" color="text.secondary" mb={3}>
             There is no recent content published or drafted yet. Start creating right now to fill up your feed!
           </Typography>
-          <Button variant="contained" color="primary">Start Creating</Button>
+          <Button variant="contained" color="primary" onClick={() => navigate(ROUTES.generate)}>
+            Start Creating
+          </Button>
         </Paper>
       )}
     </Stack>

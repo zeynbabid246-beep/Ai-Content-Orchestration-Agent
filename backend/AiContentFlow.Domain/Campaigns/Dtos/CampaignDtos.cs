@@ -6,14 +6,20 @@ public record CreateCampaignDto(
     string Name,
     string? Description,
     int ChannelId,
-    CampaignStatus Status
+    CampaignStatus Status,
+    string? Objective = null,
+    string? ToneOfVoiceOverride = null,
+    string? TargetAudienceOverride = null
 );
 
 public record UpdateCampaignDto(
     string Name,
     string? Description,
     int ChannelId,
-    CampaignStatus Status
+    CampaignStatus Status,
+    string? Objective = null,
+    string? ToneOfVoiceOverride = null,
+    string? TargetAudienceOverride = null
 );
 
 public record LinkCampaignContentPostDto(int ContentPostId);
@@ -32,6 +38,9 @@ public record CampaignResponseDto(
     int ChannelId,
     string Name,
     string? Description,
+    string? Objective,
+    string? ToneOfVoiceOverride,
+    string? TargetAudienceOverride,
     CampaignStatus Status,
     DateTime CreatedAt,
     DateTime UpdatedAt,

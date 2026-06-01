@@ -8,7 +8,8 @@ namespace AiContentFlow.Infrastructure.Workers;
 public class PublishScheduledVariantsJob
 {
     private const int BatchSize = 25;
-    private static readonly SocialPlatform[] SupportedPublishPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
+    private static readonly SocialPlatform[] SupportedPublishPlatforms =
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly IPublishJobRepository _publishJobRepository;
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublisherFactory _publisherFactory;

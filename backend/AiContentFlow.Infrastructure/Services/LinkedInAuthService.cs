@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
@@ -28,8 +29,8 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
 
     public string GetLoginUrl(string state)
     {
-        var clientId = _config["LinkedIn:ClientId"]!;
-        var redirectUri = _config["LinkedIn:RedirectUri"]!;
+        var clientId = RequireSetting("LinkedIn:ClientId");
+        var redirectUri = RequireSetting("LinkedIn:RedirectUri");
 
         return $"https://www.linkedin.com/oauth/v2/authorization?" +
                $"response_type=code" +
@@ -139,9 +140,9 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
         {
             new KeyValuePair<string, string>("grant_type", "authorization_code"),
             new KeyValuePair<string, string>("code", code),
-            new KeyValuePair<string, string>("client_id", _config["LinkedIn:ClientId"]!),
-            new KeyValuePair<string, string>("client_secret", _config["LinkedIn:ClientSecret"]!),
-            new KeyValuePair<string, string>("redirect_uri", _config["LinkedIn:RedirectUri"]!)
+            new KeyValuePair<string, string>("client_id", RequireSetting("LinkedIn:ClientId")),
+            new KeyValuePair<string, string>("client_secret", RequireSetting("LinkedIn:ClientSecret")),
+            new KeyValuePair<string, string>("redirect_uri", RequireSetting("LinkedIn:RedirectUri"))
         });
 
         var response = await client.PostAsync(
@@ -158,17 +159,68 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
 
         var accessToken = result.GetProperty("access_token").GetString()!;
 
-        var idToken = result.GetProperty("id_token").GetString()!;
-        var payload = idToken.Split('.')[1];
-        payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
-        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        if (result.TryGetProperty("id_token", out var idTokenElement)
+            && !string.IsNullOrWhiteSpace(idTokenElement.GetString()))
+        {
+            var subFromIdToken = TryReadSubFromIdToken(idTokenElement.GetString()!);
+            if (!string.IsNullOrWhiteSpace(subFromIdToken))
+                return (accessToken, subFromIdToken);
+        }
 
-        var claims = JsonSerializer.Deserialize<JsonElement>(json);
-        var sub = claims.GetProperty("sub").GetString()!;
+        var subFromUserInfo = await TryReadSubFromUserInfoAsync(accessToken);
+        if (!string.IsNullOrWhiteSpace(subFromUserInfo))
+            return (accessToken, subFromUserInfo);
 
-        return (accessToken, sub);
+        throw new Exception("LinkedIn token exchange succeeded but member identity (sub) could not be resolved.");
+    }
+
+    private static string? TryReadSubFromIdToken(string idToken)
+    {
+        try
+        {
+            var parts = idToken.Split('.');
+            if (parts.Length < 2)
+                return null;
+
+            var json = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+            var claims = JsonSerializer.Deserialize<JsonElement>(json);
+            return claims.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<string?> TryReadSubFromUserInfoAsync(string accessToken)
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.GetAsync("https://api.linkedin.com/v2/userinfo");
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var profile = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return profile.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+    }
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var padded = value.Replace('-', '+').Replace('_', '/');
+        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
+        return Convert.FromBase64String(padded);
     }
 
     public string GetAuthUrl(string state) => GetLoginUrl(state);
     public Task<SocialAuthResult> ProcessCallbackAsync(string code, string state) => HandleCallbackAsync(code, state);
+
+    private string RequireSetting(string key)
+    {
+        var value = _config[key];
+        if (string.IsNullOrWhiteSpace(value))
+            throw new InvalidOperationException($"Missing required LinkedIn configuration key: {key}");
+        return value;
+    }
 }

@@ -30,10 +30,10 @@ namespace Infrastructure.Services
 
         public string GetAuthUrl(string state)
         {
-            var appId = _config["Meta:AppId"]!;
-            var redirectUri = _config["Meta:RedirectUri"]!;
+            var appId = RequireSetting("Meta:AppId");
+            var redirectUri = RequireSetting("Meta:RedirectUri");
 
-            var scope = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
+            var scope = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,public_profile";
 
             return $"{_oAuthUrl}?" +
                    $"client_id={appId}" +
@@ -74,6 +74,18 @@ namespace Infrastructure.Services
                     tokenExpiry,
                     null));
 
+                if (!string.IsNullOrWhiteSpace(page.InstagramBusinessAccountId))
+                {
+                    accounts.Add(new SocialAccountAuthDto(
+                        "Instagram",
+                        page.InstagramBusinessAccountId,
+                        $"{page.Name} Instagram",
+                        $"{facebookHandle}-ig",
+                        page.Name,
+                        page.AccessToken,
+                        tokenExpiry,
+                        null));
+                }
             }
 
             return new SocialAuthResult(accounts);
@@ -81,9 +93,9 @@ namespace Infrastructure.Services
 
         private async Task<string> ExchangeCodeAsync(string code)
         {
-            var appId = _config["Meta:AppId"]!;
-            var appSecret = _config["Meta:AppSecret"]!;
-            var redirectUri = _config["Meta:RedirectUri"]!;
+            var appId = RequireSetting("Meta:AppId");
+            var appSecret = RequireSetting("Meta:AppSecret");
+            var redirectUri = RequireSetting("Meta:RedirectUri");
 
             var response = await _httpClient.GetAsync(
                 $"{_graphApiBase}oauth/access_token?" +
@@ -98,8 +110,8 @@ namespace Infrastructure.Services
 
         private async Task<LongLivedTokenResponse> ExchangeForLongLivedTokenAsync(string shortLivedToken)
         {
-            var appId = _config["Meta:AppId"]!;
-            var appSecret = _config["Meta:AppSecret"]!;
+            var appId = RequireSetting("Meta:AppId");
+            var appSecret = RequireSetting("Meta:AppSecret");
 
             var response = await _httpClient.GetAsync(
                 $"{_graphApiBase}oauth/access_token?" +
@@ -123,7 +135,7 @@ namespace Infrastructure.Services
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"{_graphApiBase}me/accounts?fields=id,name,access_token");
+                $"{_graphApiBase}me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", userToken);
 
             var response = await _httpClient.SendAsync(request);
@@ -142,6 +154,14 @@ namespace Infrastructure.Services
             }
 
             return DateTime.UtcNow.AddSeconds(expiresInSeconds);
+        }
+
+        private string RequireSetting(string key)
+        {
+            var value = _config[key];
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException($"Missing required Meta configuration key: {key}");
+            return value;
         }
     }
 
@@ -167,5 +187,13 @@ namespace Infrastructure.Services
         [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
         [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
         [JsonPropertyName("access_token")] public string AccessToken { get; set; } = string.Empty;
+        [JsonPropertyName("instagram_business_account")] public MetaInstagramAccount? InstagramBusinessAccount { get; set; }
+        public string? InstagramBusinessAccountId => InstagramBusinessAccount?.Id;
+    }
+
+    public class MetaInstagramAccount
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("username")] public string Username { get; set; } = string.Empty;
     }
 }

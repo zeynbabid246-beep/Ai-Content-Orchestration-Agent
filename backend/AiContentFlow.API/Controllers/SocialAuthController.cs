@@ -67,11 +67,11 @@ public class SocialAuthController : ControllerBase
         }
         catch (NotSupportedException ex)
         {
-            return Redirect(BuildFrontendRedirectUrl(platform, false, ex.Message));
+            return Redirect(BuildFrontendRedirectUrl(platform, false, MapProviderError(platform, ex.Message)));
         }
         catch (Exception ex)
         {
-            return Redirect(BuildFrontendRedirectUrl(platform, false, ex.Message));
+            return Redirect(BuildFrontendRedirectUrl(platform, false, MapProviderError(platform, ex.Message)));
         }
     }
 
@@ -90,5 +90,28 @@ public class SocialAuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(error))
             query += $"&socialAuthError={Uri.EscapeDataString(error)}";
         return $"{baseUrl}{query}";
+    }
+
+    private static string MapProviderError(string platform, string error)
+    {
+        var normalizedPlatform = platform.Trim().ToLowerInvariant();
+        var normalizedError = error.ToLowerInvariant();
+
+        if (normalizedError.Contains("redirect_uri") || normalizedError.Contains("redirect uri"))
+            return $"OAuth redirect URI mismatch for {platform}. Verify provider app settings and server config.";
+
+        if (normalizedError.Contains("invalid scope") || normalizedError.Contains("permissions"))
+            return $"Missing required {platform} permissions. Review provider scopes and app approval status.";
+
+        if (normalizedError.Contains("token") && normalizedError.Contains("expired"))
+            return $"{platform} token expired. Reconnect the account.";
+
+        if (normalizedPlatform == "instagram" && normalizedError.Contains("instagram_business_account"))
+            return "Instagram Business account is not linked to the selected Facebook page.";
+
+        if (normalizedPlatform == "linkedin" && normalizedError.Contains("member"))
+            return "LinkedIn member identity could not be resolved. Try reconnecting and check app scopes.";
+
+        return error;
     }
 }

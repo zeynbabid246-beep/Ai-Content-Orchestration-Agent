@@ -1,8 +1,10 @@
+using System.Threading.RateLimiting;
 using AiContentFlow.API.Middleware;
 using AiContentFlow.Infrastructure.Persistence;
 using AiContentFlow.Infrastructure.Workers;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using AiContentFlow.Infrastructure;
@@ -30,14 +32,41 @@ builder.Services.AddControllers()
             new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
     });
 
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173", "http://localhost:3000"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(origin => origin.StartsWith("http://localhost"))
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.AddPolicy("sensitive", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.User.FindFirst("sub")?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1)
+            }));
 });
 
 builder.Services.AddScoped<IAuthServiceFactory, AuthServiceFactory>();
@@ -66,8 +95,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    }
+});
 app.UseMiddleware<ExceptionMiddleware>();
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -85,6 +121,11 @@ using (var jobScope = app.Services.CreateScope())
         "sync-publication-analytics",
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Hourly);
+
+    recurringJobs.AddOrUpdate<SocialTokenRefreshJob>(
+        "social-token-refresh",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 app.MapControllers();

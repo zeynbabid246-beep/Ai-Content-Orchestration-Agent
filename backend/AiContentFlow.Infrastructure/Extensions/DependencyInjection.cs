@@ -1,6 +1,7 @@
 ﻿using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.Analytics;
+using AiContentFlow.Application.Features.Ai;
 using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Application.Features.BrandStudio;
 using AiContentFlow.Application.Features.Campaigns;
@@ -14,10 +15,12 @@ using AiContentFlow.Infrastructure.Factories;
 using AiContentFlow.Infrastructure.Identity;
 using AiContentFlow.Infrastructure.Persistence;
 using AiContentFlow.Infrastructure.Persistence.Repositories;
+using AiContentFlow.Infrastructure.AI;
 using AiContentFlow.Infrastructure.Publishers;
 using AiContentFlow.Infrastructure.Repositories;
 using AiContentFlow.Infrastructure.Services;
 using Infrastructure.Services;
+using AiContentFlow.Infrastructure.BrandStudio;
 using AiContentFlow.Infrastructure.Workers;
 using Application.Interfaces;
 using FluentValidation;
@@ -65,8 +68,13 @@ public static class DependencyInjection
         services.AddScoped<ISocialCredentialStore, ProtectedSocialCredentialStore>();
 
         // 3. AI Services
+        services.AddHttpClient(nameof(LocalAiBackendClient));
+        services.AddScoped<ILocalAiBackendClient, LocalAiBackendClient>();
         services.AddHttpClient<ITextGenerationService, TextGenerationService>();
         services.AddHttpClient<IImageGenerationService, GeminiImageService>();
+        services.AddHttpClient(nameof(SafeWebsiteFetcher));
+        services.AddScoped<IWebsiteFetcher, SafeWebsiteFetcher>();
+        services.AddScoped<IBrandExtractionService, BrandExtractionService>();
 
         // 4. Application Services
         services.AddScoped<IAuthService, AuthService>();
@@ -82,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<IBrandImportProcessor, BrandImportProcessor>();
         services.AddScoped<AiContentFlow.Application.Features.SocialAuth.SocialAuthService>();
         services.AddScoped<ICampaignService, CampaignService>();
+        services.AddScoped<IAiContentService, AiContentService>();
 
 
         // 5. Social Auth
@@ -101,12 +110,14 @@ public static class DependencyInjection
         services.AddHttpClient("Facebook");
         services.AddScoped<IPublisher, LinkedInPublisher>();
         services.AddScoped<IPublisher, FacebookPublisher>();
+        services.AddScoped<IPublisher, InstagramPublisher>();
         services.AddScoped<IPublisherFactory, PublisherFactory>();
 
         // 7. Background Jobs
         services.AddScoped<PublishScheduledVariantsJob>();
         services.AddScoped<SyncPublicationAnalyticsJob>();
         services.AddScoped<BrandImportWorker>();
+        services.AddScoped<SocialTokenRefreshJob>();
         services.AddScoped<IBrandImportJobScheduler, HangfireBrandImportJobScheduler>();
 
         

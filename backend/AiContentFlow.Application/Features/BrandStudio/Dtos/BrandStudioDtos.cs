@@ -12,16 +12,71 @@ public record BrandImportJobDto(
     string? Error,
     DateTime CreatedAt);
 
+public record BrandVisualIdentityDto(
+    string? LogoUrl,
+    string? FaviconUrl,
+    IReadOnlyList<string> PrimaryColors,
+    IReadOnlyList<string> SecondaryColors,
+    IReadOnlyList<string> FontFamilies,
+    IReadOnlyList<string> ImageUrls,
+    string? VisualStyle,
+    string? HeroText,
+    IReadOnlyList<string> CtaTexts,
+    string? ScreenshotPath,
+    string? RenderMode,
+    bool HasLogo,
+    bool HasImages);
+
+public record BrandVoiceGuidelinesDto(
+    IReadOnlyList<string> Do,
+    IReadOnlyList<string> Dont);
+
+public record BrandParsedProfileDto(
+    string? OrgId,
+    string? WebsiteUrl,
+    string? BrandName,
+    string? BrandSummary,
+    string? Slogan,
+    IReadOnlyList<string> ValueProposition,
+    IReadOnlyList<string> ToneOfVoice,
+    IReadOnlyList<string> AudienceSignals,
+    IReadOnlyList<string> ContentPillars,
+    BrandVisualIdentityDto VisualIdentity,
+    IReadOnlyList<string> KeyMessages,
+    string? BusinessInfo,
+    string? Email);
+
+public record BrandEnrichedProfileDto(
+    IReadOnlyList<string> BrandPersonality,
+    string? BrandArchetype,
+    string? PositioningStatement,
+    BrandVoiceGuidelinesDto VoiceGuidelines,
+    IReadOnlyList<string> MessagingPriorities,
+    string? VisualDirectionNotes,
+    string? LinkedInVoice,
+    string? AdCopyStyle,
+    string? OrgId,
+    string? WebsiteUrl);
+
+public record BrandStudioDefaultConfigDto(
+    string? ToneOfVoice,
+    string? TargetAudience,
+    IReadOnlyList<string> ContentPillars,
+    string? Mission,
+    string? BrandSummary,
+    string? PreferredCampaignObjective);
+
+public record UpdateBrandStudioDto(
+    BrandParsedProfileDto? ParsedProfile,
+    BrandEnrichedProfileDto? EnrichedProfile,
+    BrandStudioDefaultConfigDto? DefaultConfig);
+
 public record TeamBrandStudioDto(
     int Id,
     Guid TeamId,
-    string? WebsiteUrl,
-    string? CompanyName,
-    string? Description,
-    string? Mission,
-    string? TargetAudience,
-    IReadOnlyList<string> Keywords,
-    string? ToneOfVoice,
+    BrandParsedProfileDto ParsedProfile,
+    BrandEnrichedProfileDto EnrichedProfile,
+    BrandStudioDefaultConfigDto DefaultConfig,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     BrandImportJobDto? LatestImportJob);

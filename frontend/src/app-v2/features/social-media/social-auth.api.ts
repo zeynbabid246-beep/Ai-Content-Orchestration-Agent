@@ -1,7 +1,7 @@
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
 
-type SupportedSocialPlatform = "linkedin" | "facebook";
+type SupportedSocialPlatform = "linkedin" | "facebook" | "instagram";
 
 interface SocialAuthLoginResult {
   teamId: string;

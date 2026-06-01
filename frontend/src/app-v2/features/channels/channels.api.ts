@@ -32,16 +32,18 @@ export async function createChannel(payload: CreateChannelRequest): Promise<Chan
       description: payload.description ?? null,
       branding: {
         logoUrl: payload.branding?.logoUrl ?? null,
-        theme: payload.branding?.theme ?? "default",
+        theme: payload.branding?.theme ?? null,
         slogan: payload.branding?.slogan ?? null,
-        tone: payload.branding?.tone ?? "professional",
+        tone: payload.branding?.tone ?? null,
+        targetAudience: payload.branding?.targetAudience ?? null,
+        keywords: payload.branding?.keywords ?? null,
+        contentPillars: payload.branding?.contentPillars ?? null,
+        mission: payload.branding?.mission ?? null,
+        brandSummary: payload.branding?.brandSummary ?? null,
+        goal: payload.branding?.goal ?? null,
       },
       config: {
-        settingsJson:
-          payload.config?.settingsJson ??
-          JSON.stringify({
-            timezone: "UTC",
-          }),
+        settingsJson: payload.config?.settingsJson ?? null,
       },
     }),
   });
@@ -57,16 +59,18 @@ export async function updateChannel(channelId: number, payload: UpdateChannelReq
       description: payload.description ?? null,
       branding: {
         logoUrl: payload.branding?.logoUrl ?? null,
-        theme: payload.branding?.theme ?? "default",
+        theme: payload.branding?.theme ?? null,
         slogan: payload.branding?.slogan ?? null,
-        tone: payload.branding?.tone ?? "professional",
+        tone: payload.branding?.tone ?? null,
+        targetAudience: payload.branding?.targetAudience ?? null,
+        keywords: payload.branding?.keywords ?? null,
+        contentPillars: payload.branding?.contentPillars ?? null,
+        mission: payload.branding?.mission ?? null,
+        brandSummary: payload.branding?.brandSummary ?? null,
+        goal: payload.branding?.goal ?? null,
       },
       config: {
-        settingsJson:
-          payload.config?.settingsJson ??
-          JSON.stringify({
-            timezone: "UTC",
-          }),
+        settingsJson: payload.config?.settingsJson ?? null,
       },
     }),
   });

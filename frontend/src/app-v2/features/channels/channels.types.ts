@@ -12,6 +12,12 @@ export interface ChannelBranding {
   theme?: string | null;
   slogan?: string | null;
   tone?: string | null;
+  targetAudience?: string | null;
+  keywords?: string[];
+  contentPillars?: string[];
+  mission?: string | null;
+  brandSummary?: string | null;
+  goal?: string | null;
 }
 
 export interface ChannelConfig {

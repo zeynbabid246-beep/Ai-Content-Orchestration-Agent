@@ -92,6 +92,20 @@ public class CampaignsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{campaignId:int}/posts/bulk")]
+    public async Task<ActionResult<BulkCreateCampaignPostsResponseDto>> BulkCreatePosts(
+        Guid teamId,
+        int campaignId,
+        [FromBody] BulkCreateCampaignPostsDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _campaignService.BulkCreatePostsAsync(teamId, campaignId, userId, dto);
+        return Ok(result);
+    }
+
     [HttpDelete("{campaignId:int}/content-post-links/{contentPostId:int}")]
     public async Task<IActionResult> UnlinkContentPost(Guid teamId, int campaignId, int contentPostId)
     {

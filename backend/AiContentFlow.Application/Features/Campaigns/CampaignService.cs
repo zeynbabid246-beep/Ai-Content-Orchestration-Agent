@@ -1,4 +1,7 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Services;
+using AiContentFlow.Application.Features.Publications;
+using AiContentFlow.Application.Features.Publications.Dtos;
 using AiContentFlow.Domain.Campaigns.Dtos;
 using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Domain.Models;
@@ -11,17 +14,23 @@ public class CampaignService : ICampaignService
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IChannelRepository _channelRepository;
+    private readonly IBrandStudioRepository _brandStudioRepository;
+    private readonly IPublicationService _publicationService;
 
     public CampaignService(
         ICampaignRepository campaignRepository,
         IContentPostRepository contentPostRepository,
         ITeamRepository teamRepository,
-        IChannelRepository channelRepository)
+        IChannelRepository channelRepository,
+        IBrandStudioRepository brandStudioRepository,
+        IPublicationService publicationService)
     {
         _campaignRepository = campaignRepository;
         _contentPostRepository = contentPostRepository;
         _teamRepository = teamRepository;
         _channelRepository = channelRepository;
+        _brandStudioRepository = brandStudioRepository;
+        _publicationService = publicationService;
     }
 
     public async Task<CampaignResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateCampaignDto dto)
@@ -39,12 +48,17 @@ public class CampaignService : ICampaignService
         _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
             ?? throw new KeyNotFoundException("Channel not found");
 
+        var defaults = await _brandStudioRepository.GetByTeamAsync(teamId);
+
         var campaign = new Campaign
         {
             TeamId = teamId,
             Name = normalizedName,
             Description = Normalize(dto.Description),
             ChannelId = dto.ChannelId,
+            Objective = Normalize(dto.Objective) ?? defaults?.DefaultCampaignObjective,
+            ToneOfVoiceOverride = Normalize(dto.ToneOfVoiceOverride) ?? defaults?.DefaultToneOfVoice,
+            TargetAudienceOverride = Normalize(dto.TargetAudienceOverride) ?? defaults?.DefaultTargetAudience,
             Status = dto.Status,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -100,6 +114,9 @@ public class CampaignService : ICampaignService
         campaign.Name = normalizedName;
         campaign.Description = Normalize(dto.Description);
         campaign.ChannelId = dto.ChannelId;
+        campaign.Objective = string.IsNullOrWhiteSpace(dto.Objective) ? campaign.Objective : dto.Objective.Trim();
+        campaign.ToneOfVoiceOverride = string.IsNullOrWhiteSpace(dto.ToneOfVoiceOverride) ? campaign.ToneOfVoiceOverride : dto.ToneOfVoiceOverride.Trim();
+        campaign.TargetAudienceOverride = string.IsNullOrWhiteSpace(dto.TargetAudienceOverride) ? campaign.TargetAudienceOverride : dto.TargetAudienceOverride.Trim();
         campaign.Status = dto.Status;
         campaign.UpdatedAt = DateTime.UtcNow;
 
@@ -158,6 +175,70 @@ public class CampaignService : ICampaignService
         await _contentPostRepository.SaveChangesAsync();
     }
 
+    public async Task<BulkCreateCampaignPostsResponseDto> BulkCreatePostsAsync(
+        Guid teamId,
+        int campaignId,
+        string requestingUserId,
+        BulkCreateCampaignPostsDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+
+        if (dto.Posts.Count == 0)
+            throw new InvalidOperationException("At least one post is required.");
+
+        var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
+            ?? throw new KeyNotFoundException("Campaign not found");
+
+        var createdIds = new List<int>();
+
+        foreach (var item in dto.Posts)
+        {
+            var contentPost = new ContentPost
+            {
+                TeamId = teamId,
+                ChannelId = campaign.ChannelId,
+                CampaignId = campaign.Id,
+                Title = Normalize(item.Title),
+                ContentType = item.ContentType,
+                ContentJson = JsonContentValidator.Normalize(item.ContentJson),
+                Status = ContentStatus.Draft,
+                CreatedByUserId = requestingUserId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            if (item.Platform.HasValue)
+            {
+                contentPost.PostVariants.Add(new PostVariant
+                {
+                    Platform = item.Platform.Value,
+                    ContentJson = contentPost.ContentJson,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _contentPostRepository.AddAsync(contentPost);
+            await _contentPostRepository.SaveChangesAsync();
+            createdIds.Add(contentPost.Id);
+
+            if (item.ScheduledAt.HasValue && item.SocialAccountId.HasValue)
+            {
+                await _publicationService.ScheduleAsync(
+                    teamId,
+                    contentPost.Id,
+                    requestingUserId,
+                    new SchedulePublicationDto(
+                        item.SocialAccountId.Value,
+                        contentPost.PostVariants.FirstOrDefault()?.Id,
+                        item.ScheduledAt.Value,
+                        null));
+            }
+        }
+
+        return new BulkCreateCampaignPostsResponseDto(createdIds.Count, createdIds);
+    }
+
     private async Task EnsureCanMutateAsync(Guid teamId, string requestingUserId)
     {
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
@@ -175,6 +256,9 @@ public class CampaignService : ICampaignService
             campaign.ChannelId, // Ensure ChannelId is aligned with required mapping
             campaign.Name,
             campaign.Description,
+            campaign.Objective,
+            campaign.ToneOfVoiceOverride,
+            campaign.TargetAudienceOverride,
             campaign.Status,
             campaign.CreatedAt,
             campaign.UpdatedAt,
@@ -194,4 +278,5 @@ public class CampaignService : ICampaignService
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
+
 }

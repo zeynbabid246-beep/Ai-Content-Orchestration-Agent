@@ -57,6 +57,28 @@ export async function linkContentPostToCampaign(campaignId: number, contentPostI
   });
 }
 
+export async function bulkCreateCampaignPosts(
+  campaignId: number,
+  posts: Array<{
+    title?: string;
+    contentJson: string;
+    contentType: string;
+    scheduledAt?: string;
+    socialAccountId?: number;
+    platform?: string;
+  }>
+): Promise<{ createdCount: number; contentPostIds: number[] }> {
+  const teamId = getTeamId();
+  return apiRequest<{ createdCount: number; contentPostIds: number[] }>(
+    `/teams/${teamId}/campaigns/${campaignId}/posts/bulk`,
+    {
+      method: "POST",
+      requiresAuth: true,
+      body: JSON.stringify({ posts }),
+    }
+  );
+}
+
 export async function unlinkContentPostFromCampaign(campaignId: number, contentPostId: number): Promise<void> {
   const teamId = getTeamId();
   return apiRequest<void>(`/teams/${teamId}/campaigns/${campaignId}/content-post-links/${contentPostId}`, {

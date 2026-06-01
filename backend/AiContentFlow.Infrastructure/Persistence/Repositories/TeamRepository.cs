@@ -73,6 +73,16 @@ public class TeamRepository : ITeamRepository
         return (membership, membership.Team);
     }
 
+    public async Task<List<(UserTeam UserTeam, Team Team)>> GetTeamsForUserAsync(string userId)
+    {
+        return await _context.UserTeams
+            .Include(x => x.Team)
+            .Where(x => x.UserId == userId && x.Team != null)
+            .OrderBy(x => x.JoinedAt)
+            .Select(x => new ValueTuple<UserTeam, Team>(x, x.Team!))
+            .ToListAsync();
+    }
+
     public async Task AddTeamAsync(Team team)
         => await _context.Teams.AddAsync(team);
 

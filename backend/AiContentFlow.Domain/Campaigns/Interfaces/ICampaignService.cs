@@ -11,4 +11,9 @@ public interface ICampaignService
     Task DeleteAsync(Guid teamId, int campaignId, string requestingUserId);
     Task LinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId);
     Task UnlinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId);
+    Task<BulkCreateCampaignPostsResponseDto> BulkCreatePostsAsync(
+        Guid teamId,
+        int campaignId,
+        string requestingUserId,
+        BulkCreateCampaignPostsDto dto);
 }
