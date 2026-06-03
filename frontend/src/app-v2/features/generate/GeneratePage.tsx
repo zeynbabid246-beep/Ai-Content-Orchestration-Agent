@@ -4,10 +4,14 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   LinearProgress,
   MenuItem,
   Paper,
   Stack,
+  Step,
+  StepLabel,
+  Stepper,
   Tab,
   Tabs,
   TextField,
@@ -15,11 +19,13 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import { FileEdit, Sparkles } from "lucide-react";
 import { useBrandStudio } from "../brand-studio/hooks/useBrandStudio";
 import { useSocialAccounts } from "../social-media/social-accounts.queries";
 import { getSocialAuthLoginUrl } from "../social-media/social-auth.api";
-import { ContentStatus } from "../content-posts/content-posts.types";
+import { ContentStatus, SocialPlatform } from "../content-posts/content-posts.types";
+import type { SocialAccount } from "../social-media/social-accounts.types";
 import {
   createContentPost,
   publishContentPost,
@@ -27,7 +33,8 @@ import {
   transitionContentPostStatus,
 } from "../content-posts/content-posts.api";
 import { PostVariantPreview } from "./components/PostVariantPreview";
-import { QuickGenerateContextPanel } from "./components/QuickGenerateContextPanel";
+import { PublishDestinationsPanel } from "./components/PublishDestinationsPanel";
+import { WorkflowStepHeader } from "./components/WorkflowStepHeader";
 import {
   createInitialVariants,
   QUICK_VARIANT_DEFINITIONS,
@@ -39,20 +46,26 @@ import { uploadGenerateImage } from "./media.api";
 import {
   csvToSlides,
   defaultContentType,
+  findVariantForPlatform,
   getVariantDefinition,
   parseAiContent,
   slidesToCsv,
   toContentPostVariants,
+  variantHasContent,
 } from "./utils/variantHelpers";
 
 const LANGUAGES = ["English", "French", "Arabic"];
+const WORKFLOW_STEPS = ["Brief", "Content", "Publish"];
 
 export function GeneratePage() {
+  const theme = useTheme();
   const { data: brandStudioSnapshot } = useBrandStudio();
   const { data: socialAccounts = [], refetch: refetchSocialAccounts } = useSocialAccounts();
 
   const brandStudio = brandStudioSnapshot?.brandStudio ?? null;
+  const hasBrand = Boolean(brandStudio?.parsedProfile.brandName || brandStudio?.parsedProfile.brandSummary);
 
+  const [activeStep, setActiveStep] = useState(0);
   const [composeMode, setComposeMode] = useState<ComposeMode>("ai");
   const [useBrandContext, setUseBrandContext] = useState(true);
   const [brief, setBrief] = useState("");
@@ -64,16 +77,17 @@ export function GeneratePage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
-  const [selectedSocialAccountId, setSelectedSocialAccountId] = useState<number | "">("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [actionMessage, setActionMessage] = useState<{ severity: "success" | "error" | "info"; text: string } | null>(
-    null
-  );
+  const [actionMessage, setActionMessage] = useState<{
+    severity: "success" | "error" | "info" | "warning";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!imageFile) {
@@ -91,19 +105,6 @@ export function GeneratePage() {
   );
 
   useEffect(() => {
-    if (!activeSocialAccounts.length) {
-      setSelectedSocialAccountId("");
-      return;
-    }
-    setSelectedSocialAccountId((current) => {
-      if (current && activeSocialAccounts.some((account) => account.id === current)) {
-        return current;
-      }
-      return activeSocialAccounts[0].id;
-    });
-  }, [activeSocialAccounts]);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get("socialAuthStatus");
     if (!status) return;
@@ -113,6 +114,7 @@ export function GeneratePage() {
     if (status === "success") {
       setActionMessage({ severity: "success", text: `${platform} connected successfully.` });
       void refetchSocialAccounts();
+      setActiveStep(2);
     } else {
       setActionMessage({ severity: "error", text: authError ?? "Failed to connect social account." });
     }
@@ -129,6 +131,24 @@ export function GeneratePage() {
   const activeVariant = variants.find((variant) => variant.key === activeVariantKey) ?? variants[0];
   const activeDefinition = getVariantDefinition(activeVariant.key);
 
+  const enabledPlatforms = useMemo(
+    () => new Set(enabledVariants.map((variant) => getVariantDefinition(variant.key).platform)),
+    [enabledVariants]
+  );
+
+  useEffect(() => {
+    if (activeSocialAccounts.length === 0) return;
+    setSelectedAccountIds((current) => {
+      const next = new Set(current);
+      for (const account of activeSocialAccounts) {
+        if (enabledPlatforms.has(account.platform)) {
+          next.add(account.id);
+        }
+      }
+      return Array.from(next);
+    });
+  }, [enabledPlatforms, activeSocialAccounts]);
+
   useEffect(() => {
     if (!enabledVariants.some((variant) => variant.key === activeVariantKey) && enabledVariants[0]) {
       setActiveVariantKey(enabledVariants[0].key);
@@ -141,9 +161,7 @@ export function GeneratePage() {
 
   const toggleVariant = (key: QuickVariantKey) => {
     setVariants((current) =>
-      current.map((variant) =>
-        variant.key === key ? { ...variant, enabled: !variant.enabled } : variant
-      )
+      current.map((variant) => (variant.key === key ? { ...variant, enabled: !variant.enabled } : variant))
     );
   };
 
@@ -165,12 +183,7 @@ export function GeneratePage() {
 
       try {
         const { generatePost } = await import("../ai/ai.api");
-        const prompt = [
-          brief.trim(),
-          language ? `Language: ${language}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
+        const prompt = [brief.trim(), language ? `Language: ${language}` : ""].filter(Boolean).join("\n");
 
         const nextVariants = [...variants];
         const step = Math.floor(90 / enabledVariants.length);
@@ -199,9 +212,10 @@ export function GeneratePage() {
 
         setVariants(nextVariants);
         setAiProgress(100);
+        setActiveStep(1);
         setActionMessage({
           severity: "success",
-          text: `Generated content for ${enabledVariants.length} variant${enabledVariants.length > 1 ? "s" : ""}. You can edit everything before publishing.`,
+          text: `Generated ${enabledVariants.length} variant${enabledVariants.length > 1 ? "s" : ""}. Review and edit before publishing.`,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "AI generation failed.");
@@ -219,71 +233,91 @@ export function GeneratePage() {
     return upload.url;
   };
 
-  const validateBeforeSubmit = () => {
-    if (!selectedSocialAccountId) {
-      setActionMessage({ severity: "error", text: "Connect and select a publishing account first." });
-      return null;
-    }
+  const validateContent = (): boolean => {
     if (enabledVariants.length === 0) {
       setActionMessage({ severity: "error", text: "Enable at least one platform variant." });
-      return null;
+      return false;
     }
-    const hasContent = enabledVariants.some((variant) => {
-      const definition = getVariantDefinition(variant.key);
-      if (definition.format === "carousel") {
-        return variant.body.trim() || variant.slides.some(Boolean);
-      }
-      return variant.body.trim().length > 0;
-    });
+    const hasContent = enabledVariants.some(variantHasContent);
     if (!hasContent) {
       setActionMessage({
         severity: "error",
-        text: composeMode === "manual"
-          ? "Write your post content manually or switch to AI-assisted mode."
-          : "Generate content or write manually before publishing.",
+        text:
+          composeMode === "manual"
+            ? "Write content for at least one enabled platform."
+            : "Generate or write content before publishing.",
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const validatePublishSelection = (): SocialAccount[] | null => {
+    if (!validateContent()) return null;
+    if (selectedAccountIds.length === 0) {
+      setActionMessage({ severity: "error", text: "Select at least one destination account to publish." });
+      return null;
+    }
+
+    const selected = activeSocialAccounts.filter((account) => selectedAccountIds.includes(account.id));
+    if (selected.length === 0) {
+      setActionMessage({ severity: "error", text: "Selected accounts are no longer available." });
+      return null;
+    }
+
+    const missingVariant = selected.find(
+      (account) => !findVariantForPlatform(enabledVariants, account.platform) || !variantHasContent(findVariantForPlatform(enabledVariants, account.platform)!)
+    );
+    if (missingVariant) {
+      setActionMessage({
+        severity: "error",
+        text: `No content variant for ${missingVariant.platform}. Enable and fill that platform in step 2.`,
       });
       return null;
     }
 
-    const selectedAccount = activeSocialAccounts.find((account) => account.id === selectedSocialAccountId);
-    if (!selectedAccount) {
-      setActionMessage({ severity: "error", text: "Selected social account is unavailable." });
-      return null;
+    return selected;
+  };
+
+  const createPostPayload = async (imageUrl: string | null) => {
+    const primaryVariant = enabledVariants[0];
+    const primaryDefinition = getVariantDefinition(primaryVariant.key);
+    const channelId =
+      activeSocialAccounts.find((account) => selectedAccountIds.includes(account.id))?.channelId ??
+      activeSocialAccounts[0]?.channelId;
+
+    if (!channelId) {
+      throw new Error("Connect a social account first.");
     }
-    return selectedAccount;
+
+    return createContentPost({
+      channelId,
+      campaignId: null,
+      title: primaryVariant.title.trim() || brief.trim() || "Quick post",
+      contentType: defaultContentType(primaryDefinition.platform),
+      contentJson: JSON.stringify({
+        text: primaryVariant.body,
+        brief,
+        language,
+        useBrandContext,
+        imageUrl: imageUrl ?? undefined,
+      }),
+      imageUrl,
+      prompt: brief.trim() || undefined,
+      aiModel: composeMode === "ai" ? "local-ai-backend" : "manual",
+      postVariants: toContentPostVariants(enabledVariants, imageUrl),
+    });
   };
 
   const saveDraft = () => {
     void (async () => {
-      const selectedAccount = validateBeforeSubmit();
-      if (!selectedAccount) return;
+      if (!validateContent()) return;
 
       try {
         setIsSubmitting(true);
         setActionMessage(null);
         const imageUrl = await resolveImageUrl();
-        const primaryVariant = enabledVariants[0];
-        const primaryDefinition = getVariantDefinition(primaryVariant.key);
-        const contentJson = JSON.stringify({
-          text: primaryVariant.body,
-          brief,
-          language,
-          useBrandContext,
-          imageUrl: imageUrl ?? undefined,
-        });
-
-        await createContentPost({
-          channelId: selectedAccount.channelId,
-          campaignId: null,
-          title: primaryVariant.title.trim() || brief.trim() || "Quick post draft",
-          contentType: defaultContentType(primaryDefinition.platform),
-          contentJson,
-          imageUrl,
-          prompt: brief.trim() || undefined,
-          aiModel: composeMode === "ai" ? "local-ai-backend" : "manual",
-          postVariants: toContentPostVariants(enabledVariants, imageUrl),
-        });
-
+        await createPostPayload(imageUrl);
         setActionMessage({ severity: "success", text: "Draft saved to your content library." });
       } catch (saveError) {
         setActionMessage({
@@ -296,49 +330,58 @@ export function GeneratePage() {
     })();
   };
 
-  const publish = () => {
+  const publishToSelected = () => {
     void (async () => {
-      const selectedAccount = validateBeforeSubmit();
-      if (!selectedAccount) return;
+      const selected = validatePublishSelection();
+      if (!selected) return;
 
       try {
         setIsSubmitting(true);
         setActionMessage(null);
         const imageUrl = await resolveImageUrl();
-        const matchingVariant =
-          enabledVariants.find((variant) => getVariantDefinition(variant.key).platform === selectedAccount.platform) ??
-          enabledVariants[0];
-        const matchingDefinition = getVariantDefinition(matchingVariant.key);
-
-        const contentJson = JSON.stringify({
-          text: matchingVariant.body,
-          brief,
-          language,
-          useBrandContext,
-          imageUrl: imageUrl ?? undefined,
-        });
-
-        const created = await createContentPost({
-          channelId: selectedAccount.channelId,
-          campaignId: null,
-          title: matchingVariant.title.trim() || brief.trim() || "Quick post",
-          contentType: defaultContentType(matchingDefinition.platform),
-          contentJson,
-          imageUrl,
-          prompt: brief.trim() || undefined,
-          aiModel: composeMode === "ai" ? "local-ai-backend" : "manual",
-          postVariants: toContentPostVariants(enabledVariants, imageUrl),
-        });
+        const created = await createPostPayload(imageUrl);
 
         await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
         await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
-        await publishContentPost(created.id, {
-          socialAccountId: selectedAccount.id,
-          postVariantId: null,
-          idempotencyKey: `generate-publish-${created.id}-${Date.now()}`,
-        });
 
-        setActionMessage({ severity: "success", text: "Post queued for publishing successfully." });
+        const results: { account: SocialAccount; ok: boolean; error?: string }[] = [];
+
+        for (const account of selected) {
+          try {
+            await publishContentPost(created.id, {
+              socialAccountId: account.id,
+              postVariantId: null,
+              idempotencyKey: `generate-publish-${created.id}-${account.id}-${Date.now()}`,
+            });
+            results.push({ account, ok: true });
+          } catch (publishError) {
+            results.push({
+              account,
+              ok: false,
+              error: publishError instanceof Error ? publishError.message : "Publish failed",
+            });
+          }
+        }
+
+        const succeeded = results.filter((result) => result.ok).length;
+        const failed = results.filter((result) => !result.ok);
+
+        if (failed.length === 0) {
+          setActionMessage({
+            severity: "success",
+            text: `Published to ${succeeded} platform${succeeded > 1 ? "s" : ""} successfully.`,
+          });
+        } else if (succeeded > 0) {
+          setActionMessage({
+            severity: "warning",
+            text: `Published to ${succeeded} platform(s). Failed: ${failed.map((f) => f.account.platform).join(", ")}.`,
+          });
+        } else {
+          setActionMessage({
+            severity: "error",
+            text: failed[0]?.error ?? "Publishing failed for all selected platforms.",
+          });
+        }
       } catch (publishError) {
         setActionMessage({
           severity: "error",
@@ -350,10 +393,10 @@ export function GeneratePage() {
     })();
   };
 
-  const schedule = () => {
+  const scheduleToSelected = () => {
     void (async () => {
-      const selectedAccount = validateBeforeSubmit();
-      if (!selectedAccount) return;
+      const selected = validatePublishSelection();
+      if (!selected) return;
 
       const scheduledUtc = new Date(scheduledAt);
       if (Number.isNaN(scheduledUtc.getTime()) || scheduledUtc <= new Date()) {
@@ -365,41 +408,33 @@ export function GeneratePage() {
         setIsSubmitting(true);
         setActionMessage(null);
         const imageUrl = await resolveImageUrl();
-        const matchingVariant =
-          enabledVariants.find((variant) => getVariantDefinition(variant.key).platform === selectedAccount.platform) ??
-          enabledVariants[0];
-        const matchingDefinition = getVariantDefinition(matchingVariant.key);
-
-        const contentJson = JSON.stringify({
-          text: matchingVariant.body,
-          brief,
-          language,
-          useBrandContext,
-          imageUrl: imageUrl ?? undefined,
-        });
-
-        const created = await createContentPost({
-          channelId: selectedAccount.channelId,
-          campaignId: null,
-          title: matchingVariant.title.trim() || brief.trim() || "Scheduled post",
-          contentType: defaultContentType(matchingDefinition.platform),
-          contentJson,
-          imageUrl,
-          prompt: brief.trim() || undefined,
-          aiModel: composeMode === "ai" ? "local-ai-backend" : "manual",
-          postVariants: toContentPostVariants(enabledVariants, imageUrl),
-        });
+        const created = await createPostPayload(imageUrl);
 
         await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
         await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
-        await scheduleContentPost(created.id, {
-          socialAccountId: selectedAccount.id,
-          postVariantId: null,
-          scheduledAt: scheduledUtc.toISOString(),
-          idempotencyKey: `generate-schedule-${created.id}-${scheduledUtc.getTime()}`,
-        });
 
-        setActionMessage({ severity: "success", text: "Post scheduled successfully." });
+        let scheduled = 0;
+        for (const account of selected) {
+          try {
+            await scheduleContentPost(created.id, {
+              socialAccountId: account.id,
+              postVariantId: null,
+              scheduledAt: scheduledUtc.toISOString(),
+              idempotencyKey: `generate-schedule-${created.id}-${account.id}-${scheduledUtc.getTime()}`,
+            });
+            scheduled += 1;
+          } catch {
+            // continue with other accounts
+          }
+        }
+
+        setActionMessage({
+          severity: scheduled > 0 ? "success" : "error",
+          text:
+            scheduled > 0
+              ? `Scheduled for ${scheduled} platform${scheduled > 1 ? "s" : ""}.`
+              : "Scheduling failed for all selected platforms.",
+        });
       } catch (scheduleError) {
         setActionMessage({
           severity: "error",
@@ -411,130 +446,198 @@ export function GeneratePage() {
     })();
   };
 
+  const connectLinkedIn = () => {
+    void getSocialAuthLoginUrl("linkedin")
+      .then((url) => {
+        window.location.href = url;
+      })
+      .catch((connectError) => {
+        setActionMessage({
+          severity: "error",
+          text: connectError instanceof Error ? connectError.message : "Failed to start LinkedIn auth.",
+        });
+      });
+  };
+
+  const connectMeta = () => {
+    void getSocialAuthLoginUrl("facebook")
+      .then((url) => {
+        window.location.href = url;
+      })
+      .catch((connectError) => {
+        setActionMessage({
+          severity: "error",
+          text: connectError instanceof Error ? connectError.message : "Failed to start Meta auth.",
+        });
+      });
+  };
+
   return (
-    <Stack spacing={3}>
+    <Stack spacing={2.5}>
       <Box>
-        <Typography variant="h4">Quick Generate</Typography>
+        <Typography variant="h4" sx={{ mb: 0.5 }}>
+          Quick Generate
+        </Typography>
         <Typography variant="body2" color="text.secondary">
-          Create standalone posts outside campaigns. Write manually or start with AI, adapt per platform, preview, then publish.
+          Create a post in three steps: brief, platform content, then publish to one or more connected accounts.
         </Typography>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {actionMessage ? <Alert severity={actionMessage.severity}>{actionMessage.text}</Alert> : null}
 
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2.5,
-          gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 380px" },
-          alignItems: "flex-start",
-        }}
-      >
-        <Stack spacing={2.5}>
-          <Paper sx={{ p: 2.5 }}>
-            <Stack spacing={2}>
-              <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5}>
-                <Box>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    1. How do you want to start?
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Manual mode keeps the editor empty. AI mode fills selected variants from your brief.
-                  </Typography>
-                </Box>
-                <ToggleButtonGroup
-                  exclusive
+      <Paper sx={{ p: { xs: 2, md: 3 }, overflow: "hidden" }}>
+        <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+          {WORKFLOW_STEPS.map((label) => (
+            <Step key={label}>
+              <StepLabel
+                sx={{
+                  cursor: "pointer",
+                  "& .MuiStepLabel-label": { fontWeight: activeStep === WORKFLOW_STEPS.indexOf(label) ? 700 : 400 },
+                }}
+                onClick={() => setActiveStep(WORKFLOW_STEPS.indexOf(label))}
+              >
+                {label}
+              </StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        <Divider sx={{ mb: 3 }} />
+
+        {activeStep === 0 ? (
+          <Stack spacing={2.5}>
+            <WorkflowStepHeader
+              step={1}
+              title="Brief & generation"
+              description="Choose how to start, optionally use Brand Studio context, then generate or skip to write manually."
+            />
+
+            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={composeMode}
+                onChange={(_, value: ComposeMode | null) => value && setComposeMode(value)}
+              >
+                <ToggleButton value="manual">
+                  <FileEdit size={14} style={{ marginRight: 6 }} />
+                  Write manually
+                </ToggleButton>
+                <ToggleButton value="ai">
+                  <Sparkles size={14} style={{ marginRight: 6 }} />
+                  AI-assisted
+                </ToggleButton>
+              </ToggleButtonGroup>
+
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Brand Studio
+                </Typography>
+                <Chip
                   size="small"
-                  value={composeMode}
-                  onChange={(_, value: ComposeMode | null) => value && setComposeMode(value)}
-                >
-                  <ToggleButton value="manual">
-                    <FileEdit size={14} style={{ marginRight: 6 }} />
-                    Write manually
-                  </ToggleButton>
-                  <ToggleButton value="ai">
-                    <Sparkles size={14} style={{ marginRight: 6 }} />
-                    AI-assisted
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Stack>
-
-              <TextField
-                multiline
-                minRows={3}
-                label={composeMode === "ai" ? "Brief for AI" : "Topic or notes (optional)"}
-                placeholder={
-                  composeMode === "ai"
-                    ? "What should this post communicate? Include angle, offer, CTA, or references..."
-                    : "Optional notes to keep while writing manually..."
-                }
-                value={brief}
-                onChange={(event) => setBrief(event.target.value)}
-              />
-
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
-                <TextField
-                  select
-                  label="Language"
-                  value={language}
-                  onChange={(event) => setLanguage(event.target.value)}
-                  sx={{ minWidth: 180 }}
-                >
-                  {LANGUAGES.map((item) => (
-                    <MenuItem key={item} value={item}>
-                      {item}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                {composeMode === "ai" ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Sparkles size={16} />}
-                    onClick={generateWithAi}
-                    disabled={aiBusy || !brief.trim() || enabledVariants.length === 0}
-                    sx={{ alignSelf: { md: "flex-end" } }}
-                  >
-                    {aiBusy ? "Generating..." : "Generate selected variants"}
-                  </Button>
+                  label={useBrandContext && hasBrand ? "On" : "Off"}
+                  color={useBrandContext && hasBrand ? "primary" : "default"}
+                  variant={useBrandContext && hasBrand ? "filled" : "outlined"}
+                  onClick={() => hasBrand && setUseBrandContext((value) => !value)}
+                  disabled={!hasBrand}
+                />
+                {!hasBrand ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Import a brand first
+                  </Typography>
                 ) : null}
               </Stack>
-
-              {aiBusy ? <LinearProgress variant="determinate" value={aiProgress} /> : null}
             </Stack>
-          </Paper>
 
-          <Paper sx={{ p: 2.5 }}>
-            <Stack spacing={2}>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  2. Platform variants
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Enable the formats you need. Each variant has its own editable copy and preview.
-                </Typography>
-              </Box>
+            <TextField
+              multiline
+              minRows={4}
+              label={composeMode === "ai" ? "What should this post be about?" : "Topic notes (optional)"}
+              placeholder={
+                composeMode === "ai"
+                  ? "Product launch, promotion, thought leadership angle, CTA..."
+                  : "Optional notes for your manual draft..."
+              }
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+            />
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {QUICK_VARIANT_DEFINITIONS.map((definition) => {
-                  const enabled = variants.find((variant) => variant.key === definition.key)?.enabled ?? false;
-                  return (
-                    <Chip
-                      key={definition.key}
-                      label={definition.label}
-                      color={enabled ? "primary" : "default"}
-                      variant={enabled ? "filled" : "outlined"}
-                      onClick={() => toggleVariant(definition.key)}
-                    />
-                  );
-                })}
-              </Stack>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "flex-end" }}>
+              <TextField
+                select
+                label="Language"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                sx={{ minWidth: 160 }}
+              >
+                {LANGUAGES.map((item) => (
+                  <MenuItem key={item} value={item}>
+                    {item}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-              {enabledVariants.length === 0 ? (
-                <Alert severity="info">Enable at least one platform variant to continue.</Alert>
-              ) : (
-                <>
+              {composeMode === "ai" ? (
+                <Button
+                  variant="contained"
+                  startIcon={<Sparkles size={16} />}
+                  onClick={generateWithAi}
+                  disabled={aiBusy || !brief.trim() || enabledVariants.length === 0}
+                >
+                  {aiBusy ? "Generating..." : "Generate content"}
+                </Button>
+              ) : null}
+            </Stack>
+
+            {aiBusy ? <LinearProgress variant="determinate" value={aiProgress} /> : null}
+
+            <Typography variant="subtitle2" fontWeight={600} sx={{ pt: 1 }}>
+              Which platforms do you need content for?
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {QUICK_VARIANT_DEFINITIONS.map((definition) => {
+                const enabled = variants.find((variant) => variant.key === definition.key)?.enabled ?? false;
+                return (
+                  <Chip
+                    key={definition.key}
+                    label={definition.label}
+                    color={enabled ? "primary" : "default"}
+                    variant={enabled ? "filled" : "outlined"}
+                    onClick={() => toggleVariant(definition.key)}
+                  />
+                );
+              })}
+            </Stack>
+
+            <Stack direction="row" justifyContent="flex-end">
+              <Button variant="contained" onClick={() => setActiveStep(1)}>
+                Continue to content
+              </Button>
+            </Stack>
+          </Stack>
+        ) : null}
+
+        {activeStep === 1 ? (
+          <Stack spacing={2}>
+            <WorkflowStepHeader
+              step={2}
+              title="Content & preview"
+              description="Edit each platform variant. Add optional media shared across destinations."
+            />
+
+            {enabledVariants.length === 0 ? (
+              <Alert severity="info">Go back to step 1 and enable at least one platform.</Alert>
+            ) : (
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 2.5,
+                  gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(280px, 360px)" },
+                  alignItems: "start",
+                }}
+              >
+                <Stack spacing={2}>
                   <Tabs
                     value={activeVariantKey}
                     onChange={(_, value: QuickVariantKey) => setActiveVariantKey(value)}
@@ -550,206 +653,151 @@ export function GeneratePage() {
                     ))}
                   </Tabs>
 
-                  <Stack spacing={1.5}>
-                    <TextField
-                      label="Variant title"
-                      value={activeVariant.title}
-                      onChange={(event) => updateVariant(activeVariant.key, { title: event.target.value })}
-                      placeholder="Internal title or headline"
-                    />
+                  <TextField
+                    label="Title"
+                    value={activeVariant.title}
+                    onChange={(event) => updateVariant(activeVariant.key, { title: event.target.value })}
+                    size="small"
+                  />
 
+                  <TextField
+                    multiline
+                    minRows={activeDefinition.format === "carousel" ? 5 : 10}
+                    label={activeDefinition.format === "carousel" ? "Carousel caption" : "Post body"}
+                    value={activeVariant.body}
+                    onChange={(event) => updateVariant(activeVariant.key, { body: event.target.value })}
+                  />
+
+                  {activeDefinition.format === "carousel" ? (
                     <TextField
                       multiline
-                      minRows={activeDefinition.format === "carousel" ? 4 : 8}
-                      label={activeDefinition.format === "carousel" ? "Carousel caption" : "Post content"}
-                      value={activeVariant.body}
-                      onChange={(event) => updateVariant(activeVariant.key, { body: event.target.value })}
-                      placeholder={
-                        composeMode === "manual"
-                          ? "Write your post here..."
-                          : "Generate with AI or edit the draft here..."
+                      minRows={5}
+                      label="Slides"
+                      helperText="Separate slides with a line containing only ---"
+                      value={slidesToCsv(activeVariant.slides)}
+                      onChange={(event) =>
+                        updateVariant(activeVariant.key, { slides: csvToSlides(event.target.value) })
                       }
                     />
+                  ) : null}
 
-                    {activeDefinition.format === "carousel" ? (
-                      <TextField
-                        multiline
-                        minRows={6}
-                        label="Carousel slides"
-                        helperText="Separate slides with a line containing only ---"
-                        value={slidesToCsv(activeVariant.slides)}
-                        onChange={(event) =>
-                          updateVariant(activeVariant.key, { slides: csvToSlides(event.target.value) })
-                        }
+                  <Typography variant="caption" color="text.secondary">
+                    {activeVariant.body.length} characters
+                    {composeMode === "ai" && !activeVariant.body.trim() ? " · run Generate in step 1" : ""}
+                  </Typography>
+
+                  <Divider />
+
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Shared media
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button component="label" variant="outlined" size="small">
+                      {imageFile ? "Change image" : "Add image"}
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(event) => {
+                          setImageFile(event.target.files?.[0] ?? null);
+                          setUploadedImageUrl(null);
+                        }}
                       />
+                    </Button>
+                    {imageFile ? (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          setImageFile(null);
+                          setUploadedImageUrl(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
                     ) : null}
-
-                    <Typography variant="caption" color="text.secondary">
-                      {activeVariant.body.length} characters
-                      {activeDefinition.format === "carousel"
-                        ? ` · ${activeVariant.slides.filter(Boolean).length} slides`
-                        : ""}
-                    </Typography>
                   </Stack>
-                </>
-              )}
-            </Stack>
-          </Paper>
+                  {imagePreviewUrl ? (
+                    <Box
+                      component="img"
+                      src={imagePreviewUrl}
+                      alt="Preview"
+                      sx={{
+                        width: "100%",
+                        maxHeight: 200,
+                        objectFit: "cover",
+                        borderRadius: 1,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    />
+                  ) : null}
+                </Stack>
 
-          <Paper sx={{ p: 2.5 }}>
-            <Stack spacing={1.5}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                3. Media
-              </Typography>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
-                <Button component="label" variant="outlined">
-                  {imageFile ? "Change image" : "Add image"}
-                  <input
-                    hidden
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(event) => {
-                      setImageFile(event.target.files?.[0] ?? null);
-                      setUploadedImageUrl(null);
-                    }}
-                  />
-                </Button>
-                {imageFile ? (
-                  <Button
-                    color="error"
-                    variant="text"
-                    onClick={() => {
-                      setImageFile(null);
-                      setUploadedImageUrl(null);
-                    }}
-                  >
-                    Remove image
-                  </Button>
-                ) : null}
-              </Stack>
-              {imagePreviewUrl ? (
                 <Box
-                  component="img"
-                  src={imagePreviewUrl}
-                  alt="Selected media"
-                  sx={{ width: "100%", maxHeight: 240, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
-                />
-              ) : null}
+                  sx={{
+                    p: 2,
+                    borderRadius: 1.5,
+                    bgcolor: alpha(theme.palette.primary.main, 0.03),
+                    border: "1px solid",
+                    borderColor: alpha(theme.palette.primary.main, 0.15),
+                    position: { lg: "sticky" },
+                    top: 16,
+                  }}
+                >
+                  <Typography variant="overline" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                    Live preview
+                  </Typography>
+                  <PostVariantPreview
+                    definition={activeDefinition}
+                    title={activeVariant.title}
+                    body={activeVariant.body}
+                    slides={activeVariant.slides}
+                    imageUrl={imagePreviewUrl}
+                    brandName={brandStudio?.parsedProfile.brandName}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            <Stack direction="row" justifyContent="space-between">
+              <Button onClick={() => setActiveStep(0)}>Back</Button>
+              <Button variant="contained" onClick={() => setActiveStep(2)} disabled={enabledVariants.length === 0}>
+                Continue to publish
+              </Button>
             </Stack>
-          </Paper>
-        </Stack>
+          </Stack>
+        ) : null}
 
-        <Stack spacing={2.5}>
-          <QuickGenerateContextPanel
-            brandStudio={brandStudio}
-            useBrandContext={useBrandContext}
-            onUseBrandContextChange={setUseBrandContext}
-          />
-
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-              Live preview
-            </Typography>
-            <PostVariantPreview
-              definition={activeDefinition}
-              title={activeVariant.title}
-              body={activeVariant.body}
-              slides={activeVariant.slides}
-              imageUrl={imagePreviewUrl}
-              brandName={brandStudio?.parsedProfile.brandName}
+        {activeStep === 2 ? (
+          <Stack spacing={2}>
+            <WorkflowStepHeader
+              step={3}
+              title="Publish destinations"
+              description="Select every connected account you want to post to. Each uses its platform variant from step 2."
             />
-          </Paper>
 
-          <Paper sx={{ p: 2.5 }}>
-            <Stack spacing={1.5}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Publish
-              </Typography>
+            <PublishDestinationsPanel
+              accounts={activeSocialAccounts}
+              selectedAccountIds={selectedAccountIds}
+              onSelectedAccountIdsChange={setSelectedAccountIds}
+              enabledVariants={enabledVariants}
+              scheduledAt={scheduledAt}
+              onScheduledAtChange={setScheduledAt}
+              onConnectLinkedIn={connectLinkedIn}
+              onConnectMeta={connectMeta}
+              isSubmitting={isSubmitting}
+              onSaveDraft={saveDraft}
+              onPublish={publishToSelected}
+              onSchedule={scheduleToSelected}
+            />
 
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        window.location.href = await getSocialAuthLoginUrl("linkedin");
-                      } catch (connectError) {
-                        setActionMessage({
-                          severity: "error",
-                          text: connectError instanceof Error ? connectError.message : "Failed to start LinkedIn auth.",
-                        });
-                      }
-                    })();
-                  }}
-                >
-                  Link LinkedIn
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        window.location.href = await getSocialAuthLoginUrl("facebook");
-                      } catch (connectError) {
-                        setActionMessage({
-                          severity: "error",
-                          text: connectError instanceof Error ? connectError.message : "Failed to start Facebook auth.",
-                        });
-                      }
-                    })();
-                  }}
-                >
-                  Link Meta / Instagram
-                </Button>
-              </Stack>
-
-              <TextField
-                select
-                label="Publishing account"
-                value={selectedSocialAccountId}
-                onChange={(event) => setSelectedSocialAccountId(Number(event.target.value))}
-                helperText="Publishing uses the variant that matches the selected account platform."
-                disabled={activeSocialAccounts.length === 0}
-              >
-                {activeSocialAccounts.map((account) => (
-                  <MenuItem key={account.id} value={account.id}>
-                    {account.platform} · {account.displayName || account.accountHandle}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                type="datetime-local"
-                label="Schedule time"
-                value={scheduledAt}
-                onChange={(event) => setScheduledAt(event.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button variant="outlined" onClick={saveDraft} disabled={isSubmitting}>
-                  Save draft
-                </Button>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={publish}
-                  disabled={isSubmitting || !selectedSocialAccountId}
-                >
-                  {isSubmitting ? "Processing..." : "Publish now"}
-                </Button>
-                <Button variant="contained" onClick={schedule} disabled={isSubmitting || !selectedSocialAccountId}>
-                  Schedule
-                </Button>
-              </Stack>
-
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                Standalone posts are saved without a campaign. Brand context is only sent to AI when enabled above.
-              </Typography>
-            </Stack>
-          </Paper>
-        </Stack>
-      </Box>
+            <Button onClick={() => setActiveStep(1)} sx={{ alignSelf: "flex-start" }}>
+              Back to content
+            </Button>
+          </Stack>
+        ) : null}
+      </Paper>
     </Stack>
   );
 }

@@ -74,17 +74,52 @@ export function buildVariantContentJson(
   });
 }
 
+/** One variant per social platform (Instagram carousel wins over post if both enabled). */
 export function toContentPostVariants(
   variants: QuickVariantDraft[],
   imageUrl?: string | null
 ): ContentPostVariant[] {
-  return variants
-    .filter((variant) => variant.enabled)
-    .map((variant) => ({
-      platform: getVariantDefinition(variant.key).platform,
-      title: variant.title.trim() || "Quick post",
-      contentJson: buildVariantContentJson(variant, imageUrl),
-    }));
+  const enabled = variants.filter((variant) => variant.enabled);
+  const byPlatform = new Map<SocialPlatform, QuickVariantDraft>();
+
+  for (const variant of enabled) {
+    const platform = getVariantDefinition(variant.key).platform;
+    const existing = byPlatform.get(platform);
+    if (!existing) {
+      byPlatform.set(platform, variant);
+      continue;
+    }
+    const existingDef = getVariantDefinition(existing.key);
+    const nextDef = getVariantDefinition(variant.key);
+    if (nextDef.format === "carousel" && existingDef.format === "post") {
+      byPlatform.set(platform, variant);
+    }
+  }
+
+  return [...byPlatform.values()].map((variant) => ({
+    platform: getVariantDefinition(variant.key).platform,
+    title: variant.title.trim() || "Quick post",
+    contentJson: buildVariantContentJson(variant, imageUrl),
+  }));
+}
+
+export function findVariantForPlatform(
+  variants: QuickVariantDraft[],
+  platform: SocialPlatform
+): QuickVariantDraft | undefined {
+  const enabled = variants.filter((variant) => variant.enabled);
+  const matches = enabled.filter((variant) => getVariantDefinition(variant.key).platform === platform);
+  if (matches.length === 0) return undefined;
+  const carousel = matches.find((variant) => getVariantDefinition(variant.key).format === "carousel");
+  return carousel ?? matches[0];
+}
+
+export function variantHasContent(variant: QuickVariantDraft): boolean {
+  const definition = getVariantDefinition(variant.key);
+  if (definition.format === "carousel") {
+    return Boolean(variant.body.trim() || variant.slides.some(Boolean));
+  }
+  return variant.body.trim().length > 0;
 }
 
 export function defaultContentType(platform: SocialPlatform): ContentType {
