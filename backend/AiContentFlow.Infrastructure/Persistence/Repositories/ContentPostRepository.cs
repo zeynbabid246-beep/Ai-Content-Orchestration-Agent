@@ -30,10 +30,42 @@ public class ContentPostRepository : IContentPostRepository
 
     public async Task<List<ContentPost>> GetByTeamAsync(Guid teamId)
     {
+        return await GetByTeamAsync(teamId, null, null, null);
+    }
+
+    public async Task<List<ContentPost>> GetByTeamAsync(
+        Guid teamId,
+        int? channelId,
+        int? campaignId,
+        ContentStatus? status)
+    {
+        var query = _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Archived);
+
+        if (channelId.HasValue)
+            query = query.Where(cp => cp.ChannelId == channelId.Value);
+
+        if (campaignId.HasValue)
+            query = query.Where(cp => cp.CampaignId == campaignId.Value);
+
+        if (status.HasValue)
+            query = query.Where(cp => cp.Status == status.Value);
+
+        return await query
+            .OrderByDescending(cp => cp.UpdatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<ContentPost>> GetByCampaignAsync(Guid teamId, int campaignId)
+    {
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
-            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Archived)
-            .OrderByDescending(cp => cp.CreatedAt)
+            .Where(cp =>
+                cp.TeamId == teamId &&
+                cp.CampaignId == campaignId &&
+                cp.Status != ContentStatus.Archived)
+            .OrderByDescending(cp => cp.UpdatedAt)
             .ToListAsync();
     }
 

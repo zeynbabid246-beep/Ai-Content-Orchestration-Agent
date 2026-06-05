@@ -60,7 +60,7 @@ export const QUICK_VARIANT_DEFINITIONS: QuickVariantDefinition[] = [
 export function createInitialVariants(): QuickVariantDraft[] {
   return QUICK_VARIANT_DEFINITIONS.map((definition) => ({
     key: definition.key,
-    enabled: definition.key === "linkedin-post",
+    enabled: false,
     title: "",
     body: "",
     slides: definition.format === "carousel" ? ["", ""] : [],

@@ -8,6 +8,9 @@ export const ROUTES = {
   // Auth
   login: "/app/login",
   register: "/app/register",
+  forgotPassword: "/app/forgot-password",
+  resetPassword: "/app/reset-password",
+  acceptInvite: "/app/accept-invite",
 
   // Workspace
   dashboard: "/app/dashboard",
@@ -39,7 +42,22 @@ export const channelPaths = {
   publishing: (channelId: number | string) => `${ROUTES.channels}/${channelId}/publishing`,
   analytics: (channelId: number | string) => `${ROUTES.channels}/${channelId}/analytics`,
   settings: (channelId: number | string) => `${ROUTES.channels}/${channelId}/settings`,
+  newPost: (channelId: number | string) => `${ROUTES.channels}/${channelId}/posts/new`,
+  post: (channelId: number | string, postId: number | string) =>
+    `${ROUTES.channels}/${channelId}/posts/${postId}`,
 };
+
+/** Navigate to the post editor (campaign-scoped when campaignId is set). */
+export function postEditorPath(
+  channelId: number | string,
+  postId: number | string,
+  campaignId?: number | null
+): string {
+  if (campaignId) {
+    return campaignPaths.post(channelId, campaignId, postId);
+  }
+  return channelPaths.post(channelId, postId);
+}
 
 /**
  * Campaign-scoped path builders.

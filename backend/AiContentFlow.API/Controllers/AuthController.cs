@@ -1,7 +1,9 @@
 ﻿using AiContentFlow.Application.Features.Auth;
 using AiContentFlow.Application.Features.Auth.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 
 namespace AiContentFlow.API.Controllers
 {
@@ -16,8 +18,8 @@ namespace AiContentFlow.API.Controllers
         {
             _authService = authService;
         }
-        [HttpPost("register")]
 
+        [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
             var result = await _authService.RegisterAsync(request);
@@ -25,13 +27,11 @@ namespace AiContentFlow.API.Controllers
         }
 
         [HttpPost("login")]
-
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
             var result = await _authService.LoginAsync(request);
             return Ok(result);
         }
-
 
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] RefreshRequestDto request)
@@ -40,6 +40,40 @@ namespace AiContentFlow.API.Controllers
             return Ok(result);
         }
 
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
+        {
+            var result = await _authService.ForgotPasswordAsync(request);
+            return Ok(result);
+        }
 
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        {
+            var result = await _authService.ResetPasswordAsync(request);
+            return Ok(result);
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")
+                ?? throw new UnauthorizedAccessException("User not authenticated");
+
+            var result = await _authService.ChangePasswordAsync(userId, request);
+            return Ok(result);
+        }
+
+        [HttpPost("logout")]
+        [Authorize]
+        public async Task<IActionResult> Logout([FromBody] LogoutRequestDto request)
+        {
+            await _authService.LogoutAsync(request);
+            return NoContent();
+        }
     }
 }

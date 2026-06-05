@@ -17,6 +17,7 @@ import { BrandStudioEmptyState } from "../components/BrandStudioEmptyState";
 import { ImportStatus } from "../components/ImportStatus";
 import { useBrandImportJob, useBrandStudio, useStartBrandImport } from "../hooks/useBrandStudio";
 import { updateBrandStudio } from "../services/brandStudio.service";
+import { formatAiError, syncBrandToAi } from "../../ai/ai.api";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import type {
   BrandEnrichedProfile,
@@ -85,6 +86,7 @@ export function BrandStudioPage() {
   const [parsedProfile, setParsedProfile] = useState<BrandParsedProfile>(emptyParsedProfile());
   const [enrichedProfile, setEnrichedProfile] = useState<BrandEnrichedProfile>(emptyEnrichedProfile());
   const [saving, setSaving] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const brandStudioQuery = useBrandStudio();
   const importMutation = useStartBrandImport();
   const jobQuery = useBrandImportJob(activeJobId);
@@ -158,7 +160,8 @@ export function BrandStudioPage() {
           Brand Studio
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Import a website and review the brand profile extracted by your local AI backend.
+          Import a website or edit your profile manually. AI campaigns sync this context to the AI
+          backend (strategy, planning, and content generation).
         </Typography>
       </Box>
 
@@ -527,6 +530,15 @@ export function BrandStudioPage() {
                 </Grid>
               </Grid>
 
+              {syncMessage ? (
+                <Alert
+                  severity={syncMessage.includes("synced") ? "success" : "warning"}
+                  onClose={() => setSyncMessage(null)}
+                >
+                  {syncMessage}
+                </Alert>
+              ) : null}
+
               {canImportBrand ? (
                 <Button
                   variant="contained"
@@ -540,6 +552,12 @@ export function BrandStudioPage() {
                           enrichedProfile,
                         });
                         await refetchBrandStudio();
+                        try {
+                          await syncBrandToAi();
+                          setSyncMessage("Brand profile saved and synced to the AI service.");
+                        } catch (syncErr) {
+                          setSyncMessage(formatAiError(syncErr));
+                        }
                       } finally {
                         setSaving(false);
                       }

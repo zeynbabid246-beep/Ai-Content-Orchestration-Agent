@@ -1,5 +1,5 @@
 import { Stack, Typography } from "@mui/material";
-import { ArrowUpRight, Calendar, FileText } from "lucide-react";
+import { ArrowUpRight, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { EntityAvatar } from "../../../shared/ui/EntityAvatar";
 import { getEntityColor } from "../../../shared/lib/entityVisual";
@@ -11,10 +11,9 @@ import { CampaignStatusChip } from "./CampaignStatusChip";
 interface CampaignCardProps {
   campaign: Campaign;
   postCount?: number;
-  publicationCount?: number;
 }
 
-export function CampaignCard({ campaign, postCount, publicationCount }: CampaignCardProps) {
+export function CampaignCard({ campaign, postCount }: CampaignCardProps) {
   const navigate = useNavigate();
   const accent = getEntityColor(`c-${campaign.id}`);
   const channelId = campaign.channelId ?? 0;
@@ -56,19 +55,11 @@ export function CampaignCard({ campaign, postCount, publicationCount }: Campaign
         </Typography>
       }
       footer={
-        <Stack direction="row" spacing={2.5}>
-          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: "text.secondary" }}>
-            <FileText size={14} />
-            <Typography variant="caption">
-              {postCount ?? 0} {postCount === 1 ? "post" : "posts"}
-            </Typography>
-          </Stack>
-          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: "text.secondary" }}>
-            <Calendar size={14} />
-            <Typography variant="caption">
-              {publicationCount ?? 0} {publicationCount === 1 ? "publication" : "publications"}
-            </Typography>
-          </Stack>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: "text.secondary" }}>
+          <FileText size={14} />
+          <Typography variant="caption">
+            {postCount ?? 0} {postCount === 1 ? "post" : "posts"}
+          </Typography>
         </Stack>
       }
     />

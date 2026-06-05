@@ -1,7 +1,7 @@
-import { env } from "../../shared/lib/env";
+import { apiFormUpload } from "../../shared/lib/http-upload";
 import { authStorage } from "../../shared/lib/storage";
 
-interface UploadImageResponse {
+export interface UploadImageResponse {
   url: string;
   relativePath: string;
   contentType: string;
@@ -16,29 +16,27 @@ function getTeamId(): string {
   return teamId;
 }
 
+function normalizeUploadResponse(raw: Record<string, unknown>): UploadImageResponse {
+  const url = (raw.url ?? raw.Url) as string | undefined;
+  if (!url?.trim()) {
+    throw new Error("Upload succeeded but the server did not return an image URL.");
+  }
+  return {
+    url: url.trim(),
+    relativePath: String(raw.relativePath ?? raw.RelativePath ?? ""),
+    contentType: String(raw.contentType ?? raw.ContentType ?? ""),
+    sizeBytes: Number(raw.sizeBytes ?? raw.SizeBytes ?? 0),
+  };
+}
+
 export async function uploadGenerateImage(file: File): Promise<UploadImageResponse> {
   const teamId = getTeamId();
-  const token = authStorage.getAccessToken();
-  if (!token) {
-    throw new Error("You are not authenticated.");
-  }
-
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", file, file.name || "image");
 
-  const response = await fetch(`${env.apiBaseUrl}/teams/${teamId}/media/images`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(error?.message ?? "Image upload failed.");
-  }
-
-  const data = (await response.json()) as UploadImageResponse;
-  return data;
+  const data = await apiFormUpload<Record<string, unknown>>(
+    `/teams/${teamId}/media/images`,
+    formData
+  );
+  return normalizeUploadResponse(data);
 }

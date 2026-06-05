@@ -8,24 +8,29 @@ import { getEntityColor } from "../../../shared/lib/entityVisual";
 import { ROUTES, channelPaths } from "../../../shared/lib/routes";
 import { useCampaigns } from "../../campaigns/campaigns.queries";
 import { useSocialAccounts } from "../../social-media/social-accounts.queries";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import type { Channel } from "../channels.types";
 
 interface ChannelHeaderProps {
   channel: Channel;
 }
 
-function parseSettings(settingsJson: string | null | undefined): Record<string, unknown> {
-  if (!settingsJson) return {};
+function resolveGoal(channel: Channel): string | null {
+  if (channel.branding?.goal) return channel.branding.goal;
+  if (!channel.config?.settingsJson) return null;
   try {
-    return JSON.parse(settingsJson) as Record<string, unknown>;
+    const parsed = JSON.parse(channel.config.settingsJson) as { goal?: string };
+    return parsed.goal ?? null;
   } catch {
-    return {};
+    return null;
   }
 }
 
 export function ChannelHeader({ channel }: ChannelHeaderProps) {
   const navigate = useNavigate();
+  const { canManageChannels } = useTeamPermissions();
   const accentColor = getEntityColor(channel.id);
+  const goal = resolveGoal(channel);
 
   const { data: campaigns = [] } = useCampaigns();
   const { data: accounts = [] } = useSocialAccounts();
@@ -36,11 +41,9 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
   );
 
   const channelAccounts = useMemo(
-    () => accounts.filter((account) => account.channelId === channel.id),
+    () => accounts.filter((account) => account.linkedChannelIds.includes(channel.id)),
     [accounts, channel.id]
   );
-
-  const settings = useMemo(() => parseSettings(null), []);
 
   return (
     <Box
@@ -113,24 +116,26 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
               </Typography>
             </Box>
 
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<Radio size={14} />}
-                onClick={() => navigate(channelPaths.publishing(channel.id))}
-              >
-                Connect account
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                startIcon={<Plus size={14} />}
-                onClick={() => navigate(channelPaths.campaigns(channel.id))}
-              >
-                New campaign
-              </Button>
-            </Stack>
+            {canManageChannels ? (
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Radio size={14} />}
+                  onClick={() => navigate(channelPaths.publishing(channel.id))}
+                >
+                  Connect account
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<Plus size={14} />}
+                  onClick={() => navigate(channelPaths.campaigns(channel.id))}
+                >
+                  New campaign
+                </Button>
+              </Stack>
+            ) : null}
           </Stack>
 
           <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap mt={0.5}>
@@ -146,11 +151,11 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
               label={`${channelAccounts.length} ${channelAccounts.length === 1 ? "account" : "accounts"}`}
               variant="outlined"
             />
-            {settings.goal ? (
+            {goal ? (
               <Chip
                 size="small"
                 icon={<Sparkles size={12} />}
-                label={`Goal: ${String(settings.goal)}`}
+                label={`Goal: ${goal}`}
                 variant="outlined"
                 sx={{ textTransform: "capitalize" }}
               />

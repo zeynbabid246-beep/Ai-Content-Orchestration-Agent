@@ -28,12 +28,19 @@ import { ContentStatus, SocialPlatform } from "../content-posts/content-posts.ty
 import type { SocialAccount } from "../social-media/social-accounts.types";
 import {
   createContentPost,
-  publishContentPost,
-  scheduleContentPost,
   transitionContentPostStatus,
 } from "../content-posts/content-posts.api";
+import {
+  formatPublicationError,
+  publishPublication,
+  schedulePublication,
+  waitForPublication,
+} from "./publications.api";
+import {
+  PublishDestinationsPanel,
+  type PlatformPublishState,
+} from "./components/PublishDestinationsPanel";
 import { PostVariantPreview } from "./components/PostVariantPreview";
-import { PublishDestinationsPanel } from "./components/PublishDestinationsPanel";
 import { WorkflowStepHeader } from "./components/WorkflowStepHeader";
 import {
   createInitialVariants,
@@ -43,6 +50,7 @@ import {
   type QuickVariantKey,
 } from "./generate.types";
 import { uploadGenerateImage } from "./media.api";
+import { dedupeAccountsByPlatform } from "./utils/dedupeAccountsByPlatform";
 import {
   csvToSlides,
   defaultContentType,
@@ -77,8 +85,14 @@ export function GeneratePage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  const [selectedByPlatform, setSelectedByPlatform] = useState<Partial<Record<SocialPlatform, number>>>({});
   const [scheduledAt, setScheduledAt] = useState("");
+  const [platformPublishState, setPlatformPublishState] = useState<
+    Partial<Record<SocialPlatform, PlatformPublishState>>
+  >({});
+  const [platformPublishErrors, setPlatformPublishErrors] = useState<Partial<Record<SocialPlatform, string>>>(
+    {}
+  );
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
@@ -104,6 +118,11 @@ export function GeneratePage() {
     [socialAccounts]
   );
 
+  const dedupedAccounts = useMemo(
+    () => dedupeAccountsByPlatform(activeSocialAccounts),
+    [activeSocialAccounts]
+  );
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get("socialAuthStatus");
@@ -127,27 +146,36 @@ export function GeneratePage() {
     window.history.replaceState({}, "", url);
   }, [refetchSocialAccounts]);
 
-  const enabledVariants = useMemo(() => variants.filter((variant) => variant.enabled), [variants]);
+  const enabledVariants = useMemo(
+    () => variants.filter((variant) => variant.enabled && variant.key !== "instagram-carousel"),
+    [variants]
+  );
+
   const activeVariant = variants.find((variant) => variant.key === activeVariantKey) ?? variants[0];
   const activeDefinition = getVariantDefinition(activeVariant.key);
 
-  const enabledPlatforms = useMemo(
-    () => new Set(enabledVariants.map((variant) => getVariantDefinition(variant.key).platform)),
-    [enabledVariants]
-  );
+  const enabledPlatforms = useMemo(() => {
+    const platforms = new Set<SocialPlatform>();
+    for (const variant of enabledVariants) {
+      platforms.add(getVariantDefinition(variant.key).platform);
+    }
+    return [...platforms];
+  }, [enabledVariants]);
+
+  const requiresInstagramImage = enabledPlatforms.includes(SocialPlatform.Instagram);
+  const hasImage = Boolean(imageFile || uploadedImageUrl);
 
   useEffect(() => {
-    if (activeSocialAccounts.length === 0) return;
-    setSelectedAccountIds((current) => {
-      const next = new Set(current);
-      for (const account of activeSocialAccounts) {
-        if (enabledPlatforms.has(account.platform)) {
-          next.add(account.id);
+    setSelectedByPlatform((current) => {
+      const next = { ...current };
+      for (const platform of Object.keys(next) as SocialPlatform[]) {
+        if (!enabledPlatforms.includes(platform)) {
+          delete next[platform];
         }
       }
-      return Array.from(next);
+      return next;
     });
-  }, [enabledPlatforms, activeSocialAccounts]);
+  }, [enabledPlatforms]);
 
   useEffect(() => {
     if (!enabledVariants.some((variant) => variant.key === activeVariantKey) && enabledVariants[0]) {
@@ -160,6 +188,7 @@ export function GeneratePage() {
   };
 
   const toggleVariant = (key: QuickVariantKey) => {
+    if (key === "instagram-carousel") return;
     setVariants((current) =>
       current.map((variant) => (variant.key === key ? { ...variant, enabled: !variant.enabled } : variant))
     );
@@ -218,7 +247,8 @@ export function GeneratePage() {
           text: `Generated ${enabledVariants.length} variant${enabledVariants.length > 1 ? "s" : ""}. Review and edit before publishing.`,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "AI generation failed.");
+        const { formatAiError } = await import("../ai/ai.api");
+        setError(formatAiError(err));
       } finally {
         setAiBusy(false);
       }
@@ -252,26 +282,44 @@ export function GeneratePage() {
     return true;
   };
 
+  const getSelectedAccounts = (): SocialAccount[] => {
+    return enabledPlatforms
+      .map((platform) => {
+        const accountId = selectedByPlatform[platform];
+        if (accountId == null) return null;
+        return activeSocialAccounts.find((account) => account.id === accountId) ?? null;
+      })
+      .filter((account): account is SocialAccount => account != null);
+  };
+
   const validatePublishSelection = (): SocialAccount[] | null => {
     if (!validateContent()) return null;
-    if (selectedAccountIds.length === 0) {
-      setActionMessage({ severity: "error", text: "Select at least one destination account to publish." });
-      return null;
-    }
 
-    const selected = activeSocialAccounts.filter((account) => selectedAccountIds.includes(account.id));
+    const selected = getSelectedAccounts();
     if (selected.length === 0) {
-      setActionMessage({ severity: "error", text: "Selected accounts are no longer available." });
+      setActionMessage({
+        severity: "error",
+        text: "Select one destination per platform you want to publish to.",
+      });
       return null;
     }
 
-    const missingVariant = selected.find(
-      (account) => !findVariantForPlatform(enabledVariants, account.platform) || !variantHasContent(findVariantForPlatform(enabledVariants, account.platform)!)
-    );
+    if (requiresInstagramImage && !hasImage) {
+      setActionMessage({
+        severity: "error",
+        text: "Instagram requires an image. Add shared media in step 2.",
+      });
+      return null;
+    }
+
+    const missingVariant = selected.find((account) => {
+      const variant = findVariantForPlatform(enabledVariants, account.platform);
+      return !variant || !variantHasContent(variant);
+    });
     if (missingVariant) {
       setActionMessage({
         severity: "error",
-        text: `No content variant for ${missingVariant.platform}. Enable and fill that platform in step 2.`,
+        text: `No content for ${missingVariant.platform}. Fill that platform variant in step 2.`,
       });
       return null;
     }
@@ -279,19 +327,16 @@ export function GeneratePage() {
     return selected;
   };
 
-  const createPostPayload = async (imageUrl: string | null) => {
+  const createPostPayload = async (imageUrl: string | null, selected: SocialAccount[]) => {
     const primaryVariant = enabledVariants[0];
     const primaryDefinition = getVariantDefinition(primaryVariant.key);
-    const channelId =
-      activeSocialAccounts.find((account) => selectedAccountIds.includes(account.id))?.channelId ??
-      activeSocialAccounts[0]?.channelId;
 
-    if (!channelId) {
+    if (selected.length === 0 && dedupedAccounts.length === 0) {
       throw new Error("Connect a social account first.");
     }
 
     return createContentPost({
-      channelId,
+      channelId: null,
       campaignId: null,
       title: primaryVariant.title.trim() || brief.trim() || "Quick post",
       contentType: defaultContentType(primaryDefinition.platform),
@@ -317,7 +362,12 @@ export function GeneratePage() {
         setIsSubmitting(true);
         setActionMessage(null);
         const imageUrl = await resolveImageUrl();
-        await createPostPayload(imageUrl);
+        const fallbackSelected =
+          getSelectedAccounts().length > 0 ? getSelectedAccounts() : dedupedAccounts.slice(0, 1);
+        if (fallbackSelected.length === 0) {
+          throw new Error("Connect a social account to save a draft.");
+        }
+        await createPostPayload(imageUrl, fallbackSelected);
         setActionMessage({ severity: "success", text: "Draft saved to your content library." });
       } catch (saveError) {
         setActionMessage({
@@ -338,48 +388,67 @@ export function GeneratePage() {
       try {
         setIsSubmitting(true);
         setActionMessage(null);
+        setPlatformPublishState({});
+        setPlatformPublishErrors({});
+
         const imageUrl = await resolveImageUrl();
-        const created = await createPostPayload(imageUrl);
+        const created = await createPostPayload(imageUrl, selected);
 
         await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
         await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
 
-        const results: { account: SocialAccount; ok: boolean; error?: string }[] = [];
+        const states: Partial<Record<SocialPlatform, PlatformPublishState>> = {};
+        const errors: Partial<Record<SocialPlatform, string>> = {};
 
         for (const account of selected) {
+          states[account.platform] = "queued";
+          setPlatformPublishState({ ...states });
+
           try {
-            await publishContentPost(created.id, {
+            const publication = await publishPublication(created.id, {
               socialAccountId: account.id,
               postVariantId: null,
               idempotencyKey: `generate-publish-${created.id}-${account.id}-${Date.now()}`,
             });
-            results.push({ account, ok: true });
+
+            states[account.platform] = "publishing";
+            setPlatformPublishState({ ...states });
+
+            const final = await waitForPublication(publication.id);
+
+            if (final.status === "Published") {
+              states[account.platform] = "published";
+            } else {
+              states[account.platform] = "failed";
+              errors[account.platform] = formatPublicationError(final.errorMessage);
+            }
           } catch (publishError) {
-            results.push({
-              account,
-              ok: false,
-              error: publishError instanceof Error ? publishError.message : "Publish failed",
-            });
+            states[account.platform] = "failed";
+            errors[account.platform] =
+              publishError instanceof Error ? publishError.message : "Publish failed";
           }
+
+          setPlatformPublishState({ ...states });
+          setPlatformPublishErrors({ ...errors });
         }
 
-        const succeeded = results.filter((result) => result.ok).length;
-        const failed = results.filter((result) => !result.ok);
+        const published = selected.filter((a) => states[a.platform] === "published").length;
+        const failed = selected.filter((a) => states[a.platform] === "failed");
 
         if (failed.length === 0) {
           setActionMessage({
             severity: "success",
-            text: `Published to ${succeeded} platform${succeeded > 1 ? "s" : ""} successfully.`,
+            text: `Published to ${published} platform${published > 1 ? "s" : ""}.`,
           });
-        } else if (succeeded > 0) {
+        } else if (published > 0) {
           setActionMessage({
             severity: "warning",
-            text: `Published to ${succeeded} platform(s). Failed: ${failed.map((f) => f.account.platform).join(", ")}.`,
+            text: `Published to ${published} platform(s). Failed: ${failed.map((f) => f.platform).join(", ")}.`,
           });
         } else {
           setActionMessage({
             severity: "error",
-            text: failed[0]?.error ?? "Publishing failed for all selected platforms.",
+            text: errors[failed[0].platform] ?? "Publishing failed for all selected platforms.",
           });
         }
       } catch (publishError) {
@@ -408,23 +477,27 @@ export function GeneratePage() {
         setIsSubmitting(true);
         setActionMessage(null);
         const imageUrl = await resolveImageUrl();
-        const created = await createPostPayload(imageUrl);
+        const created = await createPostPayload(imageUrl, selected);
 
         await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
         await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
 
         let scheduled = 0;
+        const failures: string[] = [];
+
         for (const account of selected) {
           try {
-            await scheduleContentPost(created.id, {
+            await schedulePublication(created.id, {
               socialAccountId: account.id,
               postVariantId: null,
               scheduledAt: scheduledUtc.toISOString(),
               idempotencyKey: `generate-schedule-${created.id}-${account.id}-${scheduledUtc.getTime()}`,
             });
             scheduled += 1;
-          } catch {
-            // continue with other accounts
+          } catch (scheduleError) {
+            failures.push(
+              scheduleError instanceof Error ? scheduleError.message : account.platform
+            );
           }
         }
 
@@ -432,8 +505,8 @@ export function GeneratePage() {
           severity: scheduled > 0 ? "success" : "error",
           text:
             scheduled > 0
-              ? `Scheduled for ${scheduled} platform${scheduled > 1 ? "s" : ""}.`
-              : "Scheduling failed for all selected platforms.",
+              ? `Scheduled for ${scheduled} platform${scheduled > 1 ? "s" : ""} at ${scheduledUtc.toLocaleString()}.`
+              : failures[0] ?? "Scheduling failed for all selected platforms.",
         });
       } catch (scheduleError) {
         setActionMessage({
@@ -446,31 +519,21 @@ export function GeneratePage() {
     })();
   };
 
-  const connectLinkedIn = () => {
-    void getSocialAuthLoginUrl("linkedin")
+  const startSocialAuth = (platform: "linkedin" | "facebook" | "instagram") => {
+    void getSocialAuthLoginUrl(platform)
       .then((url) => {
         window.location.href = url;
       })
       .catch((connectError) => {
         setActionMessage({
           severity: "error",
-          text: connectError instanceof Error ? connectError.message : "Failed to start LinkedIn auth.",
+          text: connectError instanceof Error ? connectError.message : `Failed to start ${platform} auth.`,
         });
       });
   };
 
-  const connectMeta = () => {
-    void getSocialAuthLoginUrl("facebook")
-      .then((url) => {
-        window.location.href = url;
-      })
-      .catch((connectError) => {
-        setActionMessage({
-          severity: "error",
-          text: connectError instanceof Error ? connectError.message : "Failed to start Meta auth.",
-        });
-      });
-  };
+  const canContinueToPublish =
+    enabledVariants.length > 0 && (!requiresInstagramImage || hasImage);
 
   return (
     <Stack spacing={2.5}>
@@ -479,7 +542,8 @@ export function GeneratePage() {
           Quick Generate
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Create a post in three steps: brief, platform content, then publish to one or more connected accounts.
+          Choose platforms, create content, then pick one account per platform to publish. Nothing is
+          posted until you confirm destinations in step 3.
         </Typography>
       </Box>
 
@@ -598,12 +662,14 @@ export function GeneratePage() {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {QUICK_VARIANT_DEFINITIONS.map((definition) => {
                 const enabled = variants.find((variant) => variant.key === definition.key)?.enabled ?? false;
+                const isCarousel = definition.key === "instagram-carousel";
                 return (
                   <Chip
                     key={definition.key}
-                    label={definition.label}
+                    label={isCarousel ? `${definition.label} (soon)` : definition.label}
                     color={enabled ? "primary" : "default"}
                     variant={enabled ? "filled" : "outlined"}
+                    disabled={isCarousel}
                     onClick={() => toggleVariant(definition.key)}
                   />
                 );
@@ -611,7 +677,11 @@ export function GeneratePage() {
             </Stack>
 
             <Stack direction="row" justifyContent="flex-end">
-              <Button variant="contained" onClick={() => setActiveStep(1)}>
+              <Button
+                variant="contained"
+                onClick={() => setActiveStep(1)}
+                disabled={enabledVariants.length === 0}
+              >
                 Continue to content
               </Button>
             </Stack>
@@ -690,6 +760,11 @@ export function GeneratePage() {
 
                   <Typography variant="subtitle2" fontWeight={600}>
                     Shared media
+                    {requiresInstagramImage ? (
+                      <Typography component="span" variant="caption" color="warning.main" sx={{ ml: 1 }}>
+                        Required for Instagram
+                      </Typography>
+                    ) : null}
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Button component="label" variant="outlined" size="small">
@@ -762,7 +837,11 @@ export function GeneratePage() {
 
             <Stack direction="row" justifyContent="space-between">
               <Button onClick={() => setActiveStep(0)}>Back</Button>
-              <Button variant="contained" onClick={() => setActiveStep(2)} disabled={enabledVariants.length === 0}>
+              <Button
+                variant="contained"
+                onClick={() => setActiveStep(2)}
+                disabled={!canContinueToPublish}
+              >
                 Continue to publish
               </Button>
             </Stack>
@@ -774,18 +853,24 @@ export function GeneratePage() {
             <WorkflowStepHeader
               step={3}
               title="Publish destinations"
-              description="Select every connected account you want to post to. Each uses its platform variant from step 2."
+              description="Choose one account per platform. Only selected destinations will receive this post."
             />
 
             <PublishDestinationsPanel
-              accounts={activeSocialAccounts}
-              selectedAccountIds={selectedAccountIds}
-              onSelectedAccountIdsChange={setSelectedAccountIds}
+              allAccounts={activeSocialAccounts}
+              enabledPlatforms={enabledPlatforms}
               enabledVariants={enabledVariants}
+              selectedByPlatform={selectedByPlatform}
+              onSelectedByPlatformChange={setSelectedByPlatform}
+              platformPublishState={platformPublishState}
+              platformPublishErrors={platformPublishErrors}
+              requiresImage={requiresInstagramImage}
+              hasImage={hasImage}
               scheduledAt={scheduledAt}
               onScheduledAtChange={setScheduledAt}
-              onConnectLinkedIn={connectLinkedIn}
-              onConnectMeta={connectMeta}
+              onConnectLinkedIn={() => startSocialAuth("linkedin")}
+              onConnectFacebook={() => startSocialAuth("facebook")}
+              onConnectInstagram={() => startSocialAuth("instagram")}
               isSubmitting={isSubmitting}
               onSaveDraft={saveDraft}
               onPublish={publishToSelected}

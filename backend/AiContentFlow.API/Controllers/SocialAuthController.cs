@@ -20,9 +20,13 @@ public class SocialAuthController : ControllerBase
         _configuration = configuration;
     }
 
-    // GET /api/auth/linkedin/login?teamId=...&channelId=1
+    // GET /api/auth/linkedin/login?teamId=...&linkChannelId=1 (channelId alias supported)
     [HttpGet("{platform}/login")]
-    public async Task<IActionResult> Login([FromRoute] string platform, [FromQuery] Guid teamId, [FromQuery] int? channelId = null)
+    public async Task<IActionResult> Login(
+        [FromRoute] string platform,
+        [FromQuery] Guid teamId,
+        [FromQuery] int? linkChannelId = null,
+        [FromQuery] int? channelId = null)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
@@ -31,12 +35,13 @@ public class SocialAuthController : ControllerBase
         if (teamId == Guid.Empty)
             return BadRequest(new { error = "Invalid teamId" });
 
-        if (channelId.HasValue && channelId.Value <= 0)
-            return BadRequest(new { error = "Invalid channelId" });
+        var resolvedLinkChannelId = linkChannelId ?? channelId;
+        if (resolvedLinkChannelId.HasValue && resolvedLinkChannelId.Value <= 0)
+            return BadRequest(new { error = "Invalid linkChannelId" });
 
         try
         {
-            var result = await _socialAuthService.CreateLoginUrlAsync(teamId, channelId, userId, platform);
+            var result = await _socialAuthService.CreateLoginUrlAsync(teamId, resolvedLinkChannelId, userId, platform);
             return Ok(result);
         }
         catch (NotSupportedException ex)

@@ -7,9 +7,12 @@ import { useDeleteChannel, useUpdateChannel } from "../channels.queries";
 import { CreateChannelDialog } from "../components/CreateChannelDialog";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
 import { ROUTES } from "../../../shared/lib/routes";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { ReadOnlyBanner } from "../../../shared/ui/ReadOnlyBanner";
 
 export function ChannelSettingsPage() {
   const navigate = useNavigate();
+  const { canManageChannels } = useTeamPermissions();
   const { channelId, channel } = useChannelContext();
   const updateMutation = useUpdateChannel();
   const deleteMutation = useDeleteChannel();
@@ -22,6 +25,7 @@ export function ChannelSettingsPage() {
   return (
     <>
       <Stack spacing={2.5}>
+        {!canManageChannels ? <ReadOnlyBanner /> : null}
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
             Channel settings
@@ -54,9 +58,11 @@ export function ChannelSettingsPage() {
                 </Typography>
               </Box>
             </Box>
-            <Button variant="outlined" onClick={() => setEditOpen(true)}>
-              Edit identity
-            </Button>
+            {canManageChannels ? (
+              <Button variant="outlined" onClick={() => setEditOpen(true)}>
+                Edit identity
+              </Button>
+            ) : null}
           </Stack>
         </Paper>
 
@@ -81,14 +87,16 @@ export function ChannelSettingsPage() {
                 </Alert>
               ) : null}
             </Box>
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<Trash2 size={14} />}
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete channel
-            </Button>
+            {canManageChannels ? (
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<Trash2 size={14} />}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete channel
+              </Button>
+            ) : null}
           </Stack>
         </Paper>
       </Stack>

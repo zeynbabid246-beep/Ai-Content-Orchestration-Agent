@@ -48,9 +48,9 @@ function CreateCampaignDialogInner({
   const isEdit = Boolean(initial);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [objective, setObjective] = useState<string>("");
-  const [toneOfVoice, setToneOfVoice] = useState<string>("");
-  const [targetAudience, setTargetAudience] = useState<string>("");
+  const [objective, setObjective] = useState(initial?.objective ?? "");
+  const [toneOfVoice, setToneOfVoice] = useState(initial?.toneOfVoiceOverride ?? "");
+  const [targetAudience, setTargetAudience] = useState(initial?.targetAudienceOverride ?? "");
   const [status, setStatus] = useState<CampaignStatus>(initial?.status ?? CampaignStatus.Draft);
 
   const canSubmit = name.trim().length >= 2 && !saving;

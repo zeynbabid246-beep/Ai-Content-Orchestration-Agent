@@ -44,6 +44,20 @@ public class CampaignRepository : ICampaignRepository
             && (!excludeCampaignId.HasValue || c.Id != excludeCampaignId.Value));
     }
 
+    public async Task SoftDeleteByChannelAsync(Guid teamId, int channelId, DateTime deletedAtUtc)
+    {
+        var campaigns = await _context.Campaigns
+            .Where(c => c.TeamId == teamId && c.ChannelId == channelId && !c.IsDeleted)
+            .ToListAsync();
+
+        foreach (var campaign in campaigns)
+        {
+            campaign.IsDeleted = true;
+            campaign.DeletedAt = deletedAtUtc;
+            campaign.UpdatedAt = deletedAtUtc;
+        }
+    }
+
     public async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();

@@ -94,10 +94,10 @@ public class FacebookPublisher : IPublisher
 
     private async Task<PublishResult> PublishPhotoAsync(string pageId, string accessToken, string message, string imageUrl)
     {
-        if (TryResolveLocalImagePath(imageUrl, out var localPath))
-        {
-            return await PublishPhotoFromFileAsync(pageId, accessToken, message, localPath);
-        }
+            if (PublishLocalImageHelper.TryResolveLocalPath(imageUrl, out var localPath))
+            {
+                return await PublishPhotoFromFileAsync(pageId, accessToken, message, localPath);
+            }
 
         var payload = new Dictionary<string, string>
         {
@@ -155,45 +155,6 @@ public class FacebookPublisher : IPublisher
         return PublishResult.Success(postId, postUrl ?? string.Empty);
     }
 
-    private static bool TryResolveLocalImagePath(string imageUrl, out string localPath)
-    {
-        localPath = string.Empty;
-        if (string.IsNullOrWhiteSpace(imageUrl))
-            return false;
-
-        string? requestPath = null;
-
-        if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
-        {
-            var isLocalHost = uri.IsLoopback
-                              || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                              || uri.Host.Equals("127.0.0.1")
-                              || uri.Host.Equals("::1");
-
-            if (!isLocalHost)
-                return false;
-
-            requestPath = WebUtility.UrlDecode(uri.AbsolutePath);
-        }
-        else if (imageUrl.StartsWith('/'))
-        {
-            requestPath = WebUtility.UrlDecode(imageUrl);
-        }
-
-        if (string.IsNullOrWhiteSpace(requestPath))
-            return false;
-
-        var trimmedPath = requestPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        var fullPath = Path.GetFullPath(Path.Combine(wwwroot, trimmedPath));
-        var fullWwwroot = Path.GetFullPath(wwwroot);
-
-        if (!fullPath.StartsWith(fullWwwroot, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        localPath = fullPath;
-        return true;
-    }
 }
 
 public class FacebookPostResponse

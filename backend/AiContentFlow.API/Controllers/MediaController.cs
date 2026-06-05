@@ -40,7 +40,7 @@ public class MediaController : ControllerBase
             return Unauthorized("Not a team member");
 
         if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only editors and admins can upload images." });
 
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Image file is required." });
@@ -48,11 +48,12 @@ public class MediaController : ControllerBase
         if (file.Length > MaxImageSizeBytes)
             return BadRequest(new { message = "Image file is too large. Maximum size is 10 MB." });
 
-        if (!AllowedMimeTypes.Contains(file.ContentType))
+        var contentType = ResolveContentType(file);
+        if (!AllowedMimeTypes.Contains(contentType))
             return BadRequest(new { message = "Unsupported image format. Allowed: jpeg, png, webp, gif." });
 
         await using var validationStream = file.OpenReadStream();
-        if (!ImageFileValidator.TryValidate(validationStream, file.ContentType, out var validationError))
+        if (!ImageFileValidator.TryValidate(validationStream, contentType, out var validationError))
             return BadRequest(new { message = validationError });
 
         var uploadsRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", teamId.ToString("N"));
@@ -60,7 +61,7 @@ public class MediaController : ControllerBase
 
         var extension = Path.GetExtension(file.FileName);
         if (string.IsNullOrWhiteSpace(extension))
-            extension = GuessExtension(file.ContentType);
+            extension = GuessExtension(contentType);
 
         var filename = $"{Guid.NewGuid():N}{extension}";
         var fullPath = Path.Combine(uploadsRoot, filename);
@@ -73,7 +74,27 @@ public class MediaController : ControllerBase
         var relativePath = $"/uploads/{teamId:N}/{filename}";
         var publicUrl = $"{Request.Scheme}://{Request.Host}{relativePath}";
 
-        return Ok(new UploadImageResponseDto(publicUrl, relativePath, file.ContentType, file.Length));
+        return Ok(new UploadImageResponseDto(publicUrl, relativePath, contentType, file.Length));
+    }
+
+    private static string ResolveContentType(IFormFile file)
+    {
+        if (!string.IsNullOrWhiteSpace(file.ContentType)
+            && !string.Equals(file.ContentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            && AllowedMimeTypes.Contains(file.ContentType))
+        {
+            return file.ContentType;
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => file.ContentType
+        };
     }
 
     private string GetCurrentUserId()

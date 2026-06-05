@@ -8,6 +8,7 @@ import { ROUTES, campaignPaths, channelPaths } from "../../../shared/lib/routes"
 import type { Channel } from "../../channels/channels.types";
 import type { Campaign } from "../campaigns.types";
 import { CampaignStatusChip } from "./CampaignStatusChip";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 
 interface CampaignHeaderProps {
   channel: Channel;
@@ -16,6 +17,7 @@ interface CampaignHeaderProps {
 
 export function CampaignHeader({ channel, campaign }: CampaignHeaderProps) {
   const navigate = useNavigate();
+  const { canMutateContent } = useTeamPermissions();
   const accent = getEntityColor(`c-${campaign.id}`);
 
   return (
@@ -92,16 +94,18 @@ export function CampaignHeader({ channel, campaign }: CampaignHeaderProps) {
               </Typography>
             </Box>
 
-            <Stack direction="row" spacing={1} flexShrink={0}>
-              <Button
-                variant="contained"
-                size="small"
-                startIcon={<Plus size={14} />}
-                onClick={() => navigate(campaignPaths.newPost(channel.id, campaign.id))}
-              >
-                New post
-              </Button>
-            </Stack>
+            {canMutateContent ? (
+              <Stack direction="row" spacing={1} flexShrink={0}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<Plus size={14} />}
+                  onClick={() => navigate(campaignPaths.newPost(channel.id, campaign.id))}
+                >
+                  New post
+                </Button>
+              </Stack>
+            ) : null}
           </Stack>
         </Stack>
       </Stack>

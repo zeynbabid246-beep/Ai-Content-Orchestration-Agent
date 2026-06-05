@@ -1,14 +1,29 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, MenuItem, Paper, Skeleton, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  MenuItem,
+  Paper,
+  Skeleton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { LayoutGrid, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../../shared/ui/PageHeader";
+import { WorkspaceEmptyState } from "../../../shared/ui/WorkspaceEmptyState";
 import { useCampaigns } from "../campaigns.queries";
 import { useChannels } from "../../channels/channels.queries";
-import { useContentPosts } from "../../content-posts/content-posts.queries";
-import { CampaignCard } from "../components/CampaignCard";
 import { CampaignStatus } from "../campaigns.types";
-import { ROUTES, channelPaths } from "../../../shared/lib/routes";
+import { CampaignStatusChip } from "../components/CampaignStatusChip";
+import { campaignPaths } from "../../../shared/lib/routes";
 
 const STATUS_FILTERS: { value: "all" | CampaignStatus; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -23,7 +38,6 @@ export function CampaignsListPage() {
   const navigate = useNavigate();
   const campaignsQuery = useCampaigns();
   const { data: channels = [] } = useChannels();
-  const { data: allPosts = [] } = useContentPosts();
 
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<number | "all">("all");
@@ -39,27 +53,21 @@ export function CampaignsListPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (campaignsQuery.data ?? []).filter((campaign) => {
-      if (channelFilter !== "all" && campaign.channelId !== channelFilter) return false;
-      if (statusFilter !== "all" && campaign.status !== statusFilter) return false;
-      if (term) {
-        const haystack = `${campaign.name} ${campaign.description ?? ""}`.toLowerCase();
-        if (!haystack.includes(term)) return false;
-      }
-      return true;
-    });
+    return (campaignsQuery.data ?? [])
+      .filter((campaign) => {
+        if (channelFilter !== "all" && campaign.channelId !== channelFilter) return false;
+        if (statusFilter !== "all" && campaign.status !== statusFilter) return false;
+        if (term) {
+          const haystack = `${campaign.name} ${campaign.description ?? ""}`.toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
   }, [campaignsQuery.data, search, channelFilter, statusFilter]);
-
-  const postCounts = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const post of allPosts) {
-      const cid = (post as { campaignId?: number | null }).campaignId;
-      if (typeof cid === "number") {
-        map.set(cid, (map.get(cid) ?? 0) + 1);
-      }
-    }
-    return map;
-  }, [allPosts]);
 
   const campaigns = campaignsQuery.data ?? [];
 
@@ -67,8 +75,8 @@ export function CampaignsListPage() {
     <>
       <PageHeader
         eyebrow="OPERATIONS"
-        title="Campaigns"
-        subtitle="Editorial initiatives across all your channels. Open a channel to create new campaigns."
+        title="All campaigns"
+        subtitle="All campaigns across channels. Open a row to manage posts inside the channel workspace."
       />
 
       {campaignsQuery.isError ? (
@@ -78,30 +86,17 @@ export function CampaignsListPage() {
       ) : null}
 
       {campaignsQuery.isLoading ? (
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
-          }}
-        >
-          {[0, 1, 2].map((index) => (
-            <Skeleton key={index} variant="rounded" height={170} />
+        <Stack spacing={1}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} variant="rounded" height={48} />
           ))}
-        </Box>
+        </Stack>
       ) : campaigns.length === 0 ? (
-        <Paper sx={{ p: 5, textAlign: "center", borderStyle: "dashed" }}>
-          <LayoutGrid size={22} style={{ opacity: 0.55 }} />
-          <Typography variant="h6" sx={{ mt: 1.5 }}>
-            No campaigns yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-            Campaigns live inside channels. Open a channel and create one from there.
-          </Typography>
-          <Button variant="contained" onClick={() => navigate(ROUTES.channels)}>
-            Browse channels
-          </Button>
-        </Paper>
+        <WorkspaceEmptyState
+          icon={<LayoutGrid size={22} />}
+          title="No campaigns yet"
+          description="Campaigns are created inside a channel. Browse channels to start an initiative."
+        />
       ) : (
         <Stack spacing={2.5}>
           <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
@@ -159,41 +154,56 @@ export function CampaignsListPage() {
           {filtered.length === 0 ? (
             <Alert severity="info">No campaigns match your filters.</Alert>
           ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
-              }}
-            >
-              {filtered.map((campaign) => (
-                <Box key={campaign.id}>
-                  <CampaignCard
-                    campaign={campaign}
-                    postCount={postCounts.get(campaign.id) ?? 0}
-                  />
-                  {campaign.channelId ? (
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block", mt: 0.5, ml: 0.5 }}
-                    >
-                      in{" "}
-                      <Box
-                        component="span"
-                        sx={{ cursor: "pointer", color: "primary.main" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(channelPaths.overview(campaign.channelId!));
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Campaign</TableCell>
+                    <TableCell>Channel</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Updated</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filtered.map((campaign) => {
+                    const chId = campaign.channelId;
+                    return (
+                      <TableRow
+                        key={campaign.id}
+                        hover
+                        sx={{ cursor: chId ? "pointer" : "default" }}
+                        onClick={() => {
+                          if (chId) {
+                            navigate(campaignPaths.overview(chId, campaign.id));
+                          }
                         }}
                       >
-                        {channelNameById.get(campaign.channelId) ?? `Channel #${campaign.channelId}`}
-                      </Box>
-                    </Typography>
-                  ) : null}
-                </Box>
-              ))}
-            </Box>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            {campaign.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {chId
+                              ? channelNameById.get(chId) ?? `Channel #${chId}`
+                              : "—"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <CampaignStatusChip status={campaign.status} />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(campaign.updatedAt).toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </Stack>
       )}

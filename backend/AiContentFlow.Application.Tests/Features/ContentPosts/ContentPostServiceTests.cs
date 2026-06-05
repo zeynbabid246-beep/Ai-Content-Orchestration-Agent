@@ -12,6 +12,50 @@ namespace AiContentFlow.Application.Tests.Features.ContentPosts;
 public class ContentPostServiceTests
 {
     [Fact]
+    public async Task CreateAsync_WhenRequesterIsViewer_ThrowsUnauthorizedAccessException()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var postVariantRepo = new Mock<IPostVariantRepository>();
+        var publicationService = new Mock<IPublicationService>();
+        var service = CreateService(contentPostRepo, channelRepo, teamRepo, postVariantRepo, publicationService);
+
+        var teamId = Guid.NewGuid();
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team" });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "viewer-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "viewer-1", Role = TeamRole.Viewer });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.CreateAsync(teamId, "viewer-1", CreateDto(channelId: 7)));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenChannelIdIsNull_StoresTeamScopedPostWithoutChannel()
+    {
+        var contentPostRepo = new Mock<IContentPostRepository>();
+        var channelRepo = new Mock<IChannelRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var postVariantRepo = new Mock<IPostVariantRepository>();
+        var publicationService = new Mock<IPublicationService>();
+        var service = CreateService(contentPostRepo, channelRepo, teamRepo, postVariantRepo, publicationService);
+
+        var teamId = Guid.NewGuid();
+        ContentPost? captured = null;
+        teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team { Id = teamId, Name = "Team" });
+        teamRepo.Setup(x => x.GetUserMembershipAsync(teamId, "user-1"))
+            .ReturnsAsync(new UserTeam { Id = Guid.NewGuid(), TeamId = teamId, UserId = "user-1", Role = TeamRole.Editor });
+        contentPostRepo.Setup(x => x.AddAsync(It.IsAny<ContentPost>()))
+            .Callback<ContentPost>(post => captured = post);
+
+        var result = await service.CreateAsync(teamId, "user-1", CreateDto(channelId: null));
+
+        Assert.Null(captured?.ChannelId);
+        Assert.Null(result.ChannelId);
+        contentPostRepo.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenChannelIsNotInTeam_ThrowsKeyNotFoundException()
     {
         var contentPostRepo = new Mock<IContentPostRepository>();
@@ -110,15 +154,21 @@ public class ContentPostServiceTests
         Mock<IPostVariantRepository> postVariantRepo,
         Mock<IPublicationService> publicationService)
     {
+        var campaignRepo = new Mock<ICampaignRepository>();
+        var activityService = new Mock<ITeamActivityService>();
         return new ContentPostService(
             contentPostRepo.Object,
             channelRepo.Object,
+            campaignRepo.Object,
             teamRepo.Object,
             postVariantRepo.Object,
-            publicationService.Object);
+            publicationService.Object,
+            activityService.Object,
+            new AiContentFlow.Application.Features.ContentPosts.Validators.CreateContentPostDtoValidator(),
+            new AiContentFlow.Application.Features.ContentPosts.Validators.UpdateContentPostDtoValidator());
     }
 
-    private static CreateContentPostDto CreateDto(int channelId)
+    private static CreateContentPostDto CreateDto(int? channelId)
     {
         return new CreateContentPostDto(
             channelId,

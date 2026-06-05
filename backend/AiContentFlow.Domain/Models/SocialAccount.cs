@@ -6,8 +6,6 @@ public class SocialAccount
     public Guid TeamId { get; set; }
     public string AccountName { get; set; } = "";
     public Team? Team { get; set; }
-    public int ChannelId { get; set; }
-    public Channel? Channel { get; set; }
     public SocialPlatform Platform { get; set; }
     public SocialAccountStatus Status { get; set; }
     public string AccountHandle { get; set; } = string.Empty;
@@ -23,5 +21,6 @@ public class SocialAccount
 
     public DateTime TokenExpiry { get; set; }
 
+    public ICollection<ChannelSocialAccount> ChannelLinks { get; set; } = [];
     public ICollection<PostPublication> Publications { get; set; } = [];
 }

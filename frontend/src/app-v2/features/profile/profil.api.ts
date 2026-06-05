@@ -1,62 +1,87 @@
+import { apiFormRequest, apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
 
 export type Profile = {
   userId: string;
-  name: string;
+  username: string;
   email: string;
-  role: string;
   bio: string;
   avatarUrl: string | null;
+  teamRole: string;
+  teamName: string;
+  memberSince: string;
 };
 
 export type UpdateProfilePayload = {
-  name: string;
+  username: string;
   bio: string;
 };
 
+type ApiProfile = {
+  userId: string;
+  username: string;
+  email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  teamRole: string;
+  teamName: string;
+  memberSince: string;
+};
 
-const PROFILE_EXTRA_KEY = "profile_extra";
-
-type ProfileExtra = { bio: string; avatarUrl: string | null };
-
-function getProfileExtra(): ProfileExtra {
-  try {
-    const raw = localStorage.getItem(PROFILE_EXTRA_KEY);
-    return raw ? JSON.parse(raw) : { bio: "", avatarUrl: null };
-  } catch {
-    return { bio: "", avatarUrl: null };
-  }
+function getTeamId(): string {
+  const teamId = authStorage.getTeamId();
+  if (!teamId) throw new Error("No team found. Please log in again.");
+  return teamId;
 }
 
-function setProfileExtra(patch: Partial<ProfileExtra>): void {
-  const prev = getProfileExtra();
-  localStorage.setItem(PROFILE_EXTRA_KEY, JSON.stringify({ ...prev, ...patch }));
-}
-
-export function getProfile(): Profile {
-  const extra = getProfileExtra();
-
+function mapProfile(data: ApiProfile): Profile {
   return {
-    userId:   authStorage.getUserId()  ?? "",
-    name:     authStorage.getUsername() ?? "",
-    email:    "",           // not stored in authStorage — leave blank until backend exposes it
-    role:     authStorage.getTeamRole() ?? "",
-    bio:      extra.bio,
-    avatarUrl: extra.avatarUrl,
+    userId: data.userId,
+    username: data.username,
+    email: data.email,
+    bio: data.bio ?? "",
+    avatarUrl: data.avatarUrl ?? null,
+    teamRole: data.teamRole,
+    teamName: data.teamName,
+    memberSince: data.memberSince,
   };
 }
 
-
-
-export function updateProfile(data: UpdateProfilePayload): Profile {
-  const userId = authStorage.getUserId() ?? "";
-  authStorage.setUser(userId, data.name.trim());
-  setProfileExtra({ bio: data.bio });
-  return getProfile();
+export async function getProfile(): Promise<Profile> {
+  const teamId = getTeamId();
+  const data = await apiRequest<ApiProfile>(`/Profile/me?teamId=${encodeURIComponent(teamId)}`, {
+    requiresAuth: true,
+  });
+  return mapProfile(data);
 }
 
+export async function updateProfile(payload: UpdateProfilePayload): Promise<Profile> {
+  const teamId = getTeamId();
+  const userId = authStorage.getUserId() ?? "";
+  const data = await apiRequest<ApiProfile>(
+    `/Profile/me?teamId=${encodeURIComponent(teamId)}`,
+    {
+      method: "PUT",
+      requiresAuth: true,
+      body: JSON.stringify({
+        username: payload.username.trim(),
+        bio: payload.bio.trim() || null,
+      }),
+    }
+  );
+  authStorage.setUser(userId, data.username, data.email);
+  return mapProfile(data);
+}
 
-export function saveAvatarUrl(url: string): { url: string } {
-  setProfileExtra({ avatarUrl: url });
-  return { url };
+export async function uploadAvatar(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFormRequest<{ url: string }>("/Profile/avatar", formData);
+}
+
+export async function removeAvatar(): Promise<void> {
+  await apiRequest<void>("/Profile/avatar", {
+    method: "DELETE",
+    requiresAuth: true,
+  });
 }

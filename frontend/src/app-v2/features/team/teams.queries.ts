@@ -3,13 +3,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getTeamMembers,
+  getPendingInvitations,
   inviteMember,
+  revokeInvitation,
   updateMemberRole,
   removeMember,
 } from "./teams.api";
 
 export const teamKeys = {
   members: ["team", "members"] as const,
+  invitations: ["team", "invitations"] as const,
 };
 
 // Used by both InviteUserPage and MembersHistoryPage
@@ -28,11 +31,30 @@ export function useTeamMembersQuery() {
   });
 }
 
+export function usePendingInvitationsQuery(enabled = true) {
+  return useQuery({
+    queryKey: teamKeys.invitations,
+    queryFn: getPendingInvitations,
+    enabled,
+  });
+}
+
 export function useInviteMemberMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: inviteMember,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: teamKeys.members }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: teamKeys.members });
+      void queryClient.invalidateQueries({ queryKey: teamKeys.invitations });
+    },
+  });
+}
+
+export function useRevokeInvitationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeInvitation,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: teamKeys.invitations }),
   });
 }
 

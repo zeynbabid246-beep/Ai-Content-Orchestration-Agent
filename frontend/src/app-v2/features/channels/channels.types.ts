@@ -3,6 +3,8 @@ export interface Channel {
   teamId: string;
   name: string;
   description: string | null;
+  branding?: ChannelBranding | null;
+  config?: ChannelConfig | null;
   createdAt: string;
   updatedAt: string;
 }

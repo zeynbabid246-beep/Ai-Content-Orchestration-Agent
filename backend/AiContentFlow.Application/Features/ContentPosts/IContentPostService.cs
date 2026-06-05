@@ -5,7 +5,7 @@ namespace AiContentFlow.Application.Features.ContentPosts;
 public interface IContentPostService
 {
     Task<ContentPostResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateContentPostDto dto);
-    Task<List<ContentPostResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId);
+    Task<List<ContentPostResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId, ContentPostQueryDto? query = null);
     Task<ContentPostResponseDto> GetByIdAsync(Guid teamId, int contentPostId, string requestingUserId);
     Task<ContentPostResponseDto> UpdateAsync(Guid teamId, int contentPostId, string requestingUserId, UpdateContentPostDto dto);
     Task<ContentPostResponseDto> TransitionStatusAsync(Guid teamId, int contentPostId, string requestingUserId, TransitionContentPostStatusDto dto);

@@ -54,6 +54,16 @@ interface CreateChannelDialogProps {
 
 type InnerDialogProps = Omit<CreateChannelDialogProps, "open">;
 
+function goalFromConfig(config?: Channel["config"]): string {
+  if (!config?.settingsJson) return "";
+  try {
+    const parsed = JSON.parse(config.settingsJson) as { goal?: string };
+    return parsed.goal ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function CreateChannelDialogInner({
   initial,
   saving,
@@ -65,9 +75,15 @@ function CreateChannelDialogInner({
 
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [tone, setTone] = useState<string>("");
-  const [goal, setGoal] = useState<string>("");
-  const [color, setColor] = useState<string>(COLOR_OPTIONS[0]);
+  const [tone, setTone] = useState(initial?.branding?.tone ?? "");
+  const [goal, setGoal] = useState(
+    initial?.branding?.goal ?? goalFromConfig(initial?.config)
+  );
+  const [color, setColor] = useState(
+    initial?.branding?.theme && COLOR_OPTIONS.includes(initial.branding.theme)
+      ? initial.branding.theme
+      : COLOR_OPTIONS[0]
+  );
 
   const canSubmit = name.trim().length >= 2 && !saving;
 
@@ -79,6 +95,7 @@ function CreateChannelDialogInner({
       branding: {
         tone: tone || undefined,
         theme: color,
+        goal: goal || undefined,
       },
       config: {
         settingsJson: JSON.stringify({

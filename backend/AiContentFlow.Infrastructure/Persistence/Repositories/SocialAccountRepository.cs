@@ -22,8 +22,8 @@ public class SocialAccountRepository : ISocialAccountRepository
     public async Task<SocialAccount?> GetByIdAsync(Guid teamId, int socialAccountId)
     {
         return await _context.SocialAccounts
-            .FirstOrDefaultAsync(sa => sa.TeamId == teamId 
-                                    && sa.Id == socialAccountId 
+            .FirstOrDefaultAsync(sa => sa.TeamId == teamId
+                                    && sa.Id == socialAccountId
                                     && !sa.IsDeleted);
     }
 
@@ -35,27 +35,52 @@ public class SocialAccountRepository : ISocialAccountRepository
             .ToListAsync();
     }
 
-    public async Task<bool> ExistsAsync(Guid teamId, int? channelId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null)
+    public async Task<bool> ExistsAsync(Guid teamId, SocialPlatform platform, string normalizedHandle, int? excludeSocialAccountId = null)
     {
         return await _context.SocialAccounts.AnyAsync(sa =>
             sa.TeamId == teamId
-            && channelId.HasValue
-            && sa.ChannelId == channelId.Value
             && sa.Platform == platform
             && !sa.IsDeleted
             && sa.AccountHandle.ToLower() == normalizedHandle.ToLower()
             && (!excludeSocialAccountId.HasValue || sa.Id != excludeSocialAccountId.Value));
     }
 
-    public async Task<SocialAccount?> GetByExternalAccountIdAsync(Guid teamId, int? channelId, SocialPlatform platform, string externalAccountId)
+    public async Task<SocialAccount?> GetByExternalAccountIdForTeamAsync(Guid teamId, SocialPlatform platform, string externalAccountId)
     {
-        return await _context.SocialAccounts.FirstOrDefaultAsync(sa =>
-            sa.TeamId == teamId
-            && channelId.HasValue
-            && sa.ChannelId == channelId.Value
-            && sa.Platform == platform
-            && sa.ExternalAccountId == externalAccountId
-            && !sa.IsDeleted);
+        return await _context.SocialAccounts
+            .Where(sa =>
+                sa.TeamId == teamId
+                && sa.Platform == platform
+                && sa.ExternalAccountId == externalAccountId
+                && !sa.IsDeleted)
+            .OrderByDescending(sa => sa.UpdatedAt)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task DeactivateDuplicateAccountsForTeamAsync(
+        Guid teamId,
+        SocialPlatform platform,
+        string externalAccountId,
+        int keepSocialAccountId)
+    {
+        var duplicates = await _context.SocialAccounts
+            .Where(sa =>
+                sa.TeamId == teamId
+                && sa.Platform == platform
+                && sa.ExternalAccountId == externalAccountId
+                && sa.Id != keepSocialAccountId
+                && !sa.IsDeleted)
+            .ToListAsync();
+
+        var now = DateTime.UtcNow;
+        foreach (var duplicate in duplicates)
+        {
+            duplicate.IsDeleted = true;
+            duplicate.DeletedAt = now;
+            duplicate.IsActive = false;
+            duplicate.Status = SocialAccountStatus.Disconnected;
+            duplicate.UpdatedAt = now;
+        }
     }
 
     public async Task<List<SocialAccount>> GetExpiringBeforeAsync(DateTime thresholdUtc)

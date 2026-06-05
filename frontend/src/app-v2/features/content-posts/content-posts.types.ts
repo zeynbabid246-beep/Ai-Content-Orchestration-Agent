@@ -34,6 +34,7 @@ export interface ContentPost {
   id: number;
   teamId: string;
   channelId: number | null;
+  campaignId?: number | null;
   socialAccountId: number | null;
   title: string;
   contentType: ContentType;

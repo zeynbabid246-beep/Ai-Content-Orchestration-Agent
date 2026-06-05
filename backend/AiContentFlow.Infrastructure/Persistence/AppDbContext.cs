@@ -13,8 +13,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Team> Teams { get; set; }
     public DbSet<UserTeam> UserTeams { get; set; }
+    public DbSet<TeamInvitation> TeamInvitations { get; set; }
+    public DbSet<TeamActivityEvent> TeamActivityEvents { get; set; }
     public DbSet<Channel> Channels { get; set; }
     public DbSet<SocialAccount> SocialAccounts { get; set; }
+    public DbSet<ChannelSocialAccount> ChannelSocialAccounts { get; set; }
     public DbSet<ContentPost> ContentPosts { get; set; }
     public DbSet<PostVariant> PostVariants { get; set; }
     public DbSet<Campaign> Campaigns { get; set; }
@@ -155,11 +158,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(c => c.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasMany(c => c.SocialAccounts)
-                .WithOne(sa => sa.Channel)
-                .HasForeignKey(sa => sa.ChannelId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.HasMany(c => c.Campaigns)
                 .WithOne(campaign => campaign.Channel)
                 .HasForeignKey(campaign => campaign.ChannelId)
@@ -196,19 +194,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(sa => sa.OAuthToken).IsRequired().HasMaxLength(2000);
             entity.Property(sa => sa.ExternalAccountId).IsRequired().HasMaxLength(200);
             entity.Property(sa => sa.RefreshToken).HasMaxLength(2000);
-            entity.HasIndex(sa => new { sa.TeamId, sa.ChannelId });
             entity.HasIndex(sa => new { sa.TeamId, sa.Platform });
-            entity.HasIndex(sa => new { sa.TeamId, sa.ChannelId, sa.Platform, sa.AccountHandle }).IsUnique();
+            entity.HasIndex(sa => new { sa.TeamId, sa.Platform, sa.ExternalAccountId })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false");
 
             entity.HasOne(sa => sa.Team)
                 .WithMany(t => t.SocialAccounts)
                 .HasForeignKey(sa => sa.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(sa => sa.Channel)
-                .WithMany(c => c.SocialAccounts)
-                .HasForeignKey(sa => sa.ChannelId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(sa => !sa.IsDeleted);
         });
@@ -228,6 +222,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(cb => cb.Goal).HasMaxLength(120);
             entity.Property(cb => cb.CreatedAt).IsRequired();
             entity.Property(cb => cb.UpdatedAt).IsRequired();
+
+            entity.HasQueryFilter(cb => !cb.Channel!.IsDeleted);
+        });
+
+        builder.Entity<ChannelConfig>(entity =>
+        {
+            entity.HasKey(cc => cc.Id);
+            entity.Property(cc => cc.SettingsJson).IsRequired();
+            entity.Property(cc => cc.CreatedAt).IsRequired();
+            entity.Property(cc => cc.UpdatedAt).IsRequired();
+
+            entity.HasQueryFilter(cc => !cc.Channel!.IsDeleted);
         });
 
         builder.Entity<PostVariant>(entity =>
@@ -268,7 +274,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(c => c.ChannelId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasQueryFilter(c => !c.IsDeleted);
+            entity.HasQueryFilter(c => !c.IsDeleted && !c.Channel!.IsDeleted);
         });
 
         builder.Entity<PostPublication>(entity =>
@@ -305,6 +311,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(sa => sa.Publications)
                 .HasForeignKey(p => p.SocialAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(p => !p.SocialAccount!.IsDeleted);
         });
 
         builder.Entity<PublishJob>(entity =>
@@ -325,6 +333,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(pp => pp.PublishJobs)
                 .HasForeignKey(pj => pj.PostPublicationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(pj => !pj.PostPublication!.SocialAccount!.IsDeleted);
         });
 
         builder.Entity<PublicationAnalytics>(entity =>
@@ -342,6 +352,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(pp => pp.Analytics)
                 .HasForeignKey(pa => pa.PostPublicationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(pa => !pa.PostPublication!.SocialAccount!.IsDeleted);
         });
     }
 

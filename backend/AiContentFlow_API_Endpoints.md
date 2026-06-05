@@ -48,14 +48,16 @@ Currently excluded:
 - `instagram` (intentionally disabled until full support exists)
 
 ### 1) Get provider URL
-`GET /api/auth/{platform}/login?teamId={teamId}&channelId={channelId}`
+`GET /api/auth/{platform}/login?teamId={teamId}&linkChannelId={channelId}` (alias: `channelId`)
+
+- `linkChannelId` optional: when set, OAuth upserts the team account and links it to that channel; omit for team-only connect (Quick Generate).
 
 - Auth: required
 - Returns JSON:
 ```json
 {
   "teamId": "00000000-0000-0000-0000-000000000000",
-  "channelId": 1,
+  "linkChannelId": 1,
   "platform": "facebook",
   "authorizationUrl": "https://provider-oauth-url..."
 }
@@ -245,6 +247,22 @@ Response `200` (`ChannelResponseDto`)
 ### DELETE `/api/teams/{teamId}/channels/{channelId}`
 Response: `204`
 
+### GET `/api/teams/{teamId}/channels/{channelId}/social-accounts`
+Response `200`:
+```json
+{
+  "linkedAccounts": [],
+  "availableTeamAccounts": []
+}
+```
+
+### POST `/api/teams/{teamId}/channels/{channelId}/social-accounts/link`
+Request: `{ "socialAccountId": 1 }`  
+Response: `204` (replaces any other account for the same platform on this channel)
+
+### DELETE `/api/teams/{teamId}/channels/{channelId}/social-accounts/{socialAccountId}`
+Unlink only (does not revoke team credentials). Response: `204`
+
 ---
 
 ## 4) Social Account Endpoints
@@ -255,10 +273,9 @@ Mutation permissions:
 - `Admin` and `Editor`
 
 ### POST `/api/teams/{teamId}/social-accounts`
-Request:
+Team-scoped manual create (prefer OAuth). Request:
 ```json
 {
-  "channelId": 1,
   "platform": "LinkedIn",
   "accountHandle": "@brand",
   "displayName": "Brand Page",
@@ -271,7 +288,7 @@ Response `201` (`SocialAccountResponseDto`):
 {
   "id": 1,
   "teamId": "00000000-0000-0000-0000-000000000000",
-  "channelId": 1,
+  "linkedChannelIds": [1],
   "platform": "LinkedIn",
   "status": "Active",
   "accountHandle": "@brand",
@@ -292,7 +309,6 @@ Response `200` (`SocialAccountResponseDto`)
 Request:
 ```json
 {
-  "channelId": 1,
   "platform": "Facebook",
   "status": "Active",
   "accountHandle": "My Page",

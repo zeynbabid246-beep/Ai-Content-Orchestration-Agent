@@ -8,5 +8,6 @@ public interface ICampaignRepository
     Task<Campaign?> GetByIdAsync(Guid teamId, int campaignId);
     Task<List<Campaign>> GetByTeamAsync(Guid teamId);
     Task<bool> ExistsByNameAsync(Guid teamId, string normalizedName, int? excludeCampaignId = null);
+    Task SoftDeleteByChannelAsync(Guid teamId, int channelId, DateTime deletedAtUtc);
     Task SaveChangesAsync();
 }

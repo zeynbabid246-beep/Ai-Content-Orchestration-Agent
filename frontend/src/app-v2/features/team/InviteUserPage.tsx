@@ -20,7 +20,9 @@ import {
 import { authStorage } from "../../shared/lib/storage";
 import {
   useInviteMemberMutation,
+  usePendingInvitationsQuery,
   useRemoveMemberMutation,
+  useRevokeInvitationMutation,
   useTeamMembersQuery,
   useUpdateRoleMutation,
 } from "./teams.queries";
@@ -53,7 +55,11 @@ function getAvatarColor(userId: string) {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-export function InviteUserPage() {
+type InviteUserPageProps = {
+  hideTitle?: boolean;
+};
+
+export function InviteUserPage({ hideTitle = false }: InviteUserPageProps) {
   const teamRole = authStorage.getTeamRole();
   const isAdmin = teamRole === "Admin";
 
@@ -61,7 +67,9 @@ export function InviteUserPage() {
   const [role, setRole] = useState<"Editor" | "Viewer">("Editor");
 
   const { data: members = [], isLoading, isError } = useTeamMembersQuery();
+  const { data: pendingInvitations = [] } = usePendingInvitationsQuery(isAdmin);
   const inviteMutation = useInviteMemberMutation();
+  const revokeInvitationMutation = useRevokeInvitationMutation();
   const updateRoleMutation = useUpdateRoleMutation();
   const removeMutation = useRemoveMemberMutation();
 
@@ -90,12 +98,14 @@ export function InviteUserPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h4">Team Members</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
-          INVITE AND MANAGE YOUR WORKSPACE COLLABORATORS
-        </Typography>
-      </Box>
+      {!hideTitle && (
+        <Box>
+          <Typography variant="h4">Team Members</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
+            INVITE AND MANAGE YOUR WORKSPACE COLLABORATORS
+          </Typography>
+        </Box>
+      )}
 
       {/* ── Invite Form (Admin only) ── */}
       {isAdmin && (
@@ -145,10 +155,54 @@ export function InviteUserPage() {
           </Stack>
 
           {inviteMutation.isSuccess && (
-            <Alert severity="success" sx={{ mt: 1.5 }} onClose={() => inviteMutation.reset()}>
-              User invited successfully! They have been added to the team.
-            </Alert>
+            <Stack spacing={1} sx={{ mt: 1.5 }}>
+              <Alert severity="success" onClose={() => inviteMutation.reset()}>
+                {inviteMutation.data?.message ?? "Invitation sent."}
+              </Alert>
+              {inviteMutation.data?.emailWarning ? (
+                <Alert severity="warning">{inviteMutation.data.emailWarning}</Alert>
+              ) : null}
+            </Stack>
           )}
+        </Paper>
+      )}
+
+      {isAdmin && pendingInvitations.length > 0 && (
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Pending invitations
+          </Typography>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Email</TableCell>
+                <TableCell>Role</TableCell>
+                <TableCell>Expires</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {pendingInvitations.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell>{inv.email}</TableCell>
+                  <TableCell>{inv.role}</TableCell>
+                  <TableCell>
+                    {new Date(inv.expiresAt).toLocaleDateString("en-GB")}
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => revokeInvitationMutation.mutate(inv.id)}
+                      disabled={revokeInvitationMutation.isPending}
+                    >
+                      Revoke
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Paper>
       )}
 

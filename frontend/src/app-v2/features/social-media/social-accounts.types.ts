@@ -15,7 +15,6 @@ export enum SocialAccountStatus {
 export interface SocialAccount {
   id: number;
   teamId: string;
-  channelId: number;
   platform: SocialPlatform;
   status: SocialAccountStatus;
   accountHandle: string;
@@ -23,10 +22,10 @@ export interface SocialAccount {
   externalAccountId?: string | null;
   createdAt: string;
   updatedAt: string;
+  linkedChannelIds: number[];
 }
 
 export interface CreateSocialAccountRequest {
-  channelId: number;
   platform: SocialPlatform;
   accountHandle: string;
   displayName: string;
@@ -34,7 +33,6 @@ export interface CreateSocialAccountRequest {
 }
 
 export interface UpdateSocialAccountRequest {
-  channelId: number;
   platform: SocialPlatform;
   status: SocialAccountStatus;
   accountHandle: string;

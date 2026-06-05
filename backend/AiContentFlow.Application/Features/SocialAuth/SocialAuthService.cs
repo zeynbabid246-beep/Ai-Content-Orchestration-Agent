@@ -1,3 +1,4 @@
+using AiContentFlow.Application.Common;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.SocialAuth.Dtos;
@@ -8,47 +9,64 @@ namespace AiContentFlow.Application.Features.SocialAuth;
 
 public class SocialAuthService
 {
-    private const string DefaultChannelName = "General";
     private static readonly SocialPlatform[] SupportedAuthPlatforms =
         [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly IAuthServiceFactory _authServiceFactory;
     private readonly IChannelRepository _channelRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
+    private readonly IChannelSocialAccountRepository _channelSocialAccountRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly ISocialAuthStateService _stateService;
     private readonly ISocialCredentialStore _credentialStore;
+    private readonly ITeamActivityService _activityService;
 
     public SocialAuthService(
         IAuthServiceFactory authServiceFactory,
         IChannelRepository channelRepository,
         ISocialAccountRepository socialAccountRepository,
+        IChannelSocialAccountRepository channelSocialAccountRepository,
         ITeamRepository teamRepository,
         ISocialAuthStateService stateService,
-        ISocialCredentialStore credentialStore)
+        ISocialCredentialStore credentialStore,
+        ITeamActivityService activityService)
     {
         _authServiceFactory = authServiceFactory;
         _channelRepository = channelRepository;
         _socialAccountRepository = socialAccountRepository;
+        _channelSocialAccountRepository = channelSocialAccountRepository;
         _teamRepository = teamRepository;
         _stateService = stateService;
         _credentialStore = credentialStore;
+        _activityService = activityService;
     }
 
-    public async Task<SocialAuthLoginResultDto> CreateLoginUrlAsync(Guid teamId, int? channelId, string requestingUserId, string platform)
+    public async Task<SocialAuthLoginResultDto> CreateLoginUrlAsync(
+        Guid teamId,
+        int? linkChannelId,
+        string requestingUserId,
+        string platform)
     {
         EnsurePlatformIsSupported(platform);
         await EnsureCanManageSocialAccountsAsync(teamId, requestingUserId);
 
-        var resolvedChannelId = await ResolveChannelIdAsync(teamId, channelId);
+        if (linkChannelId.HasValue)
+        {
+            _ = await _channelRepository.GetByIdAsync(teamId, linkChannelId.Value)
+                ?? throw new KeyNotFoundException("Channel not found");
+        }
 
-        var signedState = _stateService.CreateState(teamId, resolvedChannelId, requestingUserId, platform, DateTime.UtcNow);
+        var signedState = _stateService.CreateState(teamId, linkChannelId, requestingUserId, platform, DateTime.UtcNow);
         var service = _authServiceFactory.GetService(platform);
         var url = service.GetAuthUrl(signedState);
 
-        return new SocialAuthLoginResultDto(teamId, resolvedChannelId, platform, url);
+        return new SocialAuthLoginResultDto(teamId, linkChannelId, platform, url);
     }
 
-    public async Task<SocialAuthCallbackResultDto> HandleCallbackAsync(string platform, string code, string state, string? requestingUserId = null)
+    public async Task<SocialAuthCallbackResultDto> HandleCallbackAsync(
+        string platform,
+        string code,
+        string state,
+        string? requestingUserId = null)
     {
         EnsurePlatformIsSupported(platform);
         var validatedState = _stateService.ValidateState(state, platform, DateTime.UtcNow, requestingUserId);
@@ -56,20 +74,17 @@ public class SocialAuthService
 
         var service = _authServiceFactory.GetService(platform);
         var authResult = await service.ProcessCallbackAsync(code, state);
-
-        var channel = await _channelRepository.GetByIdAsync(validatedState.TeamId, validatedState.ChannelId);
-        if (channel == null)
-            throw new KeyNotFoundException("Channel not found");
+        var accountsToPersist = FilterAccountsForPlatform(authResult.Accounts, validatedState.Platform);
 
         var results = new List<SocialAccountAuthResultDto>();
 
-        foreach (var account in authResult.Accounts)
+        foreach (var account in accountsToPersist)
         {
             var normalizedHandle = NormalizeRequired(account.AccountHandle);
-            var existing = await _socialAccountRepository.GetByExternalAccountIdAsync(
-                channel.TeamId,
-                channel.Id,
-                Enum.Parse<SocialPlatform>(account.Platform, true),
+            var accountPlatform = Enum.Parse<SocialPlatform>(account.Platform, true);
+            var existing = await _socialAccountRepository.GetByExternalAccountIdForTeamAsync(
+                validatedState.TeamId,
+                accountPlatform,
                 account.ExternalAccountId);
 
             var socialAccount = existing;
@@ -77,9 +92,8 @@ public class SocialAuthService
             {
                 socialAccount = new SocialAccount
                 {
-                    TeamId = channel.TeamId,
-                    ChannelId = channel.Id,
-                    Platform = Enum.Parse<SocialPlatform>(account.Platform, true),
+                    TeamId = validatedState.TeamId,
+                    Platform = accountPlatform,
                     Status = SocialAccountStatus.Active,
                     AccountName = Normalize(account.AccountName) ?? string.Empty,
                     AccountHandle = normalizedHandle,
@@ -100,14 +114,29 @@ public class SocialAuthService
                 socialAccount.DisplayName = Normalize(account.DisplayName);
                 socialAccount.ExternalAccountId = account.ExternalAccountId;
                 socialAccount.IsActive = true;
+                socialAccount.IsDeleted = false;
+                socialAccount.DeletedAt = null;
                 socialAccount.UpdatedAt = DateTime.UtcNow;
             }
 
             await _credentialStore.StoreAsync(socialAccount, account.AccessToken, account.RefreshToken, account.TokenExpiry);
 
+            await _socialAccountRepository.DeactivateDuplicateAccountsForTeamAsync(
+                validatedState.TeamId,
+                accountPlatform,
+                account.ExternalAccountId,
+                socialAccount.Id);
+
+            if (validatedState.LinkChannelId.HasValue)
+            {
+                await EnsureChannelLinkAsync(
+                    validatedState.TeamId,
+                    validatedState.LinkChannelId.Value,
+                    socialAccount);
+            }
+
             results.Add(new SocialAccountAuthResultDto(
                 socialAccount.Id,
-                socialAccount.ChannelId,
                 socialAccount.Platform.ToString(),
                 socialAccount.ExternalAccountId,
                 socialAccount.AccountName,
@@ -117,8 +146,35 @@ public class SocialAuthService
         }
 
         await _socialAccountRepository.SaveChangesAsync();
+        await _channelSocialAccountRepository.SaveChangesAsync();
 
-        return new SocialAuthCallbackResultDto(channel.Id, channel.TeamId, results);
+        await _activityService.LogAsync(
+            validatedState.TeamId,
+            validatedState.UserId,
+            TeamActivityActions.SocialAccountConnected,
+            "SocialAccount",
+            platform,
+            $"{{\"linkChannelId\":{validatedState.LinkChannelId?.ToString() ?? "null"},\"accounts\":{results.Count}}}");
+
+        return new SocialAuthCallbackResultDto(validatedState.LinkChannelId, validatedState.TeamId, results);
+    }
+
+    private async Task EnsureChannelLinkAsync(Guid teamId, int channelId, SocialAccount socialAccount)
+    {
+        _ = await _channelRepository.GetByIdAsync(teamId, channelId)
+            ?? throw new KeyNotFoundException("Channel not found");
+
+        if (await _channelSocialAccountRepository.IsLinkedAsync(teamId, channelId, socialAccount.Id))
+            return;
+
+        await _channelSocialAccountRepository.UnlinkPlatformFromChannelAsync(teamId, channelId, socialAccount.Platform);
+
+        await _channelSocialAccountRepository.LinkAsync(new ChannelSocialAccount
+        {
+            ChannelId = channelId,
+            SocialAccountId = socialAccount.Id,
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     private static void EnsurePlatformIsSupported(string platform)
@@ -126,6 +182,32 @@ public class SocialAuthService
         if (!Enum.TryParse<SocialPlatform>(platform, true, out var normalizedPlatform)
             || !SupportedAuthPlatforms.Contains(normalizedPlatform))
             throw new NotSupportedException($"Platform '{platform}' is not supported for OAuth connection yet.");
+    }
+
+    private static List<SocialAccountAuthDto> FilterAccountsForPlatform(
+        IReadOnlyList<SocialAccountAuthDto> accounts,
+        string oauthPlatform)
+    {
+        if (!Enum.TryParse<SocialPlatform>(oauthPlatform, true, out var requestedPlatform))
+            return accounts.ToList();
+
+        var filtered = accounts
+            .Where(account => Enum.TryParse<SocialPlatform>(account.Platform, true, out var accountPlatform)
+                && accountPlatform == requestedPlatform)
+            .ToList();
+
+        if (filtered.Count > 0)
+            return filtered;
+
+        throw requestedPlatform switch
+        {
+            SocialPlatform.Instagram => new InvalidOperationException(
+                "No Instagram Business account was found. Link Instagram to a Facebook Page as Business or Creator, " +
+                "grant Page access during login, and reconnect."),
+            SocialPlatform.Facebook => new InvalidOperationException(
+                "No Facebook Page was found for this Meta account."),
+            _ => new InvalidOperationException("No accounts were returned from the provider.")
+        };
     }
 
     private static string NormalizeRequired(string value)
@@ -152,35 +234,5 @@ public class SocialAuthService
 
         if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
             throw new UnauthorizedAccessException("Only Admin or Editor can manage social account connections");
-    }
-
-    private async Task<int> ResolveChannelIdAsync(Guid teamId, int? requestedChannelId)
-    {
-        if (requestedChannelId.HasValue)
-        {
-            _ = await _channelRepository.GetByIdAsync(teamId, requestedChannelId.Value)
-                ?? throw new KeyNotFoundException("Channel not found");
-
-            return requestedChannelId.Value;
-        }
-
-        var channels = await _channelRepository.GetByTeamAsync(teamId);
-        var existing = channels.FirstOrDefault();
-        if (existing is not null)
-            return existing.Id;
-
-        var channel = new Channel
-        {
-            TeamId = teamId,
-            Name = DefaultChannelName,
-            NormalizedName = DefaultChannelName.ToUpperInvariant(),
-            Description = "Auto-created default channel for direct posting",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        await _channelRepository.AddAsync(channel);
-        await _channelRepository.SaveChangesAsync();
-        return channel.Id;
     }
 }

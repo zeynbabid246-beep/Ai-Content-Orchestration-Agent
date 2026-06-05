@@ -1,19 +1,45 @@
+using AiContentFlow.Application.Common;
+using AiContentFlow.Application.Common.Email;
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Models;
+using AiContentFlow.Application.Common.Security;
 using AiContentFlow.Application.Features.Teams.Dtos;
 using AiContentFlow.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AiContentFlow.Application.Features.Teams;
 
 public class TeamService : ITeamService
 {
     private readonly ITeamRepository _repo;
+    private readonly ITeamInvitationRepository _invitationRepo;
     private readonly IEmailService _emailService;
+    private readonly AppSettings _appSettings;
+    private readonly ITeamActivityService _activityService;
+    private readonly ILogger<TeamService> _logger;
 
-    public TeamService(ITeamRepository repo, IEmailService emailService)
+    public TeamService(
+        ITeamRepository repo,
+        ITeamInvitationRepository invitationRepo,
+        IEmailService emailService,
+        ITeamActivityService activityService,
+        IOptions<AppSettings> appSettings,
+        ILogger<TeamService> logger)
     {
         _repo = repo;
+        _invitationRepo = invitationRepo;
         _emailService = emailService;
+        _activityService = activityService;
+        _appSettings = appSettings.Value;
+        _logger = logger;
     }
+
+    public Task<List<TeamActivityEventDto>> GetTeamActivityAsync(
+        Guid teamId,
+        string requestingUserId,
+        int limit = 50) =>
+        _activityService.GetRecentAsync(teamId, requestingUserId, limit);
 
     public async Task<TeamResponseDto> CreateTeamAsync(string adminId, CreateTeamDto dto)
     {
@@ -101,9 +127,9 @@ public class TeamService : ITeamService
         )).ToList();
     }
 
-    public async Task InviteUserAsync(Guid teamId, string requestingUserId, InviteUserDto dto)
+    public async Task<InviteUserResponseDto> InviteUserAsync(Guid teamId, string requestingUserId, InviteUserDto dto)
     {
-        _ = await _repo.GetTeamByIdAsync(teamId)
+        var team = await _repo.GetTeamByIdAsync(teamId)
             ?? throw new KeyNotFoundException("Team not found");
 
         var requester = await _repo.GetUserMembershipAsync(teamId, requestingUserId)
@@ -112,81 +138,213 @@ public class TeamService : ITeamService
         if (requester.Role != TeamRole.Admin)
             throw new UnauthorizedAccessException("Only Admin can invite users");
 
-        var user = await _repo.GetUserByUsernameOrEmailAsync(dto.Username);
-        
-        var team = await _repo.GetTeamByIdAsync(teamId);
-
-        if (user == null)
-        {
-            // If the user doesn't exist yet, check if it's an email format.
-            if (!dto.Username.Contains("@"))
-                throw new KeyNotFoundException("User not found and not a valid email.");
-
-            // Send an external email invite to join the platform
-            var extSubject = $"You have been invited to join team: {team!.Name}";
-            var extMessage = "You'll need to create an account first to access the team's dashboard and start collaborating.";
-            var extCtaLink = "http://localhost:5173/app/register";
-            var extCtaText = "Create Account";
-            var extBody = GenerateEmailTemplate(team.Name, dto.Role, requester.Role.ToString(), extCtaLink, extCtaText, extMessage);
-            
-            try
-            {
-                Console.WriteLine($"[EMAIL SENDING] Attempting to send invite to unregistered email {dto.Username}...");
-                await _emailService.SendEmailAsync(dto.Username, extSubject, extBody);
-                Console.WriteLine("[EMAIL SENT] Successfully sent invitation email!");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[EMAIL ERROR] Failed to send email: {ex.Message}");
-            }
-            
-            // Return early since they aren't registered yet (we can't link them to UserTeam)
-            return;
-        }
-
-        if (await _repo.IsUserMemberAsync(teamId, user.Value.UserId))
-            throw new InvalidOperationException("User already a member");
-
         if (!Enum.TryParse<TeamRole>(dto.Role, true, out var role) || role == TeamRole.Admin)
             throw new InvalidOperationException("Invalid role");
 
-        var userTeam = new UserTeam
+        var identifier = dto.Username.Trim();
+        var user = await _repo.GetUserByUsernameOrEmailAsync(identifier);
+        string? emailWarning = null;
+
+        if (user != null)
+        {
+            if (await _repo.IsUserMemberAsync(teamId, user.Value.UserId))
+                throw new InvalidOperationException("User already a member");
+
+            var userTeam = new UserTeam
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Value.UserId,
+                TeamId = teamId,
+                Role = role,
+                JoinedAt = DateTime.UtcNow
+            };
+
+            await _repo.AddUserTeamAsync(userTeam);
+            await _repo.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(user.Value.Email))
+            {
+                emailWarning = await TrySendInviteEmailAsync(
+                    user.Value.Email,
+                    team.Name,
+                    role.ToString(),
+                    requester.Role.ToString(),
+                    $"{FrontendBaseUrl}/app/login",
+                    "Go to Dashboard",
+                    "You have been added to the team. Sign in to access your workspace.");
+            }
+
+            await _activityService.LogAsync(
+                teamId,
+                requestingUserId,
+                TeamActivityActions.MemberInvited,
+                "User",
+                user.Value.UserId,
+                $"{{\"role\":\"{role}\"}}");
+
+            return new InviteUserResponseDto("User added to the team.", emailWarning);
+        }
+
+        if (!identifier.Contains('@'))
+            throw new KeyNotFoundException("User not found. Provide a valid email to invite someone new.");
+
+        var normalizedEmail = NormalizeEmail(identifier);
+        var rawToken = InvitationTokenHelper.GenerateToken();
+        var tokenHash = InvitationTokenHelper.HashToken(rawToken);
+
+        await _invitationRepo.RevokePendingForTeamEmailAsync(teamId, normalizedEmail);
+
+        var invitation = new TeamInvitation
         {
             Id = Guid.NewGuid(),
-            UserId = user.Value.UserId,
             TeamId = teamId,
+            Email = normalizedEmail,
             Role = role,
-            JoinedAt = DateTime.UtcNow
+            InvitedByUserId = requestingUserId,
+            TokenHash = tokenHash,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
 
-        await _repo.AddUserTeamAsync(userTeam);
-        await _repo.SaveChangesAsync();
+        await _invitationRepo.AddAsync(invitation);
+        await _invitationRepo.SaveChangesAsync();
 
-        // Send email invitation notification
-        var subject = $"You have been invited to join team: {team!.Name}";
-        var intMessage = "Please log in to your account to access your new team dashboard and start collaborating.";
-        var intCtaLink = "http://localhost:5173/app/login";
-        var intCtaText = "Go to Dashboard";
-        var body = GenerateEmailTemplate(team.Name, role.ToString(), requester.Role.ToString(), intCtaLink, intCtaText, intMessage);
-        
-        try
+        var registerLink =
+            $"{FrontendBaseUrl}/app/register?token={Uri.EscapeDataString(rawToken)}&email={Uri.EscapeDataString(normalizedEmail)}";
+
+        emailWarning = await TrySendInviteEmailAsync(
+            normalizedEmail,
+            team.Name,
+            role.ToString(),
+            requester.Role.ToString(),
+            registerLink,
+            "Create account",
+            "Create your account to join the team and start collaborating.");
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.MemberInvited,
+            "Invitation",
+            invitation.Id.ToString(),
+            $"{{\"email\":\"{normalizedEmail}\",\"role\":\"{role}\"}}");
+
+        return new InviteUserResponseDto("Invitation sent.", emailWarning);
+    }
+
+    public async Task<List<TeamInvitationDto>> GetPendingInvitationsAsync(Guid teamId, string requestingUserId)
+    {
+        _ = await _repo.GetTeamByIdAsync(teamId)
+            ?? throw new KeyNotFoundException("Team not found");
+
+        var requester = await _repo.GetUserMembershipAsync(teamId, requestingUserId)
+            ?? throw new UnauthorizedAccessException("Not a team member");
+
+        if (requester.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can view invitations");
+
+        var invitations = await _invitationRepo.GetPendingForTeamAsync(teamId);
+        return invitations.Select(i => new TeamInvitationDto(
+            i.Id,
+            i.Email,
+            i.Role.ToString(),
+            i.CreatedAt,
+            i.ExpiresAt)).ToList();
+    }
+
+    public async Task RevokeInvitationAsync(Guid teamId, string requestingUserId, Guid invitationId)
+    {
+        var requester = await _repo.GetUserMembershipAsync(teamId, requestingUserId)
+            ?? throw new UnauthorizedAccessException("Not a team member");
+
+        if (requester.Role != TeamRole.Admin)
+            throw new UnauthorizedAccessException("Only Admin can revoke invitations");
+
+        var invitation = await _invitationRepo.GetByIdAsync(invitationId)
+            ?? throw new KeyNotFoundException("Invitation not found");
+
+        if (invitation.TeamId != teamId)
+            throw new KeyNotFoundException("Invitation not found");
+
+        invitation.RevokedAt = DateTime.UtcNow;
+        await _invitationRepo.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.InvitationRevoked,
+            "Invitation",
+            invitation.Id.ToString());
+    }
+
+    public async Task<AcceptTeamInvitationResponseDto> AcceptInvitationAsync(string userId, AcceptTeamInvitationDto dto)
+    {
+        var invitation = await ResolveValidInvitationAsync(dto.Token)
+            ?? throw new InvalidOperationException("Invalid or expired invitation.");
+
+        var user = await _repo.GetUserByUsernameOrEmailAsync(invitation.Email)
+            ?? throw new KeyNotFoundException("User not found");
+
+        if (!string.Equals(user.UserId, userId, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("This invitation was sent to a different account.");
+
+        if (await _repo.IsUserMemberAsync(invitation.TeamId, userId))
         {
-            if (string.IsNullOrWhiteSpace(user.Value.Email))
-            {
-                Console.WriteLine($"[EMAIL SKIPPED] The user {user.Value.Username} does not have a registered email address.");
-            }
-            else
-            {
-                Console.WriteLine($"[EMAIL SENDING] Attempting to send email to {user.Value.Email}...");
-                await _emailService.SendEmailAsync(user.Value.Email, subject, body);
-                Console.WriteLine("[EMAIL SENT] Successfully sent invitation email!");
-            }
+            invitation.AcceptedAt = DateTime.UtcNow;
+            await _invitationRepo.SaveChangesAsync();
         }
-        catch (Exception ex)
-        { 
-            Console.WriteLine($"[EMAIL ERROR] Failed to send email: {ex.Message}");
-            Console.WriteLine(ex.ToString());
+        else
+        {
+            await AddMemberFromInvitationAsync(invitation, userId);
         }
+
+        var team = invitation.Team ?? await _repo.GetTeamByIdAsync(invitation.TeamId)
+            ?? throw new KeyNotFoundException("Team not found");
+
+        await _activityService.LogAsync(
+            invitation.TeamId,
+            userId,
+            TeamActivityActions.InvitationAccepted,
+            "Invitation",
+            invitation.Id.ToString());
+
+        return new AcceptTeamInvitationResponseDto(team.Id, team.Name, invitation.Role.ToString());
+    }
+
+    public async Task<(TeamInvitation Invitation, TeamRole Role)?> TryResolveInvitationForRegistrationAsync(
+        string? inviteToken,
+        string email)
+    {
+        TeamInvitation? invitation = null;
+
+        if (!string.IsNullOrWhiteSpace(inviteToken))
+        {
+            invitation = await ResolveValidInvitationAsync(inviteToken);
+        }
+        else
+        {
+            invitation = await _invitationRepo.GetPendingByEmailAsync(NormalizeEmail(email));
+        }
+
+        if (invitation == null)
+            return null;
+
+        if (!string.Equals(invitation.Email, NormalizeEmail(email), StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return (invitation, invitation.Role);
+    }
+
+    public async Task CompleteInvitationAfterRegistrationAsync(TeamInvitation invitation, string userId)
+    {
+        if (await _repo.IsUserMemberAsync(invitation.TeamId, userId))
+        {
+            invitation.AcceptedAt = DateTime.UtcNow;
+            await _invitationRepo.SaveChangesAsync();
+            return;
+        }
+
+        await AddMemberFromInvitationAsync(invitation, userId);
     }
 
     public async Task RemoveUserAsync(Guid teamId, string requestingUserId, string targetUserId)
@@ -210,6 +368,13 @@ public class TeamService : ITeamService
 
         await _repo.RemoveUserTeamAsync(target);
         await _repo.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.MemberRemoved,
+            "User",
+            targetUserId);
     }
 
     public async Task<List<UserTeamSummaryDto>> GetMyTeamsAsync(string userId)
@@ -261,60 +426,73 @@ public class TeamService : ITeamService
 
         target.Role = newRole;
         await _repo.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.MemberRoleChanged,
+            "User",
+            dto.TargetUserId,
+            $"{{\"role\":\"{newRole}\"}}");
     }
 
-    private static string GenerateEmailTemplate(string teamName, string role, string inviterRole, string link, string ctaText, string message)
+    private async Task<TeamInvitation?> ResolveValidInvitationAsync(string rawToken)
     {
-        return $@"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-</head>
-<body style='margin: 0; padding: 0; font-family: ""Inter"", ""Helvetica Neue"", Helvetica, Arial, sans-serif; background-color: #f9f9fb; color: #1e1e24;'>
-    <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);'>
-        
-        <!-- Header -->
-        <div style='background: linear-gradient(135deg, #1e1e24 0%, #2f2f38 100%); padding: 30px 40px; text-align: center;'>
-            <h1 style='color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;'>
-                <span style='color: #6366f1;'>Ai</span>ContentFlow
-            </h1>
-        </div>
+        var tokenHash = InvitationTokenHelper.HashToken(rawToken);
+        var invitation = await _invitationRepo.GetByTokenHashAsync(tokenHash);
+        if (invitation == null)
+            return null;
 
-        <!-- Content -->
-        <div style='padding: 40px;'>
-            <h2 style='margin-top: 0; font-size: 20px; font-weight: 600; color: #1e1e24;'>You've been invited! 👋</h2>
-            
-            <p style='font-size: 16px; line-height: 1.6; color: #4b5563; margin-bottom: 24px;'>
-                An <strong>{inviterRole}</strong> has invited you to join the team <strong>{teamName}</strong> as a <strong>{role}</strong>.
-            </p>
-            
-            <p style='font-size: 16px; line-height: 1.6; color: #4b5563; margin-bottom: 32px;'>
-                {message}
-            </p>
+        if (invitation.AcceptedAt != null || invitation.RevokedAt != null)
+            return null;
 
-            <!-- CTA Button -->
-            <div style='text-align: center; margin: 40px 0;'>
-                <a href='{link}' style='display: inline-block; padding: 14px 32px; background-color: #6366f1; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); transition: all 0.2s;'>
-                    {ctaText}
-                </a>
-            </div>
-            
-            <!-- Context -->
-            <p style='font-size: 14px; line-height: 1.5; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 24px;'>
-                If you did not expect this invitation, you can safely ignore this email.
-            </p>
-        </div>
+        if (invitation.ExpiresAt < DateTime.UtcNow)
+            return null;
 
-        <!-- Footer -->
-        <div style='background-color: #f3f4f6; padding: 24px; text-align: center;'>
-            <p style='margin: 0; font-size: 13px; color: #6b7280;'>
-                © {DateTime.UtcNow.Year} AiContentFlow. All rights reserved.
-            </p>
-        </div>
-
-    </div>
-</body>
-</html>";
+        return invitation;
     }
+
+    private async Task AddMemberFromInvitationAsync(TeamInvitation invitation, string userId)
+    {
+        var userTeam = new UserTeam
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TeamId = invitation.TeamId,
+            Role = invitation.Role,
+            JoinedAt = DateTime.UtcNow
+        };
+
+        await _repo.AddUserTeamAsync(userTeam);
+        invitation.AcceptedAt = DateTime.UtcNow;
+        await _invitationRepo.SaveChangesAsync();
+        await _repo.SaveChangesAsync();
+    }
+
+    private async Task<string?> TrySendInviteEmailAsync(
+        string toEmail,
+        string teamName,
+        string role,
+        string inviterRole,
+        string link,
+        string ctaText,
+        string message)
+    {
+        try
+        {
+            var subject = $"You have been invited to join team: {teamName}";
+            var body = AuthEmailTemplates.TeamInvite(teamName, role, inviterRole, link, ctaText, message);
+            await _emailService.SendEmailAsync(toEmail, subject, body);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send invitation email to {Email}", toEmail);
+            return "Invitation was saved but the email could not be delivered.";
+        }
+    }
+
+    private string FrontendBaseUrl => _appSettings.FrontendBaseUrl.TrimEnd('/');
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }

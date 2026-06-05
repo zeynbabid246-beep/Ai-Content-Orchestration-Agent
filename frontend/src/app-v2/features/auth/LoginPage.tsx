@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { login } from "./auth.api";
 import { ROUTES } from "../../shared/lib/routes";
+import { PasswordField } from "../../shared/ui/PasswordField";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -44,13 +45,16 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <TextField
+          <PasswordField
             label="Password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
           />
+
+          <Typography variant="body2" sx={{ textAlign: "right" }}>
+            <RouterLink to={ROUTES.forgotPassword}>Forgot password?</RouterLink>
+          </Typography>
 
           <Button
             variant="contained"

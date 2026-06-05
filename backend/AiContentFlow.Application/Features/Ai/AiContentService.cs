@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Ai.Dtos;
+using AiContentFlow.Domain.Campaigns.Dtos;
+using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Domain.Models;
 using Application.Interfaces;
 using Microsoft.Extensions.Configuration;
@@ -20,6 +22,7 @@ public class AiContentService : IAiContentService
     private readonly IBrandStudioRepository _brandStudioRepository;
     private readonly IChannelRepository _channelRepository;
     private readonly ILocalAiBackendClient _localAiBackendClient;
+    private readonly ICampaignService _campaignService;
     private readonly ITextGenerationService _textGenerationService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AiContentService> _logger;
@@ -29,6 +32,7 @@ public class AiContentService : IAiContentService
         IBrandStudioRepository brandStudioRepository,
         IChannelRepository channelRepository,
         ILocalAiBackendClient localAiBackendClient,
+        ICampaignService campaignService,
         ITextGenerationService textGenerationService,
         IConfiguration configuration,
         ILogger<AiContentService> logger)
@@ -37,6 +41,7 @@ public class AiContentService : IAiContentService
         _brandStudioRepository = brandStudioRepository;
         _channelRepository = channelRepository;
         _localAiBackendClient = localAiBackendClient;
+        _campaignService = campaignService;
         _textGenerationService = textGenerationService;
         _configuration = configuration;
         _logger = logger;
@@ -50,6 +55,9 @@ public class AiContentService : IAiContentService
         await EnsureCanMutateAsync(teamId, requestingUserId);
         EnsureWithinTeamDailyBudget(teamId);
         ValidatePrompt(dto.Prompt);
+
+        if (dto.UseBrandContext && !IsExternalProviderMode())
+            await SyncBrandToAiInternalAsync(teamId);
 
         var brandContext = dto.UseBrandContext
             ? await BuildBrandContextAsync(teamId, dto.ChannelId)
@@ -80,18 +88,18 @@ public class AiContentService : IAiContentService
         }
 
         var correlationId = Guid.NewGuid().ToString("N");
-        var orgId = BuildOrgId(teamId);
+        var brandStudioForOrg = await _brandStudioRepository.GetByTeamAsync(teamId);
+        var orgId = ResolveOrgId(teamId, brandStudioForOrg);
         var platform = MapPlatformForLocalAi(dto.Platform);
         var mode = "prompt_only";
         LocalAiBrandContext? localBrandContext = null;
 
         if (dto.UseBrandContext)
         {
-            var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId);
-            if (brandStudio is not null)
+            if (brandStudioForOrg is not null)
             {
                 mode = "manual_brand";
-                localBrandContext = MapLocalBrandContext(brandStudio);
+                localBrandContext = MapLocalBrandContext(brandStudioForOrg);
             }
             else
             {
@@ -127,6 +135,7 @@ public class AiContentService : IAiContentService
         await EnsureCanMutateAsync(teamId, requestingUserId);
         EnsureWithinTeamDailyBudget(teamId);
         ValidatePrompt(dto.Goal);
+        await EnsureAiBrandForCampaignAsync(teamId);
 
         var channel = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
             ?? throw new KeyNotFoundException("Channel not found");
@@ -149,8 +158,15 @@ public class AiContentService : IAiContentService
         }
 
         var correlationId = Guid.NewGuid().ToString("N");
-        var orgId = BuildOrgId(teamId);
+        var (orgId, brandStudio) = await ResolveLockedBrandAsync(teamId);
         var platforms = dto.Platforms.Select(p => p.ToString()).ToList();
+        var postsPerWeek = dto.PostsPerWeek ?? ComputePostsPerWeek(dto.StartDate, dto.EndDate);
+        var language = string.IsNullOrWhiteSpace(dto.Language) ? "English" : dto.Language;
+        var theme = !string.IsNullOrWhiteSpace(dto.Theme) ? dto.Theme.Trim() : $"{channel.Name} | {dto.Goal}";
+        var primaryPlatform = !string.IsNullOrWhiteSpace(dto.PrimaryPlatform)
+            ? dto.PrimaryPlatform.Trim()
+            : platforms.FirstOrDefault() ?? "linkedin";
+        var brandContextBody = BuildBrandContextPayload(brandStudio);
         var strategyStep = new CampaignStepStatusDto("strategy", "pending", null, null, null);
         var planningStep = new CampaignStepStatusDto("planning", "pending", null, null, null);
         var campaignStep = new CampaignStepStatusDto("campaign", "pending", null, null, null);
@@ -168,10 +184,11 @@ public class AiContentService : IAiContentService
             strategyPayload = await _localAiBackendClient.GenerateStrategyAsync(
                 orgId,
                 dto.Goal,
-                $"{channel.Name} | {dto.Goal}",
-                "English",
-                ComputePostsPerWeek(dto.StartDate, dto.EndDate),
+                theme,
+                language,
+                postsPerWeek,
                 platforms,
+                dto.CustomPrompt,
                 correlationId);
             var strategyId = GetInt(strategyPayload.Value, "strategy_id") ?? GetInt(strategyPayload.Value, "id");
             strategyStep = strategyStep with
@@ -187,10 +204,11 @@ public class AiContentService : IAiContentService
                 throw new InvalidOperationException("Strategy step did not return strategy_id.");
 
             planningPayload = await _localAiBackendClient.GeneratePlanningAsync(
+                strategyPayload.Value,
                 strategyId.Value,
-                ComputePostsPerWeek(dto.StartDate, dto.EndDate),
+                postsPerWeek,
                 platforms,
-                "English",
+                language,
                 correlationId);
             var planningId = GetInt(planningPayload.Value, "planning_id") ?? GetInt(planningPayload.Value, "id");
             planningStep = planningStep with
@@ -206,9 +224,13 @@ public class AiContentService : IAiContentService
                 throw new InvalidOperationException("Planning step did not return planning_id.");
 
             campaignPayload = await _localAiBackendClient.GenerateCampaignContentAsync(
+                strategyPayload.Value,
+                planningPayload.Value,
                 planningId.Value,
-                platforms,
-                "English",
+                orgId,
+                primaryPlatform,
+                brandContextBody,
+                language,
                 correlationId);
             campaignStep = campaignStep with
             {
@@ -225,7 +247,9 @@ public class AiContentService : IAiContentService
             description = GetString(campaignPayload.Value, "description")
                 ?? GetString(strategyPayload.Value, "description")
                 ?? description;
-            posts = ExtractPosts(campaignPayload.Value, dto);
+            posts = ExtractPostsFromCampaignWeeks(campaignPayload.Value, dto, primaryPlatform);
+            if (posts.Count == 0)
+                posts = ExtractPosts(campaignPayload.Value, dto);
             if (posts.Count == 0)
                 posts = BuildFallbackCampaign(dto).Posts.ToList();
         }
@@ -256,6 +280,303 @@ public class AiContentService : IAiContentService
             campaignStep,
             errors,
             correlationId);
+    }
+
+    public async Task<CampaignStrategyStepResponseDto> GenerateCampaignStrategyStepAsync(
+        Guid teamId,
+        string requestingUserId,
+        CampaignAiPipelineConfigDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+        EnsureWithinTeamDailyBudget(teamId);
+        ValidatePrompt(dto.Goal);
+        await EnsureAiBrandForCampaignAsync(teamId);
+        var (orgId, _) = await ResolveLockedBrandAsync(teamId);
+        _ = await _channelRepository.GetByIdAsync(teamId, dto.ChannelId)
+            ?? throw new KeyNotFoundException("Channel not found");
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var platforms = dto.Platforms.Select(p => p.ToString()).ToList();
+        var strategy = await _localAiBackendClient.GenerateStrategyAsync(
+            orgId,
+            dto.Goal,
+            dto.Theme,
+            dto.Language,
+            dto.PostsPerWeek,
+            platforms,
+            dto.CustomPrompt,
+            correlationId);
+
+        var strategyId = GetInt(strategy, "strategy_id") ?? GetInt(strategy, "id");
+        if (!strategyId.HasValue)
+            throw new InvalidOperationException("Strategy step did not return strategy_id.");
+
+        return new CampaignStrategyStepResponseDto(strategyId, strategy, orgId, correlationId);
+    }
+
+    public async Task<CampaignPlanningStepResponseDto> GenerateCampaignPlanningStepAsync(
+        Guid teamId,
+        string requestingUserId,
+        CampaignPlanningStepRequestDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+        EnsureWithinTeamDailyBudget(teamId);
+        await EnsureAiBrandForCampaignAsync(teamId);
+        _ = await ResolveLockedBrandAsync(teamId);
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var platforms = dto.Config.Platforms.Select(p => p.ToString()).ToList();
+        var planning = await _localAiBackendClient.GeneratePlanningAsync(
+            dto.Strategy,
+            dto.StrategyId,
+            dto.Config.PostsPerWeek,
+            platforms,
+            dto.Config.Language,
+            correlationId);
+
+        var planningId = GetInt(planning, "planning_id") ?? GetInt(planning, "id");
+        if (!planningId.HasValue)
+            throw new InvalidOperationException("Planning step did not return planning_id.");
+
+        return new CampaignPlanningStepResponseDto(planningId, planning, correlationId);
+    }
+
+    public async Task<CampaignContentStepResponseDto> GenerateCampaignContentStepAsync(
+        Guid teamId,
+        string requestingUserId,
+        CampaignContentStepRequestDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+        EnsureWithinTeamDailyBudget(teamId);
+        await EnsureAiBrandForCampaignAsync(teamId);
+        var (orgId, brandStudio) = await ResolveLockedBrandAsync(teamId);
+        var channel = await _channelRepository.GetByIdAsync(teamId, dto.Config.ChannelId)
+            ?? throw new KeyNotFoundException("Channel not found");
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var platforms = dto.Config.Platforms.Select(p => p.ToString()).ToList();
+        var primaryPlatform = !string.IsNullOrWhiteSpace(dto.Config.PrimaryPlatform)
+            ? dto.Config.PrimaryPlatform.Trim()
+            : platforms.FirstOrDefault() ?? "linkedin";
+        var brandContextBody = BuildBrandContextPayload(brandStudio);
+
+        var campaign = await _localAiBackendClient.GenerateCampaignContentAsync(
+            dto.Strategy,
+            dto.Planning,
+            dto.PlanningId,
+            orgId,
+            primaryPlatform,
+            brandContextBody,
+            dto.Config.Language,
+            correlationId);
+
+        var suggestDto = new SuggestCampaignRequestDto(
+            dto.Config.ChannelId,
+            dto.Config.Goal,
+            dto.Config.StartDate,
+            dto.Config.EndDate,
+            dto.Config.Platforms,
+            Theme: dto.Config.Theme,
+            Language: dto.Config.Language,
+            PostsPerWeek: dto.Config.PostsPerWeek,
+            CustomPrompt: dto.Config.CustomPrompt,
+            PrimaryPlatform: primaryPlatform);
+
+        var posts = ExtractPostsFromCampaignWeeks(campaign, suggestDto, primaryPlatform);
+        if (posts.Count == 0)
+            posts = ExtractPosts(campaign, suggestDto);
+
+        var campaignName = GetString(campaign, "campaign_name")
+            ?? GetString(dto.Strategy, "campaign_name")
+            ?? $"Campaign: {dto.Config.Goal}";
+        var description = GetString(campaign, "description")
+            ?? GetString(dto.Strategy, "strategy_summary")
+            ?? $"Generated for {channel.Name}";
+
+        return new CampaignContentStepResponseDto(
+            GetInt(campaign, "campaign_id") ?? GetInt(campaign, "id"),
+            campaign,
+            posts,
+            campaignName,
+            description,
+            correlationId);
+    }
+
+    public async Task<MaterializeCampaignResponseDto> MaterializeCampaignAsync(
+        Guid teamId,
+        string requestingUserId,
+        MaterializeCampaignRequestDto dto)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+        await EnsureAiBrandForCampaignAsync(teamId);
+
+        SuggestCampaignResponseDto suggestion;
+        if (dto.RunSuggest || dto.Posts is null || dto.Posts.Count == 0)
+        {
+            suggestion = await SuggestCampaignAsync(
+                teamId,
+                requestingUserId,
+                new SuggestCampaignRequestDto(
+                    dto.ChannelId,
+                    dto.Goal,
+                    dto.StartDate,
+                    dto.EndDate,
+                    dto.Platforms,
+                    dto.OrgId,
+                    dto.Theme,
+                    dto.Language,
+                    dto.PostsPerWeek,
+                    dto.CustomPrompt,
+                    dto.PrimaryPlatform));
+        }
+        else
+        {
+            var posts = dto.Posts
+                .Select(p => new SuggestedCampaignPostDto(
+                    p.Title,
+                    p.ContentJson,
+                    p.ContentType,
+                    p.ScheduledAt,
+                    p.Platform))
+                .ToList();
+            suggestion = new SuggestCampaignResponseDto(
+                dto.CampaignName ?? $"Campaign: {dto.Goal}",
+                dto.Description ?? dto.Goal,
+                posts,
+                new CampaignStepStatusDto("strategy", "skipped", null, null, null),
+                new CampaignStepStatusDto("planning", "skipped", null, null, null),
+                new CampaignStepStatusDto("campaign", "skipped", null, null, null),
+                [],
+                Guid.NewGuid().ToString("N"));
+        }
+
+        var campaignName = dto.CampaignName ?? suggestion.CampaignName;
+        var description = dto.Description ?? suggestion.Description;
+
+        int campaignId;
+        if (dto.ExistingCampaignId.HasValue)
+        {
+            campaignId = dto.ExistingCampaignId.Value;
+            _ = await _campaignService.GetByIdAsync(teamId, campaignId, requestingUserId);
+        }
+        else
+        {
+            var created = await _campaignService.CreateAsync(
+                teamId,
+                requestingUserId,
+                new CreateCampaignDto(
+                    campaignName,
+                    description,
+                    dto.ChannelId,
+                    CampaignStatus.Draft,
+                    dto.Goal));
+            campaignId = created.Id;
+        }
+
+        var bulkItems = suggestion.Posts
+            .Select(post =>
+            {
+                int? socialAccountId = null;
+                if (dto.SchedulePosts && dto.SocialAccountIdByPlatform is not null)
+                {
+                    var key = post.Platform.ToString();
+                    if (dto.SocialAccountIdByPlatform.TryGetValue(key, out var id))
+                        socialAccountId = id;
+                }
+
+                return new BulkCampaignPostItemDto(
+                    post.Title,
+                    post.ContentJson,
+                    post.ContentType,
+                    dto.SchedulePosts ? post.ScheduledAt : null,
+                    socialAccountId,
+                    post.Platform);
+            })
+            .ToList();
+
+        var bulkResult = await _campaignService.BulkCreatePostsAsync(
+            teamId,
+            campaignId,
+            requestingUserId,
+            new BulkCreateCampaignPostsDto(bulkItems));
+
+        return new MaterializeCampaignResponseDto(
+            campaignId,
+            bulkResult.ContentPostIds,
+            suggestion.CorrelationId,
+            suggestion.Strategy,
+            suggestion.Planning,
+            suggestion.Campaign,
+            suggestion.Errors);
+    }
+
+    public async Task SyncBrandToAiAsync(Guid teamId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+        await SyncBrandToAiInternalAsync(teamId);
+    }
+
+    public async Task<AiHealthResponseDto> GetAiHealthAsync()
+    {
+        if (IsExternalProviderMode())
+            return new AiHealthResponseDto(true, "ExternalProviders");
+
+        var healthy = await _localAiBackendClient.GetHealthAsync();
+        return new AiHealthResponseDto(healthy, "LocalBackend");
+    }
+
+    private async Task EnsureAiBrandForCampaignAsync(Guid teamId)
+    {
+        if (IsExternalProviderMode())
+            return;
+
+        var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId);
+        if (brandStudio is null
+            || (string.IsNullOrWhiteSpace(brandStudio.BrandName)
+                && string.IsNullOrWhiteSpace(brandStudio.BrandSummary)
+                && string.IsNullOrWhiteSpace(brandStudio.DefaultBrandSummary)))
+        {
+            throw new InvalidOperationException(
+                "Set up Brand Studio (import a website or save a brand profile) before using AI campaigns.");
+        }
+
+        if (string.IsNullOrWhiteSpace(brandStudio.OrgId))
+        {
+            throw new InvalidOperationException(
+                "Brand Studio must have a scraped Brand ID (org_id). Import a website and save the profile before running AI campaigns.");
+        }
+
+        await SyncBrandToAiInternalAsync(teamId, brandStudio);
+    }
+
+    private async Task<(string OrgId, TeamBrandStudio BrandStudio)> ResolveLockedBrandAsync(Guid teamId)
+    {
+        var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId)
+            ?? throw new InvalidOperationException(
+                "Set up Brand Studio (import a website or save a brand profile) before using AI campaigns.");
+
+        if (string.IsNullOrWhiteSpace(brandStudio.OrgId))
+        {
+            throw new InvalidOperationException(
+                "Brand ID is missing. Import a website in Brand Studio and save the profile so org_id is set.");
+        }
+
+        return (brandStudio.OrgId.Trim(), brandStudio);
+    }
+
+    private async Task SyncBrandToAiInternalAsync(Guid teamId, TeamBrandStudio? brandStudio = null)
+    {
+        if (IsExternalProviderMode())
+            return;
+
+        brandStudio ??= await _brandStudioRepository.GetByTeamAsync(teamId);
+        if (brandStudio is null)
+            return;
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var orgId = ResolveOrgId(teamId, brandStudio);
+        var body = LocalAiManualBrandMapper.ToApiBody(brandStudio, orgId);
+        await _localAiBackendClient.ConfigureBrandManualAsync(body, correlationId);
     }
 
     private async Task EnsureCanMutateAsync(Guid teamId, string requestingUserId)
@@ -512,6 +833,11 @@ public class AiContentService : IAiContentService
 
     private static string BuildOrgId(Guid teamId) => $"team_{teamId:N}";
 
+    private static string ResolveOrgId(Guid teamId, TeamBrandStudio? brandStudio)
+        => !string.IsNullOrWhiteSpace(brandStudio?.OrgId)
+            ? brandStudio!.OrgId!.Trim()
+            : BuildOrgId(teamId);
+
     private bool IsExternalProviderMode()
     {
         var mode = _configuration["AI:ProviderMode"] ?? "LocalBackend";
@@ -563,6 +889,185 @@ public class AiContentService : IAiContentService
             JsonValueKind.String => value.GetString(),
             JsonValueKind.Number => value.ToString(),
             _ => null
+        };
+    }
+
+    private static object? BuildBrandContextPayload(TeamBrandStudio? brandStudio)
+    {
+        if (brandStudio is null)
+            return null;
+
+        var ctx = MapLocalBrandContext(brandStudio);
+        return new
+        {
+            brand_name = ctx.BrandName,
+            website_url = ctx.WebsiteUrl,
+            slogan = ctx.Slogan,
+            archetype = ctx.Archetype,
+            tone_of_voice = ctx.ToneOfVoice ?? Array.Empty<string>(),
+            audience_signals = ctx.AudienceSignals ?? Array.Empty<string>(),
+            content_pillars = ctx.ContentPillars ?? Array.Empty<string>(),
+            brand_summary = ctx.BrandSummary
+        };
+    }
+
+    private static List<SuggestedCampaignPostDto> ExtractPostsFromCampaignWeeks(
+        JsonElement payload,
+        SuggestCampaignRequestDto dto,
+        string primaryPlatform)
+    {
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("weeks", out var weeksElement))
+            return [];
+        if (weeksElement.ValueKind != JsonValueKind.Array)
+            return [];
+
+        var daySlots = new List<(JsonElement Day, string? ContentTypeRaw)>();
+        foreach (var week in weeksElement.EnumerateArray())
+        {
+            if (!week.TryGetProperty("days", out var daysElement) || daysElement.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var day in daysElement.EnumerateArray())
+                daySlots.Add((day, GetString(day, "content_type")));
+        }
+
+        var results = new List<SuggestedCampaignPostDto>();
+        var totalDays = Math.Max(1, daySlots.Count);
+        for (var index = 0; index < daySlots.Count; index++)
+        {
+            var day = daySlots[index].Day;
+            var contentTypeRaw = daySlots[index].ContentTypeRaw;
+            var title = GetString(day, "topic") ?? GetString(day, "day") ?? $"Post {index + 1}";
+            var contentType = MapAiContentType(contentTypeRaw);
+            var platform = ParsePlatform(primaryPlatform, dto, index);
+            var scheduledAt = SpreadScheduledAt(dto.StartDate, dto.EndDate, index, totalDays);
+
+            string contentJson;
+            if (day.TryGetProperty("generated_content", out var generated))
+                contentJson = WrapGeneratedContent(generated, contentTypeRaw);
+            else
+            {
+                var description = GetString(day, "description") ?? string.Empty;
+                contentJson = JsonSerializer.Serialize(new
+                {
+                    source = "ai_campaign",
+                    preview = EnforceOutputLimit(description),
+                    generated = new { text = description }
+                });
+            }
+
+            results.Add(new SuggestedCampaignPostDto(
+                title,
+                contentJson,
+                contentType,
+                scheduledAt,
+                platform));
+        }
+
+        return results;
+    }
+
+    private static string WrapGeneratedContent(JsonElement generated, string? plannerContentType)
+    {
+        var preview = BuildGeneratedContentPreview(generated);
+        var wrapper = new
+        {
+            source = "ai_campaign",
+            plannerContentType,
+            aiFormat = GetString(generated, "type") ?? GetString(generated, "content_type"),
+            preview,
+            generated = JsonSerializer.Deserialize<object>(generated.GetRawText())
+        };
+        return JsonSerializer.Serialize(wrapper);
+    }
+
+    private static string BuildGeneratedContentPreview(JsonElement generated)
+    {
+        if (generated.ValueKind == JsonValueKind.String)
+            return EnforceOutputLimit(generated.GetString() ?? string.Empty);
+
+        var type = (GetString(generated, "type") ?? GetString(generated, "content_type") ?? string.Empty).ToLowerInvariant();
+        var parts = new List<string>();
+
+        var hook = GetString(generated, "hook");
+        var body = GetString(generated, "body");
+        var cta = GetString(generated, "cta");
+        if (!string.IsNullOrWhiteSpace(hook))
+            parts.Add(hook);
+        if (!string.IsNullOrWhiteSpace(body))
+            parts.Add(body);
+        if (!string.IsNullOrWhiteSpace(cta))
+            parts.Add(cta);
+
+        var title = GetString(generated, "title");
+        var intro = GetString(generated, "intro");
+        if (!string.IsNullOrWhiteSpace(title))
+            parts.Add(title);
+        if (!string.IsNullOrWhiteSpace(intro))
+            parts.Add(intro);
+
+        if (generated.TryGetProperty("sections", out var sections) && sections.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var section in sections.EnumerateArray())
+            {
+                var heading = GetString(section, "heading");
+                var text = GetString(section, "text");
+                if (!string.IsNullOrWhiteSpace(heading))
+                    parts.Add(heading);
+                if (!string.IsNullOrWhiteSpace(text))
+                    parts.Add(text);
+            }
+        }
+
+        if (generated.TryGetProperty("slides", out var slides) && slides.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var slide in slides.EnumerateArray())
+            {
+                var slideTitle = GetString(slide, "title");
+                var slideText = GetString(slide, "text");
+                if (!string.IsNullOrWhiteSpace(slideTitle))
+                    parts.Add($"• {slideTitle}");
+                if (!string.IsNullOrWhiteSpace(slideText))
+                    parts.Add(slideText);
+            }
+        }
+
+        if (parts.Count > 0)
+            return EnforceOutputLimit(string.Join("\n\n", parts));
+
+        if (type.Contains("carousel") || type.Contains("infographic") || type.Contains("poster"))
+        {
+            var direction = GetString(generated, "creative_direction") ?? GetString(generated, "visual_direction");
+            if (!string.IsNullOrWhiteSpace(direction))
+                return EnforceOutputLimit(direction);
+        }
+
+        return EnforceOutputLimit(generated.GetRawText());
+    }
+
+    private static DateTime SpreadScheduledAt(DateTime start, DateTime end, int index, int total)
+    {
+        if (total <= 1)
+            return start;
+        var spanDays = Math.Max(0, (end - start).Days);
+        var offset = (int)Math.Round((double)index / (total - 1) * spanDays);
+        return start.AddDays(offset);
+    }
+
+    private static ContentType MapAiContentType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return ContentType.LinkedInPost;
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "carousel" => ContentType.LinkedInPost,
+            "static image" or "image" or "poster" => ContentType.LinkedInPost,
+            "infographic" => ContentType.LinkedInPost,
+            "instagram" or "instagram post" => ContentType.InstagramPost,
+            "facebook" or "facebook post" => ContentType.FacebookPost,
+            "text post" or "text" => ContentType.LinkedInPost,
+            _ => Enum.TryParse<ContentType>(value, true, out var parsed) ? parsed : ContentType.LinkedInPost
         };
     }
 

@@ -92,6 +92,7 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         string language,
         int postsPerWeek,
         IReadOnlyList<string> platforms,
+        string? customPrompt,
         string correlationId,
         CancellationToken cancellationToken = default)
         => SendAsync(
@@ -103,12 +104,14 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 theme,
                 language,
                 posts_per_week = postsPerWeek,
-                platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray()
+                platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
+                custom_prompt = customPrompt ?? string.Empty
             },
             correlationId,
             cancellationToken);
 
     public Task<JsonElement> GeneratePlanningAsync(
+        JsonElement strategy,
         int strategyId,
         int postsPerWeek,
         IReadOnlyList<string> platforms,
@@ -119,6 +122,7 @@ public class LocalAiBackendClient : ILocalAiBackendClient
             "/api/planning/generate",
             new
             {
+                strategy = JsonSerializer.Deserialize<object>(strategy.GetRawText()),
                 strategy_id = strategyId,
                 posts_per_week = postsPerWeek,
                 platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
@@ -128,8 +132,12 @@ public class LocalAiBackendClient : ILocalAiBackendClient
             cancellationToken);
 
     public Task<JsonElement> GenerateCampaignContentAsync(
+        JsonElement strategy,
+        JsonElement planning,
         int planningId,
-        IReadOnlyList<string> platforms,
+        string orgId,
+        string platform,
+        object? brandContext,
         string language,
         string correlationId,
         CancellationToken cancellationToken = default)
@@ -137,17 +145,48 @@ public class LocalAiBackendClient : ILocalAiBackendClient
             "/api/campaign-content/generate",
             new
             {
+                strategy = JsonSerializer.Deserialize<object>(strategy.GetRawText()),
+                planning = JsonSerializer.Deserialize<object>(planning.GetRawText()),
                 planning_id = planningId,
-                platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
+                org_id = orgId,
+                platform = platform.ToLowerInvariant(),
+                brand_context = brandContext ?? new { },
                 language
             },
             correlationId,
             cancellationToken);
 
+    public Task<JsonElement> ConfigureBrandManualAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+        => SendAsync("/api/brand/manual", requestBody, correlationId, cancellationToken);
+
+    public async Task<bool> GetHealthAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsCircuitOpen("/health"))
+            return false;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/health");
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            MarkSuccess("/health");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            MarkFailure("/health");
+            _logger.LogWarning(ex, "Local AI health check failed");
+            return false;
+        }
+    }
+
     private async Task<JsonElement> SendAsync(string path, object body, string correlationId, CancellationToken cancellationToken)
     {
         if (IsCircuitOpen(path))
-            throw new InvalidOperationException($"Local AI backend circuit is open for path '{path}'.");
+            throw new InvalidOperationException(
+                $"Local AI backend circuit is open for path '{path}'. Wait about 45 seconds and retry, or restart the .NET API after fixing the AI service.");
 
         Exception? lastException = null;
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)

@@ -42,7 +42,7 @@ public class ContentPostConfiguration : IEntityTypeConfiguration<ContentPost>
         builder.HasOne(cp => cp.Channel)
               .WithMany(c => c.ContentPosts)
               .HasForeignKey(cp => cp.ChannelId)
-              .IsRequired()
+              .IsRequired(false)
               .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(cp => cp.Campaign)

@@ -8,9 +8,12 @@ import { useDeleteCampaign, useUpdateCampaign } from "../campaigns.queries";
 import { CreateCampaignDialog } from "../components/CreateCampaignDialog";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
 import { channelPaths } from "../../../shared/lib/routes";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { ReadOnlyBanner } from "../../../shared/ui/ReadOnlyBanner";
 
 export function CampaignSettingsPage() {
   const navigate = useNavigate();
+  const { canMutateContent } = useTeamPermissions();
   const { channelId, channel } = useChannelContext();
   const { campaignId, campaign } = useCampaignContext();
   const updateMutation = useUpdateCampaign();
@@ -24,6 +27,7 @@ export function CampaignSettingsPage() {
   return (
     <>
       <Stack spacing={2.5}>
+        {!canMutateContent ? <ReadOnlyBanner /> : null}
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
             Campaign settings
@@ -56,9 +60,11 @@ export function CampaignSettingsPage() {
                 </Typography>
               </Box>
             </Box>
-            <Button variant="outlined" onClick={() => setEditOpen(true)}>
-              Edit campaign
-            </Button>
+            {canMutateContent ? (
+              <Button variant="outlined" onClick={() => setEditOpen(true)}>
+                Edit campaign
+              </Button>
+            ) : null}
           </Stack>
         </Paper>
 
@@ -82,14 +88,16 @@ export function CampaignSettingsPage() {
                 </Alert>
               ) : null}
             </Box>
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<Trash2 size={14} />}
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete campaign
-            </Button>
+            {canMutateContent ? (
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<Trash2 size={14} />}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete campaign
+              </Button>
+            ) : null}
           </Stack>
         </Paper>
       </Stack>

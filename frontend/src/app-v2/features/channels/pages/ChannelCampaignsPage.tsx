@@ -1,14 +1,21 @@
 import { useMemo, useState } from "react";
 import { Alert, Box, Button, Paper, Skeleton, Stack, TextField, Typography } from "@mui/material";
 import { Plus, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChannelContext } from "../hooks/useChannelContext";
 import { useCampaigns, useCreateCampaign } from "../../campaigns/campaigns.queries";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
 import { CampaignCard } from "../../campaigns/components/CampaignCard";
 import { CreateCampaignDialog } from "../../campaigns/components/CreateCampaignDialog";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { campaignPaths } from "../../../shared/lib/routes";
 
 export function ChannelCampaignsPage() {
-  const { channelId, channel } = useChannelContext();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { canManageChannels } = useTeamPermissions();
+  const { channelId } = useChannelContext();
   const { data: allCampaigns = [], isLoading, isError } = useCampaigns();
   const { data: allPosts = [] } = useContentPosts();
   const createMutation = useCreateCampaign();
@@ -34,7 +41,7 @@ export function ChannelCampaignsPage() {
   const postCountByCampaign = useMemo(() => {
     const map = new Map<number, number>();
     for (const post of allPosts) {
-      const cid = (post as { campaignId?: number | null }).campaignId;
+      const cid = post.campaignId;
       if (typeof cid === "number") {
         map.set(cid, (map.get(cid) ?? 0) + 1);
       }
@@ -56,7 +63,7 @@ export function ChannelCampaignsPage() {
               EDITORIAL INITIATIVES INSIDE THIS CHANNEL
             </Typography>
           </Box>
-          {channelCampaigns.length > 0 ? (
+          {canManageChannels ? (
             <Button
               variant="contained"
               size="small"
@@ -88,9 +95,11 @@ export function ChannelCampaignsPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2.5 }}>
               Campaigns organize launches, hiring sprints, seasonal initiatives, and editorial series.
             </Typography>
-            <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-              Create campaign
-            </Button>
+            {canManageChannels ? (
+              <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+                New campaign
+              </Button>
+            ) : null}
           </Paper>
         ) : (
           <Stack spacing={2}>
@@ -135,7 +144,6 @@ export function ChannelCampaignsPage() {
       <CreateCampaignDialog
         open={createOpen}
         channelId={channelId}
-        channelName={channel?.name}
         saving={createMutation.isPending}
         errorMessage={
           createMutation.isError ? (createMutation.error as Error).message : null
@@ -148,9 +156,11 @@ export function ChannelCampaignsPage() {
         }}
         onSubmit={(payload) =>
           createMutation.mutate(payload, {
-            onSuccess: () => {
+            onSuccess: (created) => {
               setCreateOpen(false);
               createMutation.reset();
+              void queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+              navigate(`${campaignPaths.overview(channelId, created.id)}?welcome=1`);
             },
           })
         }

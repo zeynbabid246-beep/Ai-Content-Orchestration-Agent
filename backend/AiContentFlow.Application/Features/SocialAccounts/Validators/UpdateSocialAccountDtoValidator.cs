@@ -7,10 +7,6 @@ public class UpdateSocialAccountDtoValidator : AbstractValidator<UpdateSocialAcc
 {
     public UpdateSocialAccountDtoValidator()
     {
-        RuleFor(x => x.ChannelId)
-            .GreaterThan(0)
-            .When(x => x.ChannelId.HasValue);
-
         RuleFor(x => x.Platform)
             .IsInEnum();
 

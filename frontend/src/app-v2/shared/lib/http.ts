@@ -41,6 +41,12 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403) {
+      return Promise.reject(
+        new Error("You do not have permission to perform this action.")
+      );
+    }
+
     // Backend ExceptionMiddleware returns { message: string, errors: [] }
     const message =
       (error.response?.data as { message?: string } | null)?.message ??
@@ -72,6 +78,24 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
   // 204 No Content — axios returns empty string, normalise to null
   const response = await api.request<T>(config);
+  return response.data ?? (null as T);
+}
+
+export async function apiFormRequest<T>(
+  path: string,
+  formData: FormData,
+  method: "POST" | "PUT" = "POST"
+): Promise<T> {
+  const token = authStorage.getAccessToken();
+  const response = await api.request<T>({
+    url: path,
+    method,
+    data: formData,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return response.data ?? (null as T);
 }
 

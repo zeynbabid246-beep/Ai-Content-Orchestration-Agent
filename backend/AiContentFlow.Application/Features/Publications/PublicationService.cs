@@ -1,4 +1,5 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Publishing;
 using AiContentFlow.Application.Features.Publications.Dtos;
 using AiContentFlow.Domain.Models;
 
@@ -10,6 +11,7 @@ public class PublicationService : IPublicationService
         [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
+    private readonly IChannelSocialAccountRepository _channelSocialAccountRepository;
     private readonly IPostVariantRepository _postVariantRepository;
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublishJobRepository _publishJobRepository;
@@ -19,6 +21,7 @@ public class PublicationService : IPublicationService
     public PublicationService(
         IContentPostRepository contentPostRepository,
         ISocialAccountRepository socialAccountRepository,
+        IChannelSocialAccountRepository channelSocialAccountRepository,
         IPostVariantRepository postVariantRepository,
         IPostPublicationRepository publicationRepository,
         IPublishJobRepository publishJobRepository,
@@ -27,6 +30,7 @@ public class PublicationService : IPublicationService
     {
         _contentPostRepository = contentPostRepository;
         _socialAccountRepository = socialAccountRepository;
+        _channelSocialAccountRepository = channelSocialAccountRepository;
         _postVariantRepository = postVariantRepository;
         _publicationRepository = publicationRepository;
         _publishJobRepository = publishJobRepository;
@@ -51,7 +55,7 @@ public class PublicationService : IPublicationService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, dto.SocialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
-        EnsureAccountMatchesPostScope(contentPost, socialAccount);
+        await EnsureAccountAllowedForPostAsync(contentPost, socialAccount);
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
@@ -60,6 +64,7 @@ public class PublicationService : IPublicationService
         var postVariant = EnsureVariantResolved(
             await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId),
             socialAccount.Platform);
+        EnsureInstagramHasImageIfNeeded(socialAccount.Platform, postVariant, contentPost);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
         var existingPublication = await FindExistingPublicationAsync(
             teamId,
@@ -115,7 +120,7 @@ public class PublicationService : IPublicationService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, dto.SocialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
-        EnsureAccountMatchesPostScope(contentPost, socialAccount);
+        await EnsureAccountAllowedForPostAsync(contentPost, socialAccount);
         if (!socialAccount.IsActive || socialAccount.Status == SocialAccountStatus.Disconnected)
             throw new InvalidOperationException("Social account is not active");
         EnsureSupportedPublishingPlatform(socialAccount.Platform);
@@ -124,6 +129,7 @@ public class PublicationService : IPublicationService
         var postVariant = EnsureVariantResolved(
             await ResolveVariantAsync(contentPost, socialAccount, dto.PostVariantId),
             socialAccount.Platform);
+        EnsureInstagramHasImageIfNeeded(socialAccount.Platform, postVariant, contentPost);
         var idempotencyKey = Normalize(dto.IdempotencyKey);
         var existingPublication = await FindExistingPublicationAsync(
             teamId,
@@ -163,6 +169,20 @@ public class PublicationService : IPublicationService
             await _publicationRepository.AddAsync(publication);
             await _publishJobRepository.AddAsync(job);
         });
+
+        return Map(publication);
+    }
+
+    public async Task<PublicationResponseDto> GetByIdAsync(Guid teamId, int publicationId, string requestingUserId)
+    {
+        _ = await _teamRepository.GetTeamByIdAsync(teamId)
+            ?? throw new KeyNotFoundException("Team not found");
+
+        if (!await _teamRepository.IsUserMemberAsync(teamId, requestingUserId))
+            throw new UnauthorizedAccessException("Not a team member");
+
+        var publication = await _publicationRepository.GetByIdAsync(teamId, publicationId)
+            ?? throw new KeyNotFoundException("Publication not found");
 
         return Map(publication);
     }
@@ -230,6 +250,21 @@ public class PublicationService : IPublicationService
             throw new InvalidOperationException("Content post must be approved before it can be published");
     }
 
+    private static void EnsureInstagramHasImageIfNeeded(
+        SocialPlatform platform,
+        PostVariant postVariant,
+        ContentPost contentPost)
+    {
+        if (platform != SocialPlatform.Instagram)
+            return;
+
+        if (!VariantContentMerge.HasPublishableImage(postVariant.ContentJson, contentPost.ImageUrl))
+        {
+            throw new InvalidOperationException(
+                "Instagram publishing requires an image. Add shared media on the post and save before scheduling or publishing.");
+        }
+    }
+
     private static void EnsureSupportedPublishingPlatform(SocialPlatform platform)
     {
         if (!SupportedPublishPlatforms.Contains(platform))
@@ -238,30 +273,32 @@ public class PublicationService : IPublicationService
 
     private static void EnsureTokenIsValid(SocialAccount socialAccount)
     {
-        if (socialAccount.Platform == SocialPlatform.Facebook)
+        if (socialAccount.Platform is SocialPlatform.Facebook or SocialPlatform.Instagram)
         {
-            // Facebook page tokens are often effectively long-lived and may not expose a reliable expiry.
-            // We defer final validity to the provider call instead of hard-failing here.
+            // Page tokens are often effectively long-lived and may not expose a reliable expiry.
+            // Defer final validity to the provider call instead of hard-failing here.
             return;
-        }
-
-        if (socialAccount.Platform == SocialPlatform.Instagram
-            && socialAccount.TokenExpiry <= DateTime.UtcNow.AddHours(24))
-        {
-            throw new InvalidOperationException(
-                "Instagram token is near expiry. Reconnect the account before publishing.");
         }
 
         if (socialAccount.TokenExpiry <= DateTime.UtcNow)
             throw new InvalidOperationException("Social account token has expired. Reconnect the account before publishing.");
     }
 
-    private static void EnsureAccountMatchesPostScope(ContentPost contentPost, SocialAccount socialAccount)
+    private async Task EnsureAccountAllowedForPostAsync(ContentPost contentPost, SocialAccount socialAccount)
     {
-        if (contentPost.ChannelId != socialAccount.ChannelId)
+        if (contentPost.TeamId != socialAccount.TeamId)
+            throw new InvalidOperationException("Selected social account does not belong to this team.");
+
+        if (!contentPost.ChannelId.HasValue)
+            return;
+
+        if (!await _channelSocialAccountRepository.IsLinkedAsync(
+                contentPost.TeamId,
+                contentPost.ChannelId.Value,
+                socialAccount.Id))
         {
             throw new InvalidOperationException(
-                "Selected social account does not belong to the same channel as this post.");
+                "Selected social account is not linked to this post's channel. Link it on Channel → Publishing.");
         }
     }
 

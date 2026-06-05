@@ -1,83 +1,166 @@
-import { useMemo } from "react";
-import { Box, Paper, Stack, Typography } from "@mui/material";
-import { FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  MenuItem,
+  Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
+import { FileText, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useChannelContext } from "../hooks/useChannelContext";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
-import { StatusChip } from "../../../shared/ui/StatusChip";
+import { useCampaigns } from "../../campaigns/campaigns.queries";
+import { ContentStatus } from "../../content-posts/content-posts.types";
+import {
+  ContentPostRow,
+  ContentPostRowSkeleton,
+} from "../../content-posts/components/ContentPostRow";
+import { WorkspaceEmptyState } from "../../../shared/ui/WorkspaceEmptyState";
+import { channelPaths } from "../../../shared/lib/routes";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { usePostOutboundNotice } from "../../posts/hooks/usePostOutboundNotice";
+
+type StatusFilter = "all" | ContentStatus;
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: ContentStatus.Draft, label: "Drafts" },
+  { value: ContentStatus.Review, label: "In review" },
+  { value: ContentStatus.Scheduled, label: "Scheduled" },
+  { value: ContentStatus.Published, label: "Published" },
+];
 
 export function ChannelContentPage() {
+  const navigate = useNavigate();
+  const { canMutateContent } = useTeamPermissions();
   const { channelId } = useChannelContext();
   const { data: allPosts = [], isLoading } = useContentPosts();
+  const { data: campaigns = [] } = useCampaigns();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const { notice: outboundNotice, dismissNotice, outcome } = usePostOutboundNotice();
+
+  useEffect(() => {
+    if (outcome === "scheduled") {
+      setStatusFilter(ContentStatus.Scheduled);
+    } else if (outcome === "published") {
+      setStatusFilter(ContentStatus.Published);
+    }
+  }, [outcome]);
+
+  const campaignNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const c of campaigns.filter((x) => x.channelId === channelId)) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  }, [campaigns, channelId]);
 
   const posts = useMemo(
     () =>
       allPosts
         .filter((post) => post.channelId === channelId)
+        .filter((post) => statusFilter === "all" || post.status === statusFilter)
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         ),
-    [allPosts, channelId]
+    [allPosts, channelId, statusFilter]
   );
 
+  if (!channelId) return null;
+
   return (
-    <Stack spacing={2}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight={600}>
-          Channel content
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-          ALL POSTS IN THIS CHANNEL, ACROSS CAMPAIGNS
-        </Typography>
-      </Box>
+    <Stack spacing={2.5}>
+      {outboundNotice ? (
+        <Alert severity={outboundNotice.severity} onClose={dismissNotice}>
+          {outboundNotice.text}
+        </Alert>
+      ) : null}
+
+      <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }} justifyContent="space-between">
+        <Box>
+          <Typography variant="subtitle1" fontWeight={600}>
+            Channel content
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            All posts in this channel
+          </Typography>
+        </Box>
+        {canMutateContent ? (
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<Plus size={16} />}
+            onClick={() => navigate(channelPaths.newPost(channelId))}
+          >
+            New post
+          </Button>
+        ) : null}
+      </Stack>
+
+      <ToggleButtonGroup
+        size="small"
+        value={statusFilter}
+        exclusive
+        onChange={(_, value: StatusFilter | null) => {
+          if (value) setStatusFilter(value);
+        }}
+        sx={{ flexWrap: "wrap" }}
+      >
+        {STATUS_OPTIONS.map((opt) => (
+          <ToggleButton key={opt.value} value={opt.value}>
+            {opt.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
 
       {isLoading ? (
-        <Typography variant="body2" color="text.secondary">
-          Loading posts...
-        </Typography>
+        <Stack spacing={1}>
+          {[0, 1, 2].map((i) => (
+            <ContentPostRowSkeleton key={i} />
+          ))}
+        </Stack>
       ) : posts.length === 0 ? (
-        <Paper sx={{ p: 5, textAlign: "center", borderStyle: "dashed" }}>
-          <FileText size={22} style={{ opacity: 0.55 }} />
-          <Typography variant="h6" sx={{ mt: 1.5 }}>
-            No content yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Create a campaign and draft posts inside it to see them here.
-          </Typography>
-        </Paper>
-      ) : (
-        <Paper>
-          <Stack divider={<Box sx={{ borderTop: "1px solid", borderColor: "divider" }} />}>
-            {posts.map((post) => (
-              <Stack
-                key={post.id}
-                direction="row"
-                spacing={2}
-                alignItems="center"
-                sx={{ p: 1.75 }}
+        <WorkspaceEmptyState
+          icon={<FileText size={22} />}
+          title="No content yet"
+          description={
+            statusFilter === "all"
+              ? "Posts you create in this channel will appear here."
+              : "No posts match this status filter."
+          }
+          action={
+            canMutateContent && statusFilter === "all" ? (
+              <Button
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                onClick={() => navigate(channelPaths.newPost(channelId))}
               >
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography
-                    variant="body2"
-                    fontWeight={600}
-                    sx={{
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {post.title || "Untitled post"}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {post.contentType} · Updated{" "}
-                    {new Date(post.updatedAt).toLocaleString()}
-                  </Typography>
-                </Box>
-                <StatusChip status={post.status} />
-              </Stack>
-            ))}
-          </Stack>
-        </Paper>
+                New post
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <Stack spacing={1}>
+          {posts.map((post) => (
+            <ContentPostRow
+              key={post.id}
+              post={post}
+              campaignName={
+                post.campaignId != null
+                  ? campaignNameById.get(post.campaignId)
+                  : undefined
+              }
+              showCampaign
+            />
+          ))}
+        </Stack>
       )}
     </Stack>
   );

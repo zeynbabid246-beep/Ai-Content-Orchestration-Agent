@@ -282,6 +282,35 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("ChannelConfigs");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelSocialAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SocialAccountId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.HasIndex("SocialAccountId");
+
+                    b.HasIndex("ChannelId", "SocialAccountId")
+                        .IsUnique();
+
+                    b.ToTable("ChannelSocialAccounts");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
                     b.Property<int>("Id")
@@ -300,7 +329,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<int?>("CampaignId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ChannelId")
+                    b.Property<int?>("ChannelId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Content")
@@ -621,9 +650,6 @@ namespace AiContentFlow.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ChannelId")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -673,14 +699,11 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChannelId");
-
-                    b.HasIndex("TeamId", "ChannelId");
-
                     b.HasIndex("TeamId", "Platform");
 
-                    b.HasIndex("TeamId", "ChannelId", "Platform", "AccountHandle")
-                        .IsUnique();
+                    b.HasIndex("TeamId", "Platform", "ExternalAccountId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("SocialAccounts");
                 });
@@ -707,6 +730,45 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Teams");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamActivityEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ActorUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EntityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId", "CreatedAt");
+
+                    b.ToTable("TeamActivityEvents");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.TeamBrandStudio", b =>
@@ -892,6 +954,54 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.ToTable("TeamBrandStudios");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InvitedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("TeamId", "Email");
+
+                    b.ToTable("TeamInvitations");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.UserTeam", b =>
                 {
                     b.Property<Guid>("Id")
@@ -929,9 +1039,18 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Bio")
+                        .HasColumnType("text");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -1228,6 +1347,25 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.Navigation("Channel");
                 });
 
+            modelBuilder.Entity("AiContentFlow.Domain.Models.ChannelSocialAccount", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
+                        .WithMany("SocialAccountLinks")
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AiContentFlow.Domain.Models.SocialAccount", "SocialAccount")
+                        .WithMany("ChannelLinks")
+                        .HasForeignKey("SocialAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+
+                    b.Navigation("SocialAccount");
+                });
+
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
                 {
                     b.HasOne("AiContentFlow.Domain.Models.Campaign", "Campaign")
@@ -1238,8 +1376,7 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
                         .WithMany("ContentPosts")
                         .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithMany("ContentPosts")
@@ -1323,19 +1460,11 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.SocialAccount", b =>
                 {
-                    b.HasOne("AiContentFlow.Domain.Models.Channel", "Channel")
-                        .WithMany("SocialAccounts")
-                        .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithMany("SocialAccounts")
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Channel");
 
                     b.Navigation("Team");
                 });
@@ -1345,6 +1474,17 @@ namespace AiContentFlow.Infrastructure.Migrations
                     b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
                         .WithOne("BrandStudio")
                         .HasForeignKey("AiContentFlow.Domain.Models.TeamBrandStudio", "TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("AiContentFlow.Domain.Models.TeamInvitation", b =>
+                {
+                    b.HasOne("AiContentFlow.Domain.Models.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1445,7 +1585,7 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     b.Navigation("ContentPosts");
 
-                    b.Navigation("SocialAccounts");
+                    b.Navigation("SocialAccountLinks");
                 });
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.ContentPost", b =>
@@ -1469,6 +1609,8 @@ namespace AiContentFlow.Infrastructure.Migrations
 
             modelBuilder.Entity("AiContentFlow.Domain.Models.SocialAccount", b =>
                 {
+                    b.Navigation("ChannelLinks");
+
                     b.Navigation("Publications");
                 });
 

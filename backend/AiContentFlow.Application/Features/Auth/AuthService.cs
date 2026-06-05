@@ -1,29 +1,62 @@
-﻿using AiContentFlow.Application.Common.Interfaces;
+﻿using AiContentFlow.Application.Common.Email;
+using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.Auth.Dtos;
+using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Domain.Models;
+using FluentValidation;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AiContentFlow.Application.Features.Auth
 {
     public class AuthService : IAuthService
     {
+        private const string ForgotPasswordSuccessMessage =
+            "If an account exists for that email, a password reset link has been sent.";
+
         private readonly IIdentityService _identityService;
         private readonly IJwtTokenGenerator _jwtTokenGenerator;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly ITeamRepository _teamRepository;
+        private readonly ITeamService _teamService;
         private readonly IApplicationTransaction _applicationTransaction;
+        private readonly IEmailService _emailService;
+        private readonly AppSettings _appSettings;
+        private readonly ILogger<AuthService> _logger;
+        private readonly IValidator<ForgotPasswordRequestDto> _forgotPasswordValidator;
+        private readonly IValidator<ResetPasswordRequestDto> _resetPasswordValidator;
+        private readonly IValidator<ChangePasswordRequestDto> _changePasswordValidator;
+        private readonly IValidator<LogoutRequestDto> _logoutValidator;
 
         public AuthService(
             IIdentityService identityService,
             IJwtTokenGenerator jwtTokenGenerator,
             IRefreshTokenRepository refreshTokenRepository,
             ITeamRepository teamRepository,
-            IApplicationTransaction applicationTransaction)
+            ITeamService teamService,
+            IApplicationTransaction applicationTransaction,
+            IEmailService emailService,
+            IOptions<AppSettings> appSettings,
+            ILogger<AuthService> logger,
+            IValidator<ForgotPasswordRequestDto> forgotPasswordValidator,
+            IValidator<ResetPasswordRequestDto> resetPasswordValidator,
+            IValidator<ChangePasswordRequestDto> changePasswordValidator,
+            IValidator<LogoutRequestDto> logoutValidator)
         {
             _identityService = identityService;
             _jwtTokenGenerator = jwtTokenGenerator;
             _refreshTokenRepository = refreshTokenRepository;
             _teamRepository = teamRepository;
+            _teamService = teamService;
             _applicationTransaction = applicationTransaction;
+            _emailService = emailService;
+            _appSettings = appSettings.Value;
+            _logger = logger;
+            _forgotPasswordValidator = forgotPasswordValidator;
+            _resetPasswordValidator = resetPasswordValidator;
+            _changePasswordValidator = changePasswordValidator;
+            _logoutValidator = logoutValidator;
         }
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
@@ -40,28 +73,50 @@ namespace AiContentFlow.Application.Features.Auth
                     throw new InvalidOperationException(string.Join(", ", registrationResult.Errors));
                 }
 
-                var teamNameProvided = !string.IsNullOrWhiteSpace(request.TeamName);
-                var normalizedTeamName = BuildInitialTeamName(registrationResult.Username, request.TeamName);
+                Team team;
+                TeamRole memberRole;
+                var invitationContext = await _teamService.TryResolveInvitationForRegistrationAsync(
+                    request.InviteToken,
+                    registrationResult.Email);
 
-                var team = new Team
+                if (invitationContext != null)
                 {
-                    Id = Guid.NewGuid(),
-                    Name = normalizedTeamName,
-                    IsNameSetupRequired = !teamNameProvided,
-                    CreatedAt = DateTime.UtcNow
-                };
+                    await _teamService.CompleteInvitationAfterRegistrationAsync(
+                        invitationContext.Value.Invitation,
+                        registrationResult.UserId);
 
-                var userTeam = new UserTeam
+                    team = invitationContext.Value.Invitation.Team
+                        ?? await _teamRepository.GetTeamByIdAsync(invitationContext.Value.Invitation.TeamId)
+                        ?? throw new InvalidOperationException("Invitation team not found");
+
+                    memberRole = invitationContext.Value.Role;
+                }
+                else
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = registrationResult.UserId,
-                    TeamId = team.Id,
-                    Role = TeamRole.Admin,
-                    JoinedAt = DateTime.UtcNow
-                };
+                    var teamNameProvided = !string.IsNullOrWhiteSpace(request.TeamName);
+                    var normalizedTeamName = BuildInitialTeamName(registrationResult.Username, request.TeamName);
 
-                await _teamRepository.AddTeamAsync(team);
-                await _teamRepository.AddUserTeamAsync(userTeam);
+                    team = new Team
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = normalizedTeamName,
+                        IsNameSetupRequired = !teamNameProvided,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    var userTeam = new UserTeam
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = registrationResult.UserId,
+                        TeamId = team.Id,
+                        Role = TeamRole.Admin,
+                        JoinedAt = DateTime.UtcNow
+                    };
+
+                    await _teamRepository.AddTeamAsync(team);
+                    await _teamRepository.AddUserTeamAsync(userTeam);
+                    memberRole = TeamRole.Admin;
+                }
 
                 var accessToken = _jwtTokenGenerator.GenerateToken(registrationResult.UserId, registrationResult.Email);
                 var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
@@ -79,7 +134,7 @@ namespace AiContentFlow.Application.Features.Auth
                     Username = registrationResult.Username,
                     Email = registrationResult.Email,
                     TeamId = team.Id,
-                    TeamRole = TeamRole.Admin.ToString(),
+                    TeamRole = memberRole.ToString(),
                     IsTeamNameSetupRequired = team.IsNameSetupRequired,
                     AccessToken = accessToken,
                     RefreshToken = refreshToken
@@ -187,6 +242,70 @@ namespace AiContentFlow.Application.Features.Auth
                 AccessToken = accessToken,
                 RefreshToken = newRefreshToken
             };
+        }
+
+        public async Task<MessageResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto request)
+        {
+            await _forgotPasswordValidator.ValidateAndThrowAsync(request);
+
+            var token = await _identityService.GeneratePasswordResetTokenAsync(request.Email);
+            if (token != null)
+            {
+                var baseUrl = _appSettings.FrontendBaseUrl.TrimEnd('/');
+                var encodedEmail = Uri.EscapeDataString(request.Email.Trim());
+                var encodedToken = Uri.EscapeDataString(token);
+                var resetLink = $"{baseUrl}/app/reset-password?email={encodedEmail}&token={encodedToken}";
+
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        request.Email.Trim(),
+                        "Reset your AiContentFlow password",
+                        AuthEmailTemplates.PasswordReset(resetLink));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send password reset email to {Email}", request.Email);
+                }
+            }
+
+            return new MessageResponseDto { Message = ForgotPasswordSuccessMessage };
+        }
+
+        public async Task<MessageResponseDto> ResetPasswordAsync(ResetPasswordRequestDto request)
+        {
+            await _resetPasswordValidator.ValidateAndThrowAsync(request);
+
+            var result = await _identityService.ResetPasswordAsync(
+                request.Email,
+                request.Token,
+                request.NewPassword);
+
+            if (!result.Success)
+                throw new InvalidOperationException(string.Join(", ", result.Errors));
+
+            return new MessageResponseDto { Message = "Password has been reset. You can sign in with your new password." };
+        }
+
+        public async Task<MessageResponseDto> ChangePasswordAsync(string userId, ChangePasswordRequestDto request)
+        {
+            await _changePasswordValidator.ValidateAndThrowAsync(request);
+
+            var result = await _identityService.ChangePasswordAsync(
+                userId,
+                request.CurrentPassword,
+                request.NewPassword);
+
+            if (!result.Success)
+                throw new InvalidOperationException(string.Join(", ", result.Errors));
+
+            return new MessageResponseDto { Message = "Password updated successfully." };
+        }
+
+        public async Task LogoutAsync(LogoutRequestDto request)
+        {
+            await _logoutValidator.ValidateAndThrowAsync(request);
+            await _refreshTokenRepository.RevokeAsync(request.RefreshToken);
         }
     }
 }

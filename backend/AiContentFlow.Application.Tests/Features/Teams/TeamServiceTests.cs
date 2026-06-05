@@ -1,7 +1,10 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Models;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Application.Features.Teams.Dtos;
 using AiContentFlow.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -12,11 +15,8 @@ public class TeamServiceTests
     [Fact]
     public async Task SetTeamNameAsync_WhenMemberIsNotAdmin_ThrowsUnauthorizedAccessException()
     {
-        var teamRepo = new Mock<ITeamRepository>();
-        var emailService = new Mock<IEmailService>();
-        var service = new TeamService(teamRepo.Object, emailService.Object);
-
         var teamId = Guid.NewGuid();
+        var teamRepo = new Mock<ITeamRepository>();
         teamRepo.Setup(x => x.GetTeamByIdAsync(teamId)).ReturnsAsync(new Team
         {
             Id = teamId,
@@ -34,15 +34,17 @@ public class TeamServiceTests
             JoinedAt = DateTime.UtcNow
         });
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SetTeamNameAsync(teamId, "viewer-1", new SetTeamNameDto("Growth Team")));
+        var serviceWithRepo = CreateService(teamRepo, new Mock<ITeamInvitationRepository>());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            serviceWithRepo.SetTeamNameAsync(teamId, "viewer-1", new SetTeamNameDto("Growth Team")));
     }
 
     [Fact]
     public async Task SetTeamNameAsync_WhenValid_UpdatesNameAndClearsSetupFlag()
     {
         var teamRepo = new Mock<ITeamRepository>();
-        var emailService = new Mock<IEmailService>();
-        var service = new TeamService(teamRepo.Object, emailService.Object);
+        var service = CreateService(teamRepo, new Mock<ITeamInvitationRepository>());
 
         var teamId = Guid.NewGuid();
         var team = new Team
@@ -74,5 +76,28 @@ public class TeamServiceTests
         Assert.False(team.IsNameSetupRequired);
         Assert.Equal("Product Team", result.Name);
         teamRepo.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    private static TeamService CreateService(
+        Mock<ITeamRepository> teamRepo,
+        Mock<ITeamInvitationRepository> invitationRepo)
+    {
+        var activityService = new Mock<ITeamActivityService>();
+        activityService.Setup(x => x.LogAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
+
+        return new TeamService(
+            teamRepo.Object,
+            invitationRepo.Object,
+            new Mock<IEmailService>().Object,
+            activityService.Object,
+            Options.Create(new AppSettings { FrontendBaseUrl = "http://localhost:5173" }),
+            new Mock<ILogger<TeamService>>().Object);
     }
 }

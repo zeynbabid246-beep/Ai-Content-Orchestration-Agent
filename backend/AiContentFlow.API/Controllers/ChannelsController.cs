@@ -11,10 +11,14 @@ namespace AiContentFlow.API.Controllers;
 public class ChannelsController : ControllerBase
 {
     private readonly IChannelService _channelService;
+    private readonly IChannelSocialAccountService _channelSocialAccountService;
 
-    public ChannelsController(IChannelService channelService)
+    public ChannelsController(
+        IChannelService channelService,
+        IChannelSocialAccountService channelSocialAccountService)
     {
         _channelService = channelService;
+        _channelSocialAccountService = channelSocialAccountService;
     }
 
     [HttpPost]
@@ -74,6 +78,42 @@ public class ChannelsController : ControllerBase
             return Unauthorized("User ID not found in token");
 
         await _channelService.DeleteAsync(teamId, channelId, userId);
+        return NoContent();
+    }
+
+    [HttpGet("{channelId:int}/social-accounts")]
+    public async Task<ActionResult<ChannelSocialAccountsResponseDto>> GetSocialAccounts(Guid teamId, int channelId)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _channelSocialAccountService.GetChannelSocialAccountsAsync(teamId, channelId, userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{channelId:int}/social-accounts/link")]
+    public async Task<IActionResult> LinkSocialAccount(
+        Guid teamId,
+        int channelId,
+        [FromBody] LinkChannelSocialAccountDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        await _channelSocialAccountService.LinkAsync(teamId, channelId, userId, dto);
+        return NoContent();
+    }
+
+    [HttpDelete("{channelId:int}/social-accounts/{socialAccountId:int}")]
+    public async Task<IActionResult> UnlinkSocialAccount(Guid teamId, int channelId, int socialAccountId)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        await _channelSocialAccountService.UnlinkAsync(teamId, channelId, socialAccountId, userId);
         return NoContent();
     }
 

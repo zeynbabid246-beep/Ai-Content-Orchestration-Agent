@@ -1,3 +1,4 @@
+using AiContentFlow.Application.Common;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Services;
 using AiContentFlow.Application.Features.Publications;
@@ -5,6 +6,7 @@ using AiContentFlow.Application.Features.Publications.Dtos;
 using AiContentFlow.Domain.Campaigns.Dtos;
 using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Domain.Models;
+using FluentValidation;
 
 namespace AiContentFlow.Application.Features.Campaigns;
 
@@ -16,6 +18,9 @@ public class CampaignService : ICampaignService
     private readonly IChannelRepository _channelRepository;
     private readonly IBrandStudioRepository _brandStudioRepository;
     private readonly IPublicationService _publicationService;
+    private readonly ITeamActivityService _activityService;
+    private readonly IValidator<CreateCampaignDto> _createValidator;
+    private readonly IValidator<UpdateCampaignDto> _updateValidator;
 
     public CampaignService(
         ICampaignRepository campaignRepository,
@@ -23,7 +28,10 @@ public class CampaignService : ICampaignService
         ITeamRepository teamRepository,
         IChannelRepository channelRepository,
         IBrandStudioRepository brandStudioRepository,
-        IPublicationService publicationService)
+        IPublicationService publicationService,
+        ITeamActivityService activityService,
+        IValidator<CreateCampaignDto> createValidator,
+        IValidator<UpdateCampaignDto> updateValidator)
     {
         _campaignRepository = campaignRepository;
         _contentPostRepository = contentPostRepository;
@@ -31,10 +39,15 @@ public class CampaignService : ICampaignService
         _channelRepository = channelRepository;
         _brandStudioRepository = brandStudioRepository;
         _publicationService = publicationService;
+        _activityService = activityService;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     public async Task<CampaignResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateCampaignDto dto)
     {
+        await _createValidator.ValidateAndThrowAsync(dto);
+
         _ = await _teamRepository.GetTeamByIdAsync(teamId)
             ?? throw new KeyNotFoundException("Team not found");
 
@@ -67,7 +80,14 @@ public class CampaignService : ICampaignService
         await _campaignRepository.AddAsync(campaign);
         await _campaignRepository.SaveChangesAsync();
 
-        return Map(campaign);
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.CampaignCreated,
+            "Campaign",
+            campaign.Id.ToString());
+
+        return Map(campaign, Array.Empty<ContentPost>());
     }
 
     public async Task<List<CampaignResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId)
@@ -79,7 +99,7 @@ public class CampaignService : ICampaignService
             throw new UnauthorizedAccessException("Not a team member");
 
         var campaigns = await _campaignRepository.GetByTeamAsync(teamId);
-        return campaigns.Select(Map).ToList();
+        return campaigns.Select(c => Map(c, Array.Empty<ContentPost>())).ToList();
     }
 
     public async Task<CampaignResponseDto> GetByIdAsync(Guid teamId, int campaignId, string requestingUserId)
@@ -93,11 +113,13 @@ public class CampaignService : ICampaignService
         var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
             ?? throw new KeyNotFoundException("Campaign not found");
 
-        return Map(campaign);
+        var posts = await _contentPostRepository.GetByCampaignAsync(teamId, campaignId);
+        return Map(campaign, posts);
     }
 
     public async Task<CampaignResponseDto> UpdateAsync(Guid teamId, int campaignId, string requestingUserId, UpdateCampaignDto dto)
     {
+        await _updateValidator.ValidateAndThrowAsync(dto);
         await EnsureCanMutateAsync(teamId, requestingUserId);
 
         var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
@@ -122,7 +144,8 @@ public class CampaignService : ICampaignService
 
         await _campaignRepository.SaveChangesAsync();
 
-        return Map(campaign);
+        var posts = await _contentPostRepository.GetByCampaignAsync(teamId, campaignId);
+        return Map(campaign, posts);
     }
 
     public async Task DeleteAsync(Guid teamId, int campaignId, string requestingUserId)
@@ -137,13 +160,20 @@ public class CampaignService : ICampaignService
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _campaignRepository.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.CampaignDeleted,
+            "Campaign",
+            campaign.Id.ToString());
     }
 
     public async Task LinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId)
     {
         await EnsureCanMutateAsync(teamId, requestingUserId);
 
-        _ = await _campaignRepository.GetByIdAsync(teamId, campaignId)
+        var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
             ?? throw new KeyNotFoundException("Campaign not found");
 
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
@@ -152,9 +182,23 @@ public class CampaignService : ICampaignService
         if (contentPost.CampaignId == campaignId)
             throw new InvalidOperationException("Content post is already linked to this campaign");
 
+        if (contentPost.CampaignId.HasValue && contentPost.CampaignId != campaignId)
+            throw new InvalidOperationException("Content post is already linked to another campaign. Unlink it first.");
+
+        if (contentPost.ChannelId != campaign.ChannelId)
+            throw new InvalidOperationException("Content post must belong to the same channel as the campaign.");
+
         contentPost.CampaignId = campaignId;
         contentPost.UpdatedAt = DateTime.UtcNow;
         await _contentPostRepository.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.CampaignPostLinked,
+            "ContentPost",
+            contentPost.Id.ToString(),
+            $"{{\"campaignId\":{campaignId}}}");
     }
 
     public async Task UnlinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId)
@@ -248,12 +292,19 @@ public class CampaignService : ICampaignService
             throw new UnauthorizedAccessException("Only Admin/Editor can manage campaigns");
     }
 
-    private static CampaignResponseDto Map(Campaign campaign)
+    private static CampaignResponseDto Map(Campaign campaign, IReadOnlyList<ContentPost> linkedPosts)
     {
+        var contentPosts = linkedPosts
+            .Select(p => new CampaignContentPostResponseDto(
+                p.Id,
+                p.UpdatedAt,
+                p.CreatedByUserId))
+            .ToList();
+
         return new CampaignResponseDto(
             campaign.Id,
             campaign.TeamId,
-            campaign.ChannelId, // Ensure ChannelId is aligned with required mapping
+            campaign.ChannelId,
             campaign.Name,
             campaign.Description,
             campaign.Objective,
@@ -262,7 +313,7 @@ public class CampaignService : ICampaignService
             campaign.Status,
             campaign.CreatedAt,
             campaign.UpdatedAt,
-            Array.Empty<CampaignContentPostResponseDto>());
+            contentPosts);
     }
 
     private static string NormalizeRequired(string value)
@@ -278,5 +329,4 @@ public class CampaignService : ICampaignService
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
-
 }

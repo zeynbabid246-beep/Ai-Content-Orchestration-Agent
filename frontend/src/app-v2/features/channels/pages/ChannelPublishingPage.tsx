@@ -4,19 +4,29 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   Paper,
+  Radio,
+  RadioGroup,
   Stack,
   Typography,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
-import { Plus, Radio } from "lucide-react";
+import { Link2, Plus, Radio as RadioIcon } from "lucide-react";
 import { useChannelContext } from "../hooks/useChannelContext";
 import {
-  useDeleteSocialAccount,
-  useSocialAccounts,
-} from "../../social-media/social-accounts.queries";
+  useChannelSocialAccounts,
+  useLinkChannelSocialAccount,
+  useUnlinkChannelSocialAccount,
+} from "../hooks/useChannelSocialAccounts";
+import { useDeleteSocialAccount } from "../../social-media/social-accounts.queries";
 import { getSocialAuthLoginUrl } from "../../social-media/social-auth.api";
-import { SocialPlatform } from "../../social-media/social-accounts.types";
+import { SocialPlatform, type SocialAccount } from "../../social-media/social-accounts.types";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 
 interface PlatformConfig {
   id: "linkedin" | "facebook" | "instagram";
@@ -47,31 +57,43 @@ const PLATFORMS: PlatformConfig[] = [
   {
     id: "instagram",
     name: "Instagram",
-    description: "Business account via Meta",
+    description: "Business / Creator account",
     glyph: "ig",
-    color: "#E4405F",
+    color: "#E1306C",
     enumValue: SocialPlatform.Instagram,
   },
 ];
 
 export function ChannelPublishingPage() {
   const theme = useTheme();
+  const { canMutateContent } = useTeamPermissions();
   const { channelId } = useChannelContext();
-  const { data: allAccounts = [], isLoading, isError, refetch } = useSocialAccounts();
-  const deleteMutation = useDeleteSocialAccount();
+  const { data, isLoading, isError, refetch } = useChannelSocialAccounts(channelId);
+  const linkMutation = useLinkChannelSocialAccount(channelId ?? 0);
+  const unlinkMutation = useUnlinkChannelSocialAccount(channelId ?? 0);
+  const deleteTeamMutation = useDeleteSocialAccount();
 
   const [status, setStatus] = useState<{ severity: "success" | "error"; message: string } | null>(null);
+  const [linkDialogPlatform, setLinkDialogPlatform] = useState<PlatformConfig | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
-  const accountsByPlatform = useMemo(() => {
-    const map = new Map<SocialPlatform, typeof allAccounts>();
-    for (const account of allAccounts) {
-      if (account.channelId !== channelId) continue;
+  const linkedByPlatform = useMemo(() => {
+    const map = new Map<SocialPlatform, SocialAccount>();
+    for (const account of data?.linkedAccounts ?? []) {
+      map.set(account.platform, account);
+    }
+    return map;
+  }, [data?.linkedAccounts]);
+
+  const linkableByPlatform = useMemo(() => {
+    const map = new Map<SocialPlatform, SocialAccount[]>();
+    for (const account of data?.availableTeamAccounts ?? []) {
       const list = map.get(account.platform) ?? [];
       list.push(account);
       map.set(account.platform, list);
     }
     return map;
-  }, [allAccounts, channelId]);
+  }, [data?.availableTeamAccounts]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -81,9 +103,7 @@ export function ChannelPublishingPage() {
     const platform = params.get("platform");
     const error = params.get("socialAuthError");
     if (oauthStatus === "success") {
-      // Reading OAuth callback params from the URL is an inherently effectful sync from an external system.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStatus({ severity: "success", message: `${platform ?? "Account"} connected successfully.` });
+      setStatus({ severity: "success", message: `${platform ?? "Account"} connected and linked to this channel.` });
       void refetch();
     } else {
       setStatus({ severity: "error", message: error ?? "Connection failed." });
@@ -97,10 +117,10 @@ export function ChannelPublishingPage() {
     window.history.replaceState({}, "", url);
   }, [refetch]);
 
-  const handleConnect = async (platform: PlatformConfig) => {
+  const handleConnectNew = async (platform: PlatformConfig) => {
     if (!channelId) return;
     try {
-      const authorizationUrl = await getSocialAuthLoginUrl(platform.id, channelId);
+      const authorizationUrl = await getSocialAuthLoginUrl(platform.id, { linkChannelId: channelId });
       window.location.assign(authorizationUrl);
     } catch (err) {
       setStatus({
@@ -110,23 +130,71 @@ export function ChannelPublishingPage() {
     }
   };
 
-  const handleDisconnect = (platform: PlatformConfig) => {
-    const account = (accountsByPlatform.get(platform.enumValue) ?? [])[0];
-    if (!account) return;
-    deleteMutation.mutate(account.id, {
+  const openLinkDialog = (platform: PlatformConfig) => {
+    const candidates = (linkableByPlatform.get(platform.enumValue) ?? []).filter(
+      (a) => !linkedByPlatform.has(platform.enumValue) || linkedByPlatform.get(platform.enumValue)?.id !== a.id
+    );
+    setSelectedAccountId(candidates[0]?.id ?? null);
+    setLinkDialogPlatform(platform);
+  };
+
+  const handleLinkExisting = () => {
+    if (!linkDialogPlatform || selectedAccountId == null) return;
+    linkMutation.mutate(selectedAccountId, {
       onSuccess: () => {
-        setStatus({ severity: "success", message: `${platform.name} disconnected.` });
+        setStatus({ severity: "success", message: `${linkDialogPlatform.name} linked to this channel.` });
+        setLinkDialogPlatform(null);
       },
       onError: (err) => {
         setStatus({
           severity: "error",
-          message: err instanceof Error ? err.message : "Disconnect failed.",
+          message: err instanceof Error ? err.message : "Could not link account.",
+        });
+      },
+    });
+  };
+
+  const handleUnlink = (platform: PlatformConfig) => {
+    const account = linkedByPlatform.get(platform.enumValue);
+    if (!account) return;
+    unlinkMutation.mutate(account.id, {
+      onSuccess: () => {
+        setStatus({ severity: "success", message: `${platform.name} unlinked from this channel.` });
+      },
+      onError: (err) => {
+        setStatus({
+          severity: "error",
+          message: err instanceof Error ? err.message : "Unlink failed.",
+        });
+      },
+    });
+  };
+
+  const handleRemoveFromTeam = (platform: PlatformConfig) => {
+    const account = linkedByPlatform.get(platform.enumValue);
+    if (!account) return;
+    deleteTeamMutation.mutate(account.id, {
+      onSuccess: () => {
+        setStatus({ severity: "success", message: `${platform.name} removed from team.` });
+        void refetch();
+      },
+      onError: (err) => {
+        setStatus({
+          severity: "error",
+          message: err instanceof Error ? err.message : "Remove failed.",
         });
       },
     });
   };
 
   if (!channelId) return null;
+
+  const linkCandidates =
+    linkDialogPlatform == null
+      ? []
+      : (linkableByPlatform.get(linkDialogPlatform.enumValue) ?? []).filter(
+          (a) => linkedByPlatform.get(linkDialogPlatform.enumValue)?.id !== a.id
+        );
 
   return (
     <Stack spacing={2.5}>
@@ -135,7 +203,7 @@ export function ChannelPublishingPage() {
           Publishing identities
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-          CONNECTED SOCIAL ACCOUNTS USED TO DELIVER THIS CHANNEL'S CONTENT
+          LINK TEAM ACCOUNTS TO THIS CHANNEL — ONE ACCOUNT PER PLATFORM
         </Typography>
       </Box>
 
@@ -145,18 +213,22 @@ export function ChannelPublishingPage() {
         </Alert>
       ) : null}
 
-      {isError ? <Alert severity="error">Failed to load connected accounts.</Alert> : null}
+      {isError ? <Alert severity="error">Failed to load channel publishing accounts.</Alert> : null}
 
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+          gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
           gap: 2,
         }}
       >
         {PLATFORMS.map((platform) => {
-          const account = (accountsByPlatform.get(platform.enumValue) ?? [])[0];
+          const account = linkedByPlatform.get(platform.enumValue);
           const connected = Boolean(account);
+          const teamCandidates = linkableByPlatform.get(platform.enumValue) ?? [];
+          const canLinkExisting = teamCandidates.some(
+            (a) => !connected || a.id !== account?.id
+          );
 
           return (
             <Paper key={platform.id} sx={{ p: 2.5 }}>
@@ -188,7 +260,7 @@ export function ChannelPublishingPage() {
                   </Box>
                   <Chip
                     size="small"
-                    label={connected ? "Connected" : "Not connected"}
+                    label={connected ? "Linked" : "Not linked"}
                     color={connected ? "success" : "default"}
                     variant={connected ? "filled" : "outlined"}
                   />
@@ -212,31 +284,43 @@ export function ChannelPublishingPage() {
                         {account.displayName || account.accountHandle}
                       </Typography>
                     </Box>
-                    <Stack direction="row" spacing={1}>
-                      <Button fullWidth variant="contained" disabled>
-                        Active
-                      </Button>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        color="inherit"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => handleDisconnect(platform)}
-                      >
-                        Disconnect
-                      </Button>
-                    </Stack>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      color="inherit"
+                      disabled={!canMutateContent || unlinkMutation.isPending}
+                      onClick={() => handleUnlink(platform)}
+                    >
+                      Unlink from channel
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="text"
+                      color="error"
+                      size="small"
+                      disabled={!canMutateContent || deleteTeamMutation.isPending}
+                      onClick={() => handleRemoveFromTeam(platform)}
+                    >
+                      Remove from team
+                    </Button>
                   </Stack>
                 ) : (
-                  <Stack spacing={1.5}>
-                    <Typography variant="body2" color="text.secondary">
-                      Connect a {platform.name} account so this channel can publish content through it.
-                    </Typography>
+                  <Stack spacing={1}>
+                    {canLinkExisting ? (
+                      <Button
+                        variant="outlined"
+                        startIcon={<Link2 size={14} />}
+                        disabled={!canMutateContent || isLoading}
+                        onClick={() => openLinkDialog(platform)}
+                      >
+                        Link existing account
+                      </Button>
+                    ) : null}
                     <Button
-                      variant="outlined"
+                      variant="contained"
                       startIcon={<Plus size={14} />}
-                      disabled={isLoading}
-                      onClick={() => void handleConnect(platform)}
+                      disabled={!canMutateContent || isLoading}
+                      onClick={() => void handleConnectNew(platform)}
                     >
                       Connect {platform.name}
                     </Button>
@@ -250,7 +334,7 @@ export function ChannelPublishingPage() {
 
       <Paper sx={{ p: 2.5, borderStyle: "dashed" }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <Radio size={18} />
+          <RadioIcon size={18} />
           <Box>
             <Typography variant="body2" fontWeight={600}>
               More platforms coming soon
@@ -262,22 +346,42 @@ export function ChannelPublishingPage() {
         </Stack>
       </Paper>
 
-      <Paper sx={{ p: 2.5 }}>
-        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-          Connection requirements
-        </Typography>
-        <Stack spacing={0.75}>
-          <Typography variant="caption" color="text.secondary">
-            LinkedIn: app scopes `w_member_social`, `openid`, `profile`, `email` must be enabled.
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Instagram: use a Business/Creator account linked to a Facebook Page with Meta permissions approved.
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            If connection fails, verify redirect URI values match provider app configuration.
-          </Typography>
-        </Stack>
-      </Paper>
+      <Dialog open={linkDialogPlatform != null} onClose={() => setLinkDialogPlatform(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          Link {linkDialogPlatform?.name ?? "account"}
+        </DialogTitle>
+        <DialogContent>
+          {linkCandidates.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No team accounts available for this platform. Use Connect to add one.
+            </Typography>
+          ) : (
+            <RadioGroup
+              value={selectedAccountId ?? ""}
+              onChange={(e) => setSelectedAccountId(Number(e.target.value))}
+            >
+              {linkCandidates.map((candidate) => (
+                <FormControlLabel
+                  key={candidate.id}
+                  value={candidate.id}
+                  control={<Radio />}
+                  label={candidate.displayName || candidate.accountHandle}
+                />
+              ))}
+            </RadioGroup>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinkDialogPlatform(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={selectedAccountId == null || linkMutation.isPending}
+            onClick={handleLinkExisting}
+          >
+            Link
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

@@ -1,140 +1,146 @@
-import { useMemo } from "react";
-import { Box, Button, Paper, Stack, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { FileText, Plus } from "lucide-react";
 import { useChannelContext } from "../../channels/hooks/useChannelContext";
 import { useCampaignContext } from "../hooks/useCampaignContext";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
+import { ContentStatus } from "../../content-posts/content-posts.types";
 import { campaignPaths } from "../../../shared/lib/routes";
-import { StatusChip } from "../../../shared/ui/StatusChip";
+import {
+  ContentPostRow,
+  ContentPostRowSkeleton,
+} from "../../content-posts/components/ContentPostRow";
+import { WorkspaceEmptyState } from "../../../shared/ui/WorkspaceEmptyState";
+import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { usePostOutboundNotice } from "../../posts/hooks/usePostOutboundNotice";
 
-function parsePreview(contentJson: string | null | undefined): string {
-  if (!contentJson) return "";
-  try {
-    const parsed = JSON.parse(contentJson) as { text?: string };
-    return parsed.text ?? "";
-  } catch {
-    return contentJson;
-  }
-}
+type StatusFilter = "all" | ContentStatus;
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: ContentStatus.Draft, label: "Drafts" },
+  { value: ContentStatus.Review, label: "In review" },
+  { value: ContentStatus.Scheduled, label: "Scheduled" },
+  { value: ContentStatus.Published, label: "Published" },
+];
 
 export function CampaignPostsPage() {
   const navigate = useNavigate();
+  const { canMutateContent } = useTeamPermissions();
   const { channelId } = useChannelContext();
   const { campaignId } = useCampaignContext();
   const { data: allPosts = [], isLoading } = useContentPosts();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const { notice: outboundNotice, dismissNotice, outcome } = usePostOutboundNotice();
+
+  useEffect(() => {
+    if (outcome === "scheduled") {
+      setStatusFilter(ContentStatus.Scheduled);
+    } else if (outcome === "published") {
+      setStatusFilter(ContentStatus.Published);
+    }
+  }, [outcome]);
 
   const posts = useMemo(
     () =>
       allPosts
-        .filter(
-          (post) => (post as { campaignId?: number | null }).campaignId === campaignId
-        )
+        .filter((post) => post.campaignId === campaignId)
+        .filter((post) => statusFilter === "all" || post.status === statusFilter)
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         ),
-    [allPosts, campaignId]
+    [allPosts, campaignId, statusFilter]
   );
 
   if (!channelId || !campaignId) return null;
 
   return (
     <Stack spacing={2.5}>
+      {outboundNotice ? (
+        <Alert severity={outboundNotice.severity} onClose={dismissNotice}>
+          {outboundNotice.text}
+        </Alert>
+      ) : null}
+
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Box>
           <Typography variant="subtitle1" fontWeight={600}>
             Posts
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-            EDITORIAL CONTENT INSIDE THIS CAMPAIGN
+          <Typography variant="caption" color="text.secondary">
+            Editorial content in this campaign
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<Plus size={16} />}
-          onClick={() => navigate(campaignPaths.newPost(channelId, campaignId))}
-        >
-          New post
-        </Button>
-      </Stack>
-
-      {isLoading ? (
-        <Typography variant="body2" color="text.secondary">
-          Loading posts...
-        </Typography>
-      ) : posts.length === 0 ? (
-        <Paper sx={{ p: 5, textAlign: "center", borderStyle: "dashed" }}>
-          <FileText size={22} style={{ opacity: 0.55 }} />
-          <Typography variant="h6" sx={{ mt: 1.5 }}>
-            No posts yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2.5 }}>
-            Draft your first editorial piece. You can adapt it per platform later.
-          </Typography>
+        {canMutateContent ? (
           <Button
             variant="contained"
             startIcon={<Plus size={16} />}
             onClick={() => navigate(campaignPaths.newPost(channelId, campaignId))}
           >
-            Create post
+            New post
           </Button>
-        </Paper>
+        ) : null}
+      </Stack>
+
+      <ToggleButtonGroup
+        size="small"
+        value={statusFilter}
+        exclusive
+        onChange={(_, value: StatusFilter | null) => {
+          if (value) setStatusFilter(value);
+        }}
+        sx={{ flexWrap: "wrap" }}
+      >
+        {STATUS_OPTIONS.map((opt) => (
+          <ToggleButton key={opt.value} value={opt.value}>
+            {opt.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+
+      {isLoading ? (
+        <Stack spacing={1}>
+          {[0, 1, 2].map((i) => (
+            <ContentPostRowSkeleton key={i} />
+          ))}
+        </Stack>
+      ) : posts.length === 0 ? (
+        <WorkspaceEmptyState
+          icon={<FileText size={22} />}
+          title="No posts yet"
+          description={
+            statusFilter === "all"
+              ? "Draft editorial pieces for this campaign."
+              : "No posts match this status."
+          }
+          action={
+            canMutateContent && statusFilter === "all" ? (
+              <Button
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                onClick={() => navigate(campaignPaths.newPost(channelId, campaignId))}
+              >
+                Create post
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <Paper>
-          <Stack divider={<Box sx={{ borderTop: "1px solid", borderColor: "divider" }} />}>
-            {posts.map((post) => {
-              const preview = parsePreview(post.contentJson);
-              return (
-                <Stack
-                  key={post.id}
-                  direction="row"
-                  spacing={2}
-                  alignItems="center"
-                  sx={{
-                    p: 1.75,
-                    cursor: "pointer",
-                    transition: "background 0.18s",
-                    "&:hover": { bgcolor: "action.hover" },
-                  }}
-                  onClick={() => navigate(campaignPaths.post(channelId, campaignId, post.id))}
-                >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography
-                      variant="body2"
-                      fontWeight={600}
-                      sx={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {post.title || "Untitled post"}
-                    </Typography>
-                    {preview ? (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 1,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {preview}
-                      </Typography>
-                    ) : null}
-                  </Box>
-                  <Typography variant="caption" color="text.disabled" sx={{ whiteSpace: "nowrap" }}>
-                    {new Date(post.updatedAt).toLocaleDateString()}
-                  </Typography>
-                  <StatusChip status={post.status} />
-                </Stack>
-              );
-            })}
-          </Stack>
-        </Paper>
+        <Stack spacing={1}>
+          {posts.map((post) => (
+            <ContentPostRow key={post.id} post={post} showCampaign={false} />
+          ))}
+        </Stack>
       )}
     </Stack>
   );

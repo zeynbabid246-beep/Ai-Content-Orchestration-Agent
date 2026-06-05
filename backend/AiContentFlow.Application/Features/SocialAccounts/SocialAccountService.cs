@@ -7,23 +7,23 @@ namespace AiContentFlow.Application.Features.SocialAccounts;
 
 public class SocialAccountService : ISocialAccountService
 {
-    private const string DefaultChannelName = "General";
-    private static readonly SocialPlatform[] SupportedPlatforms = [SocialPlatform.LinkedIn, SocialPlatform.Facebook];
+    private static readonly SocialPlatform[] SupportedPlatforms =
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
     private readonly ISocialAccountRepository _socialAccountRepository;
-    private readonly IChannelRepository _channelRepository;
+    private readonly IChannelSocialAccountRepository _channelSocialAccountRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IValidator<CreateSocialAccountDto> _createValidator;
     private readonly IValidator<UpdateSocialAccountDto> _updateValidator;
 
     public SocialAccountService(
         ISocialAccountRepository socialAccountRepository,
-        IChannelRepository channelRepository,
+        IChannelSocialAccountRepository channelSocialAccountRepository,
         ITeamRepository teamRepository,
         IValidator<CreateSocialAccountDto> createValidator,
         IValidator<UpdateSocialAccountDto> updateValidator)
     {
         _socialAccountRepository = socialAccountRepository;
-        _channelRepository = channelRepository;
+        _channelSocialAccountRepository = channelSocialAccountRepository;
         _teamRepository = teamRepository;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
@@ -43,17 +43,14 @@ public class SocialAccountService : ISocialAccountService
         if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
             throw new UnauthorizedAccessException("Only Admin or Editor can manage social accounts");
 
-        var resolvedChannelId = await ResolveChannelIdAsync(teamId, dto.ChannelId);
-
         var normalizedHandle = NormalizeRequired(dto.AccountHandle);
 
-        if (await _socialAccountRepository.ExistsAsync(teamId, resolvedChannelId, dto.Platform, normalizedHandle))
-            throw new InvalidOperationException("Social account already exists for this channel and platform");
+        if (await _socialAccountRepository.ExistsAsync(teamId, dto.Platform, normalizedHandle))
+            throw new InvalidOperationException("Social account already exists for this team and platform");
 
         var socialAccount = new SocialAccount
         {
             TeamId = teamId,
-            ChannelId = resolvedChannelId,
             Platform = dto.Platform,
             Status = SocialAccountStatus.Active,
             AccountHandle = normalizedHandle,
@@ -66,7 +63,7 @@ public class SocialAccountService : ISocialAccountService
         await _socialAccountRepository.AddAsync(socialAccount);
         await _socialAccountRepository.SaveChangesAsync();
 
-        return Map(socialAccount);
+        return Map(socialAccount, []);
     }
 
     public async Task<List<SocialAccountResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId)
@@ -78,7 +75,11 @@ public class SocialAccountService : ISocialAccountService
             throw new UnauthorizedAccessException("Not a team member");
 
         var socialAccounts = await _socialAccountRepository.GetByTeamAsync(teamId);
-        return socialAccounts.Select(Map).ToList();
+        var linkMap = await _channelSocialAccountRepository.GetLinkedChannelIdsByAccountIdsAsync(
+            teamId,
+            socialAccounts.Select(a => a.Id));
+
+        return socialAccounts.Select(a => Map(a, linkMap)).ToList();
     }
 
     public async Task<SocialAccountResponseDto> GetByIdAsync(Guid teamId, int socialAccountId, string requestingUserId)
@@ -92,7 +93,11 @@ public class SocialAccountService : ISocialAccountService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
-        return Map(socialAccount);
+        var linkMap = await _channelSocialAccountRepository.GetLinkedChannelIdsByAccountIdsAsync(
+            teamId,
+            [socialAccount.Id]);
+
+        return Map(socialAccount, linkMap);
     }
 
     public async Task<SocialAccountResponseDto> UpdateAsync(Guid teamId, int socialAccountId, string requestingUserId, UpdateSocialAccountDto dto)
@@ -106,17 +111,14 @@ public class SocialAccountService : ISocialAccountService
         if (membership.Role is not TeamRole.Admin and not TeamRole.Editor)
             throw new UnauthorizedAccessException("Only Admin or Editor can manage social accounts");
 
-        var resolvedChannelId = await ResolveChannelIdAsync(teamId, dto.ChannelId);
-
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
         var normalizedHandle = NormalizeRequired(dto.AccountHandle);
 
-        if (await _socialAccountRepository.ExistsAsync(teamId, resolvedChannelId, dto.Platform, normalizedHandle, socialAccountId))
-            throw new InvalidOperationException("Social account already exists for this channel and platform");
+        if (await _socialAccountRepository.ExistsAsync(teamId, dto.Platform, normalizedHandle, socialAccountId))
+            throw new InvalidOperationException("Social account already exists for this team and platform");
 
-        socialAccount.ChannelId = resolvedChannelId;
         socialAccount.Platform = dto.Platform;
         socialAccount.Status = dto.Status;
         socialAccount.AccountHandle = normalizedHandle;
@@ -126,7 +128,11 @@ public class SocialAccountService : ISocialAccountService
 
         await _socialAccountRepository.SaveChangesAsync();
 
-        return Map(socialAccount);
+        var linkMap = await _channelSocialAccountRepository.GetLinkedChannelIdsByAccountIdsAsync(
+            teamId,
+            [socialAccount.Id]);
+
+        return Map(socialAccount, linkMap);
     }
 
     public async Task DeleteAsync(Guid teamId, int socialAccountId, string requestingUserId)
@@ -140,26 +146,30 @@ public class SocialAccountService : ISocialAccountService
         var socialAccount = await _socialAccountRepository.GetByIdAsync(teamId, socialAccountId)
             ?? throw new KeyNotFoundException("Social account not found");
 
+        await _channelSocialAccountRepository.RemoveAllLinksForAccountAsync(socialAccountId);
+
         socialAccount.IsDeleted = true;
         socialAccount.DeletedAt = DateTime.UtcNow;
         socialAccount.UpdatedAt = DateTime.UtcNow;
 
         await _socialAccountRepository.SaveChangesAsync();
+        await _channelSocialAccountRepository.SaveChangesAsync();
     }
 
-    private static SocialAccountResponseDto Map(SocialAccount socialAccount)
+    private static SocialAccountResponseDto Map(SocialAccount socialAccount, Dictionary<int, List<int>> linkMap)
     {
+        linkMap.TryGetValue(socialAccount.Id, out var channelIds);
         return new SocialAccountResponseDto(
             socialAccount.Id,
             socialAccount.TeamId,
-            socialAccount.ChannelId,
             socialAccount.Platform,
             socialAccount.Status,
             socialAccount.AccountHandle,
             socialAccount.DisplayName,
             socialAccount.ExternalAccountId,
             socialAccount.CreatedAt,
-            socialAccount.UpdatedAt);
+            socialAccount.UpdatedAt,
+            channelIds ?? []);
     }
 
     private static string NormalizeRequired(string value)
@@ -180,34 +190,5 @@ public class SocialAccountService : ISocialAccountService
     {
         if (!SupportedPlatforms.Contains(platform))
             throw new InvalidOperationException($"Platform '{platform}' is not enabled yet.");
-    }
-
-    private async Task<int> ResolveChannelIdAsync(Guid teamId, int? requestedChannelId)
-    {
-        if (requestedChannelId.HasValue)
-        {
-            _ = await _channelRepository.GetByIdAsync(teamId, requestedChannelId.Value)
-                ?? throw new KeyNotFoundException("Channel not found");
-            return requestedChannelId.Value;
-        }
-
-        var channels = await _channelRepository.GetByTeamAsync(teamId);
-        var existing = channels.FirstOrDefault();
-        if (existing is not null)
-            return existing.Id;
-
-        var channel = new Channel
-        {
-            TeamId = teamId,
-            Name = DefaultChannelName,
-            NormalizedName = DefaultChannelName.ToUpperInvariant(),
-            Description = "Auto-created default channel for direct social posting",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        await _channelRepository.AddAsync(channel);
-        await _channelRepository.SaveChangesAsync();
-        return channel.Id;
     }
 }

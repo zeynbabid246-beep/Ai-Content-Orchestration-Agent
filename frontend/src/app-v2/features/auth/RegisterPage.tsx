@@ -1,14 +1,19 @@
 import { useMutation } from "@tanstack/react-query";
 import { Alert, Box, Button, Paper, Stack, TextField, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "./auth.api";
 import { ROUTES } from "../../shared/lib/routes";
+import { PasswordField } from "../../shared/ui/PasswordField";
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("token") ?? undefined;
+  const invitedEmail = searchParams.get("email") ?? "";
+
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -25,7 +30,7 @@ export function RegisterPage() {
 
   const handleSubmit = () => {
     if (validationError) return;
-    mutation.mutate({ username, email, password });
+    mutation.mutate({ username, email, password, inviteToken });
   };
 
   return (
@@ -52,15 +57,16 @@ export function RegisterPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <TextField
+          {inviteToken && (
+            <Alert severity="info">You are joining a team via invitation. Create your account to continue.</Alert>
+          )}
+          <PasswordField
             label="Password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <TextField
+          <PasswordField
             label="Confirm password"
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />

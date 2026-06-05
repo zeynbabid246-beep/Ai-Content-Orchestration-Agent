@@ -103,7 +103,7 @@ export async function createSchedulerEvent(dateKey: string, event: SchedulerEven
   const activeAccount = await getDefaultActiveSocialAccount(teamId);
   
   const rawData = {
-    channelId: activeAccount.channelId,
+    channelId: activeAccount.linkedChannelIds[0] ?? null,
     title: event.title,
     contentType: toContentType(activeAccount.platform),
     contentJson: JSON.stringify({ notes: event.notes, color: event.color }),
@@ -153,7 +153,7 @@ export async function updateSchedulerEvent(dateKey: string, event: SchedulerEven
   const activeAccount = await getDefaultActiveSocialAccount(teamId);
   
   const rawData = {
-    channelId: activeAccount.channelId,
+    channelId: activeAccount.linkedChannelIds[0] ?? null,
     title: event.title,
     contentType: toContentType(activeAccount.platform),
     contentJson: JSON.stringify({ notes: event.notes, color: event.color }),

@@ -87,6 +87,15 @@ public class ChannelServiceTests
         IValidator<UpdateChannelDto> updateValidator = new UpdateChannelDtoValidator();
         var brandStudioRepo = new Mock<IBrandStudioRepository>();
 
-        return new ChannelService(channelRepo.Object, teamRepo.Object, brandStudioRepo.Object, createValidator, updateValidator);
+        var activityService = new Mock<ITeamActivityService>();
+        return new ChannelService(
+            channelRepo.Object,
+            teamRepo.Object,
+            brandStudioRepo.Object,
+            new Mock<ICampaignRepository>().Object,
+            new Mock<IChannelSocialAccountRepository>().Object,
+            createValidator,
+            updateValidator,
+            activityService.Object);
     }
 }

@@ -1,76 +1,105 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
+  Link,
   Paper,
   Stack,
-  Switch,
   Tab,
   Tabs,
   TextField,
   Typography,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { useProfile, useUpdateProfile, useUploadAvatar } from "./profil.queries";
-import { authStorage } from "../../shared/lib/storage";
+import {
+  useProfile,
+  useRemoveAvatar,
+  useUpdateProfile,
+  useUploadAvatar,
+} from "./profil.queries";
+import { changePassword, logout } from "../auth/auth.api";
+import { getMyTeams } from "../team/teams.api";
 import { ROUTES } from "../../shared/lib/routes";
+import { PasswordField } from "../../shared/ui/PasswordField";
+import { useTeamPermissions } from "../../shared/hooks/useTeamPermissions";
+import { authStorage } from "../../shared/lib/storage";
 
-// ─── component ────────────────────────────────────────────────────────────────
+type TabValue = "Personal" | "Workspace" | "Security" | "Account";
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 
 export function ProfilePage() {
   const navigate = useNavigate();
+  const { canManageTeam } = useTeamPermissions();
+  const currentTeamId = authStorage.getTeamId();
 
-  const { data: profile, isLoading } = useProfile();
+  const { data: profile, isLoading, isError, error } = useProfile();
+  const { data: teams = [] } = useQuery({
+    queryKey: ["my-teams"],
+    queryFn: getMyTeams,
+  });
+
   const updateProfileMutation = useUpdateProfile();
   const uploadAvatarMutation = useUploadAvatar();
+  const removeAvatarMutation = useRemoveAvatar();
 
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTab] = useState<TabValue>("Personal");
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // ── editable fields ─────────────────────────────────────────────────────────
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  // ── read-only display fields ─────────────────────────────────────────────────
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState<{
+    severity: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  // ── notifications (local UI state) ──────────────────────────────────────────
-  const [notifications, setNotifications] = useState({
-    "Email notifications": true,
-    "Push notifications": false,
-    "Weekly digest": true,
+  const changePasswordMutation = useMutation({
+    mutationFn: changePassword,
+    onSuccess: (res) => {
+      setPasswordMessage({ severity: "success", text: res.message });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+    onError: (err: Error) => {
+      setPasswordMessage({ severity: "error", text: err.message });
+    },
   });
 
-  // ── sync profile → local state ───────────────────────────────────────────────
-  // ✅ FIX: was setname / setemail (lowercase) — now correct setName / setEmail
   useEffect(() => {
     if (!profile) return;
-    setName(profile.name);
-    setEmail(profile.email);
-    setRole(profile.role);
+    setUsername(profile.username);
     setBio(profile.bio);
-    setAvatar(profile.avatarUrl);
+    setAvatarUrl(profile.avatarUrl);
   }, [profile]);
 
-  // ── avatar upload ────────────────────────────────────────────────────────────
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    uploadAvatarMutation.mutate(file, {
-      onSuccess: (res) => setAvatar(res.url),
-    });
-  };
+  const hasChanges = useMemo(() => {
+    if (!profile) return false;
+    return username.trim() !== profile.username || bio !== profile.bio;
+  }, [profile, username, bio]);
 
-  // ── initials fallback ────────────────────────────────────────────────────────
-  const initials = name
+  const initials = username
     .split(" ")
     .filter(Boolean)
     .map((w) => w[0])
@@ -78,106 +107,138 @@ export function ProfilePage() {
     .toUpperCase()
     .slice(0, 2);
 
-  if (isLoading) return <Typography sx={{ p: 3 }}>Loading…</Typography>;
+  const handleCancelEdit = () => {
+    if (!profile) return;
+    setUsername(profile.username);
+    setBio(profile.bio);
+    setAvatarUrl(profile.avatarUrl);
+    setEditing(false);
+    setSaved(false);
+  };
 
-  // ── render ───────────────────────────────────────────────────────────────────
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadAvatarMutation.mutate(file, {
+      onSuccess: (res) => setAvatarUrl(res.url),
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Stack alignItems="center" sx={{ py: 8 }}>
+        <CircularProgress />
+      </Stack>
+    );
+  }
+
+  if (isError || !profile) {
+    return (
+      <Alert severity="error" sx={{ m: 3 }}>
+        {(error as Error)?.message ?? "Failed to load profile."}
+      </Alert>
+    );
+  }
+
   return (
-    <Stack spacing={3} sx={{ maxWidth: 680, mx: "auto", py: 3, px: 2 }}>
+    <Stack spacing={3} sx={{ maxWidth: 760, mx: "auto", py: 3, px: 2 }}>
       <Typography variant="h4" fontWeight={700}>
         My Profile
       </Typography>
 
-      {/* ── HEADER CARD ─────────────────────────────────────────────────────── */}
       <Paper sx={{ p: 3 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          {/* ✅ FIX: explicit size — was unsized/tiny before */}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
           <Avatar
-            src={avatar ?? ""}
-            sx={{ width: 72, height: 72, fontSize: 26, bgcolor: "primary.main" }}
+            src={avatarUrl ?? undefined}
+            sx={{ width: 80, height: 80, fontSize: 28, bgcolor: "primary.main" }}
           >
-            {!avatar && (initials || "?")}
+            {!avatarUrl && (initials || "?")}
           </Avatar>
 
           <Box flex={1}>
             <Typography variant="h6" fontWeight={600}>
-              {name || "—"}
+              {profile.username}
             </Typography>
-            <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
-              {role && (
-                <Chip label={role} size="small" color="primary" variant="outlined" />
-              )}
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {profile.email}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" mt={1} flexWrap="wrap" useFlexGap>
+              <Chip label={profile.teamRole} size="small" color="primary" variant="outlined" />
+              <Typography variant="body2" color="text.secondary">
+                {profile.teamName}
+              </Typography>
             </Stack>
           </Box>
 
-          {editing && (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {editing && (
+              <>
+                <Button
+                  component="label"
+                  size="small"
+                  variant="outlined"
+                  disabled={uploadAvatarMutation.isPending}
+                >
+                  {uploadAvatarMutation.isPending ? "Uploading…" : "Change photo"}
+                  <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
+                </Button>
+                {avatarUrl && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    disabled={removeAvatarMutation.isPending}
+                    onClick={() =>
+                      removeAvatarMutation.mutate(undefined, {
+                        onSuccess: () => setAvatarUrl(null),
+                      })
+                    }
+                  >
+                    Remove photo
+                  </Button>
+                )}
+              </>
+            )}
             <Button
-              component="label"
               size="small"
-              variant="outlined"
-              disabled={uploadAvatarMutation.isPending}
+              variant={editing ? "outlined" : "contained"}
+              color={editing ? "inherit" : "primary"}
+              onClick={() => (editing ? handleCancelEdit() : setEditing(true))}
             >
-              {uploadAvatarMutation.isPending ? "Uploading…" : "Change Photo"}
-              <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
+              {editing ? "Cancel" : "Edit profile"}
             </Button>
-          )}
-
-          <Button
-            size="small"
-            variant={editing ? "outlined" : "contained"}
-            color={editing ? "inherit" : "primary"}
-            onClick={() => { setEditing((p) => !p); setSaved(false); }}
-          >
-            {editing ? "Cancel" : "Edit Profile"}
-          </Button>
+          </Stack>
         </Stack>
       </Paper>
 
-      {/* ── TABS ────────────────────────────────────────────────────────────── */}
       <Tabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
+        onChange={(_, value: TabValue) => setTab(value)}
         variant="scrollable"
         scrollButtons="auto"
       >
-        {["Overview", "Security", "Preferences", "Danger Zone"].map((t) => (
-          <Tab key={t} value={t} label={t} />
+        {(["Personal", "Workspace", "Security", "Account"] as const).map((value) => (
+          <Tab key={value} value={value} label={value} />
         ))}
       </Tabs>
 
-      {/* ── OVERVIEW ────────────────────────────────────────────────────────── */}
-      {tab === "Overview" && (
+      {tab === "Personal" && (
         <Paper sx={{ p: 3 }}>
           <Stack spacing={2.5}>
-            {/* Editable */}
             <TextField
-              label="Name"
-              value={name}
+              label="Username"
+              value={username}
               disabled={!editing}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setUsername(e.target.value)}
               fullWidth
             />
-
-            {/* Read-only — comes from auth server, not stored for editing */}
             <TextField
               label="Email"
-              value={email || "—"}
+              value={profile.email || "—"}
               disabled
               fullWidth
-              helperText={
-                editing ? "Email is managed by your account and cannot be changed here." : ""
-              }
+              helperText="Email cannot be changed here."
             />
-
-            {/* Read-only — assigned by team admin via auth */}
-            <TextField
-              label="Role"
-              value={role || "—"}
-              disabled
-              fullWidth
-              helperText={editing ? "Role is assigned by your team admin." : ""}
-            />
-
-            {/* Editable */}
             <TextField
               label="Bio"
               value={bio}
@@ -187,22 +248,41 @@ export function ProfilePage() {
               minRows={3}
               fullWidth
               inputProps={{ maxLength: 300 }}
-              helperText={editing ? `${bio.length}/300` : ""}
+              helperText={editing ? `${bio.length}/300` : undefined}
+            />
+            <TextField
+              label="Member since"
+              value={formatDate(profile.memberSince)}
+              disabled
+              fullWidth
             />
 
             {editing && (
               <Button
                 variant="contained"
-                disabled={updateProfileMutation.isPending || !name.trim()}
+                disabled={
+                  updateProfileMutation.isPending || !username.trim() || !hasChanges
+                }
                 onClick={() =>
                   updateProfileMutation.mutate(
-                    { name, bio },
-                    { onSuccess: () => { setSaved(true); setEditing(false); } }
+                    { username: username.trim(), bio },
+                    {
+                      onSuccess: (updated) => {
+                        setUsername(updated.username);
+                        setBio(updated.bio);
+                        setSaved(true);
+                        setEditing(false);
+                      },
+                    }
                   )
                 }
               >
                 {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
               </Button>
+            )}
+
+            {updateProfileMutation.isError && (
+              <Alert severity="error">{(updateProfileMutation.error as Error).message}</Alert>
             )}
 
             {saved && (
@@ -214,69 +294,123 @@ export function ProfilePage() {
         </Paper>
       )}
 
-      {/* ── SECURITY ────────────────────────────────────────────────────────── */}
+      {tab === "Workspace" && (
+        <Paper sx={{ p: 3 }}>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6" fontWeight={600}>
+                Current workspace
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {profile.teamName} · {profile.teamRole}
+              </Typography>
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                Your teams
+              </Typography>
+              <Stack spacing={1}>
+                {teams.map((team) => (
+                  <Stack
+                    key={team.teamId}
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    sx={{
+                      py: 1,
+                      px: 1.5,
+                      borderRadius: 1,
+                      bgcolor: team.teamId === currentTeamId ? "action.hover" : undefined,
+                    }}
+                  >
+                    <Box>
+                      <Typography fontWeight={500}>{team.teamName}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {team.role} · joined {formatDate(team.joinedAt)}
+                      </Typography>
+                    </Box>
+                    {team.teamId === currentTeamId && (
+                      <Chip label="Active" size="small" color="primary" />
+                    )}
+                  </Stack>
+                ))}
+                {teams.length === 0 && (
+                  <Typography color="text.secondary">No teams found.</Typography>
+                )}
+              </Stack>
+            </Box>
+
+            {canManageTeam && (
+              <Button component={RouterLink} to={ROUTES.inviteUser} variant="outlined">
+                Manage team members
+              </Button>
+            )}
+          </Stack>
+        </Paper>
+      )}
+
       {tab === "Security" && (
         <Paper sx={{ p: 3 }}>
-          <Stack spacing={2} alignItems="flex-start">
-            <Typography variant="h6" fontWeight={600}>
-              Password &amp; Security
-            </Typography>
-            <Divider flexItem />
-            <Alert severity="info" sx={{ width: "100%" }}>
-              Password change is coming soon. Connect <code>useUpdatePassword</code> in{" "}
-              <code>profil.queries.ts</code> to your <code>/profile/password</code> endpoint.
-            </Alert>
-            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-              {[
-                "Verify your current password",
-                "Set a new password with a strength indicator",
-                "Confirm the new password before saving",
-              ].map((item) => (
-                <li key={item}>
-                  <Typography variant="body2" color="text.secondary">
-                    {item}
-                  </Typography>
-                </li>
-              ))}
-            </Box>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* ── PREFERENCES ─────────────────────────────────────────────────────── */}
-      {tab === "Preferences" && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>
-            Notifications
-          </Typography>
-          <Stack>
-            {(Object.keys(notifications) as Array<keyof typeof notifications>).map((key) => (
-              <Stack
-                key={key}
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                sx={{ py: 1 }}
-              >
-                <Typography>{key}</Typography>
-                <Switch
-                  checked={notifications[key]}
-                  onChange={() =>
-                    setNotifications((p) => ({ ...p, [key]: !p[key] }))
-                  }
-                />
-              </Stack>
-            ))}
-          </Stack>
-        </Paper>
-      )}
-
-      {/* ── DANGER ZONE ─────────────────────────────────────────────────────── */}
-      {tab === "Danger Zone" && (
-        <Paper sx={{ p: 3, border: "1px solid", borderColor: "error.light" }}>
           <Stack spacing={2}>
-            <Typography variant="h6" color="error" fontWeight={600}>
-              Danger Zone
+            <Typography variant="h6" fontWeight={600}>
+              Password &amp; security
+            </Typography>
+            <Divider />
+            {passwordMessage && (
+              <Alert severity={passwordMessage.severity} onClose={() => setPasswordMessage(null)}>
+                {passwordMessage.text}
+              </Alert>
+            )}
+            <PasswordField
+              label="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              fullWidth
+            />
+            <PasswordField
+              label="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              fullWidth
+            />
+            <PasswordField
+              label="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              fullWidth
+            />
+            <Button
+              variant="contained"
+              disabled={
+                changePasswordMutation.isPending ||
+                !currentPassword ||
+                !newPassword ||
+                newPassword !== confirmPassword
+              }
+              onClick={() =>
+                changePasswordMutation.mutate({ currentPassword, newPassword })
+              }
+            >
+              {changePasswordMutation.isPending ? "Updating…" : "Update password"}
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              Forgot your password?{" "}
+              <Link component={RouterLink} to={ROUTES.forgotPassword}>
+                Reset it here
+              </Link>
+            </Typography>
+          </Stack>
+        </Paper>
+      )}
+
+      {tab === "Account" && (
+        <Paper sx={{ p: 3 }}>
+          <Stack spacing={2}>
+            <Typography variant="h6" fontWeight={600}>
+              Account
             </Typography>
             <Divider />
             <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -286,16 +420,15 @@ export function ProfilePage() {
                   Clears your session and returns you to login.
                 </Typography>
               </Box>
-              {/* ✅ FIX: clears ALL authStorage keys before navigating */}
               <Button
                 color="error"
                 variant="outlined"
-                onClick={() => {
-                  authStorage.clear();
+                onClick={async () => {
+                  await logout();
                   navigate(ROUTES.login, { replace: true });
                 }}
               >
-                Logout
+                Sign out
               </Button>
             </Stack>
           </Stack>

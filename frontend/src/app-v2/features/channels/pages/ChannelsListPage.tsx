@@ -32,7 +32,9 @@ export function ChannelsListPage() {
   const accountCounts = useMemo(() => {
     const map = new Map<number, number>();
     for (const account of accountsQuery.data ?? []) {
-      map.set(account.channelId, (map.get(account.channelId) ?? 0) + 1);
+      for (const linkedChannelId of account.linkedChannelIds) {
+        map.set(linkedChannelId, (map.get(linkedChannelId) ?? 0) + 1);
+      }
     }
     return map;
   }, [accountsQuery.data]);

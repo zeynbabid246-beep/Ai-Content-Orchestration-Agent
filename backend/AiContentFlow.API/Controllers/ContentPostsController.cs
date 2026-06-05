@@ -1,5 +1,6 @@
 using AiContentFlow.Application.Features.ContentPosts;
 using AiContentFlow.Application.Features.ContentPosts.Dtos;
+using AiContentFlow.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -30,14 +31,21 @@ public class ContentPostsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ContentPostResponseDto>>> GetByTeam(Guid teamId)
+    public async Task<ActionResult<List<ContentPostResponseDto>>> GetByTeam(
+        Guid teamId,
+        [FromQuery] int? channelId,
+        [FromQuery] int? campaignId,
+        [FromQuery] ContentStatus? status)
     {
         var userId = GetCurrentUserId();
 
         if (string.IsNullOrEmpty(userId))
             return Unauthorized("User ID not found in token");
 
-        var contentPosts = await _contentPostService.GetByTeamAsync(teamId, userId);
+        ContentPostQueryDto? query = channelId.HasValue || campaignId.HasValue || status.HasValue
+            ? new ContentPostQueryDto(channelId, campaignId, status)
+            : null;
+        var contentPosts = await _contentPostService.GetByTeamAsync(teamId, userId, query);
         return Ok(contentPosts);
     }
 

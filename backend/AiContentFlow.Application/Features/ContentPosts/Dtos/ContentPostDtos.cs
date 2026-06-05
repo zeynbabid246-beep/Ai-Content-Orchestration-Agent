@@ -72,7 +72,7 @@ public record PostVariantResponseDto(
 public record ContentPostResponseDto(
     int Id,
     Guid TeamId,
-    int ChannelId,
+    int? ChannelId,
     int? CampaignId,
     string? Title,
     ContentType ContentType,

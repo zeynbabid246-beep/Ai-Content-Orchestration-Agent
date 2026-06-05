@@ -5,7 +5,7 @@ public class ContentPost
     public int Id { get; set; }
     public Guid TeamId { get; set; }
 
-    public int ChannelId { get; set; }
+    public int? ChannelId { get; set; }
     public int? CampaignId { get; set; }
     public string CreatedByUserId { get; set; } = string.Empty;
 

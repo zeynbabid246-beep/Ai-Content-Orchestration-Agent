@@ -1,3 +1,4 @@
+using AiContentFlow.Application.Common;
 using AiContentFlow.Application.Common.Authorization;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Channels.Dtos;
@@ -11,21 +12,30 @@ public class ChannelService : IChannelService
     private readonly IChannelRepository _channelRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IBrandStudioRepository _brandStudioRepository;
+    private readonly ICampaignRepository _campaignRepository;
+    private readonly IChannelSocialAccountRepository _channelSocialAccountRepository;
     private readonly IValidator<CreateChannelDto> _createValidator;
     private readonly IValidator<UpdateChannelDto> _updateValidator;
+    private readonly ITeamActivityService _activityService;
 
     public ChannelService(
         IChannelRepository channelRepository,
         ITeamRepository teamRepository,
         IBrandStudioRepository brandStudioRepository,
+        ICampaignRepository campaignRepository,
+        IChannelSocialAccountRepository channelSocialAccountRepository,
         IValidator<CreateChannelDto> createValidator,
-        IValidator<UpdateChannelDto> updateValidator)
+        IValidator<UpdateChannelDto> updateValidator,
+        ITeamActivityService activityService)
     {
         _channelRepository = channelRepository;
         _teamRepository = teamRepository;
         _brandStudioRepository = brandStudioRepository;
+        _campaignRepository = campaignRepository;
+        _channelSocialAccountRepository = channelSocialAccountRepository;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _activityService = activityService;
     }
 
     public async Task<ChannelResponseDto> CreateAsync(Guid teamId, string requestingUserId, CreateChannelDto dto)
@@ -62,6 +72,13 @@ public class ChannelService : IChannelService
 
         await _channelRepository.AddAsync(channel);
         await _channelRepository.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.ChannelCreated,
+            "Channel",
+            channel.Id.ToString());
 
         return Map(channel);
     }
@@ -132,11 +149,25 @@ public class ChannelService : IChannelService
         var channel = await _channelRepository.GetByIdAsync(teamId, channelId)
             ?? throw new KeyNotFoundException("Channel not found");
 
+        var deletedAtUtc = DateTime.UtcNow;
+
+        await _campaignRepository.SoftDeleteByChannelAsync(teamId, channelId, deletedAtUtc);
+        await _channelSocialAccountRepository.RemoveAllLinksForChannelAsync(channelId);
+
         channel.IsDeleted = true;
-        channel.DeletedAt = DateTime.UtcNow;
-        channel.UpdatedAt = DateTime.UtcNow;
+        channel.DeletedAt = deletedAtUtc;
+        channel.UpdatedAt = deletedAtUtc;
 
         await _channelRepository.SaveChangesAsync();
+        await _campaignRepository.SaveChangesAsync();
+        await _channelSocialAccountRepository.SaveChangesAsync();
+
+        await _activityService.LogAsync(
+            teamId,
+            requestingUserId,
+            TeamActivityActions.ChannelDeleted,
+            "Channel",
+            channelId.ToString());
     }
 
     private static ChannelResponseDto Map(Channel channel)

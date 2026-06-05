@@ -1,11 +1,16 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../features/auth/LoginPage";
 import { RegisterPage } from "../features/auth/RegisterPage";
+import { ForgotPasswordPage } from "../features/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
+import { AcceptInvitePage } from "../features/auth/AcceptInvitePage";
 import { AppShell } from "../shared/ui/AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { SchedulerPage } from "../features/scheduler/SchedulerPage";
 import { GeneratePage } from "../features/generate/GeneratePage";
-import { InviteUserPage } from "../features/team/InviteUserPage";
+import { TeamPage } from "../features/team/TeamPage";
+import { AdminRoute } from "../shared/ui/AdminRoute";
+import { EditorRoute } from "../shared/ui/EditorRoute";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { ContentFeedPage } from "../features/content-feed/ContentFeedPage";
 import { BrandStudioPage } from "../features/brand-studio/pages/BrandStudioPage";
@@ -36,6 +41,8 @@ export default function AppV2Router() {
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
 
       {/* Protected app shell */}
@@ -45,7 +52,9 @@ export default function AppV2Router() {
 
           {/* Workspace */}
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/generate" element={<GeneratePage />} />
+          <Route element={<EditorRoute />}>
+            <Route path="/generate" element={<GeneratePage />} />
+          </Route>
           <Route path="/content-feed" element={<ContentFeedPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
 
@@ -55,6 +64,8 @@ export default function AppV2Router() {
             <Route path="overview" element={<ChannelOverviewPage />} />
             <Route path="campaigns" element={<ChannelCampaignsPage />} />
             <Route path="content" element={<ChannelContentPage />} />
+            <Route path="posts/new" element={<PostEditorPage />} />
+            <Route path="posts/:postId" element={<PostEditorPage />} />
             <Route path="publishing" element={<ChannelPublishingPage />} />
             <Route path="analytics" element={<ChannelAnalyticsPage />} />
             <Route path="settings" element={<ChannelSettingsPage />} />
@@ -79,8 +90,11 @@ export default function AppV2Router() {
 
           {/* Team */}
           <Route path="/brand-studio" element={<BrandStudioPage />} />
-          <Route path="/invite-user" element={<InviteUserPage />} />
+          <Route element={<AdminRoute />}>
+            <Route path="/invite-user" element={<TeamPage />} />
+          </Route>
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/accept-invite" element={<AcceptInvitePage />} />
         </Route>
       </Route>
 

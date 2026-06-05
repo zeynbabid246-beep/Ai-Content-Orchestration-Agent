@@ -11,6 +11,8 @@ export type TeamPermissions = {
   canManageChannels: boolean;
   canManageTeam: boolean;
   canImportBrand: boolean;
+  canViewActivity: boolean;
+  canSuperviseTeam: boolean;
 };
 
 export function useTeamPermissions(): TeamPermissions {
@@ -31,6 +33,8 @@ export function useTeamPermissions(): TeamPermissions {
       canManageChannels: canMutateContent,
       canManageTeam: isAdmin,
       canImportBrand: isAdmin,
+      canViewActivity: isAdmin,
+      canSuperviseTeam: isAdmin,
     };
   }, [role]);
 }

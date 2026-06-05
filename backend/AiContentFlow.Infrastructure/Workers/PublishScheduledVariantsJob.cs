@@ -1,4 +1,5 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Publishing;
 using AiContentFlow.Domain.Models;
 using Application.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ public class PublishScheduledVariantsJob
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublisherFactory _publisherFactory;
     private readonly IPostVariantRepository _postVariantRepository;
+    private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly ILogger<PublishScheduledVariantsJob> _logger;
 
@@ -21,6 +23,7 @@ public class PublishScheduledVariantsJob
         IPublishJobRepository publishJobRepository,
         IPostPublicationRepository publicationRepository,
         IPostVariantRepository postVariantRepository,
+        IContentPostRepository contentPostRepository,
         ISocialAccountRepository socialAccountRepository,
         IPublisherFactory publisherFactory,
         ILogger<PublishScheduledVariantsJob> logger)
@@ -28,6 +31,7 @@ public class PublishScheduledVariantsJob
         _publishJobRepository = publishJobRepository;
         _publicationRepository = publicationRepository;
         _postVariantRepository = postVariantRepository;
+        _contentPostRepository = contentPostRepository;
         _socialAccountRepository = socialAccountRepository;
         _publisherFactory = publisherFactory;
         _logger = logger;
@@ -71,7 +75,8 @@ public class PublishScheduledVariantsJob
                         continue;
                     }
 
-                    if (socialAccount.TokenExpiry <= DateTime.UtcNow)
+                    if (socialAccount.Platform is not (SocialPlatform.Facebook or SocialPlatform.Instagram)
+                        && socialAccount.TokenExpiry <= DateTime.UtcNow)
                     {
                         socialAccount.Status = SocialAccountStatus.Disconnected;
                         socialAccount.UpdatedAt = DateTime.UtcNow;
@@ -103,11 +108,37 @@ public class PublishScheduledVariantsJob
                         continue;
                     }
 
+                    var contentPost = await _contentPostRepository.GetByIdAsync(
+                        publication.TeamId,
+                        publication.ContentPostId);
+
+                    if (socialAccount.Platform == SocialPlatform.Instagram
+                        && !VariantContentMerge.HasPublishableImage(variant.ContentJson, contentPost?.ImageUrl))
+                    {
+                        publication.MarkFailed(
+                            "Instagram publishing requires an image. Add shared media on the post and save before scheduling or publishing.",
+                            DateTime.UtcNow);
+                        job.MarkFailed(publication.ErrorMessage ?? "Image required", DateTime.UtcNow);
+                        await SaveProgressAsync();
+                        continue;
+                    }
+
+                    var publishVariant = new PostVariant
+                    {
+                        Id = variant.Id,
+                        ContentPostId = variant.ContentPostId,
+                        Platform = variant.Platform,
+                        Title = variant.Title,
+                        ContentJson = VariantContentMerge.MergePostImageIntoContentJson(
+                            variant.ContentJson,
+                            contentPost?.ImageUrl),
+                    };
+
                     var publisher = _publisherFactory.GetPublisher(socialAccount.Platform);
                     publication.MarkPublishing(DateTime.UtcNow);
                     await SaveProgressAsync();
 
-                    var result = await publisher.PublishAsync(variant, socialAccount);
+                    var result = await publisher.PublishAsync(publishVariant, socialAccount);
 
                     if (result.IsSuccess)
                     {

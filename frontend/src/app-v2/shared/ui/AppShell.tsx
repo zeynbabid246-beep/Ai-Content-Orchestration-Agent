@@ -36,9 +36,12 @@ import {
   UserCircle2,
   Users,
 } from "lucide-react";
+import { logout } from "../../features/auth/auth.api";
+import { TeamNameSetupDialog } from "../../features/team/TeamNameSetupDialog";
 import { authStorage } from "../lib/storage";
 import { ROUTES } from "../lib/routes";
 import { TeamSwitcher } from "../../features/team/TeamSwitcher";
+import { useTeamPermissions } from "../hooks/useTeamPermissions";
 
 const SIDEBAR_COLLAPSE_KEY = "app.sidebar.collapsed";
 const DRAWER_WIDTH_EXPANDED = 252;
@@ -106,7 +109,19 @@ export function AppShell() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const location = useLocation();
   const navigate = useNavigate();
+  const { canMutateContent, canManageTeam } = useTeamPermissions();
   const username = authStorage.getUsername() ?? "User";
+
+  const navSections = useMemo(() => {
+    return NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.path === ROUTES.generate) return canMutateContent;
+        if (item.path === ROUTES.inviteUser) return canManageTeam;
+        return true;
+      }),
+    })).filter((section) => section.items.length > 0);
+  }, [canMutateContent, canManageTeam]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
     localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1"
@@ -125,8 +140,8 @@ export function AppShell() {
     });
   };
 
-  const handleLogout = () => {
-    authStorage.clear();
+  const handleLogout = async () => {
+    await logout();
     navigate(ROUTES.login);
   };
 
@@ -203,7 +218,7 @@ export function AppShell() {
       <Divider />
 
       <Box sx={{ py: 1, overflowY: "auto", flex: 1 }}>
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section) => (
           <List
             key={section.title}
             disablePadding
@@ -340,8 +355,21 @@ export function AppShell() {
     </Stack>
   );
 
+  const teamId = authStorage.getTeamId();
+  const [teamNameSetupRequired, setTeamNameSetupRequired] = useState(
+    () => authStorage.isTeamNameSetupRequired()
+  );
+  const showTeamNameSetup = teamNameSetupRequired && Boolean(teamId);
+
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", display: "flex" }}>
+      {teamId ? (
+        <TeamNameSetupDialog
+          open={showTeamNameSetup}
+          teamId={teamId}
+          onComplete={() => setTeamNameSetupRequired(false)}
+        />
+      ) : null}
       <Drawer
         variant={isMobile ? "temporary" : "permanent"}
         open={isMobile ? mobileOpen : true}

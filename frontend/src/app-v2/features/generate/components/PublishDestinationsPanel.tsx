@@ -2,9 +2,11 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
+  FormControl,
   FormControlLabel,
-  FormGroup,
+  LinearProgress,
+  Radio,
+  RadioGroup,
   Stack,
   TextField,
   Typography,
@@ -14,13 +16,7 @@ import type { SocialAccount } from "../../social-media/social-accounts.types";
 import { SocialPlatform } from "../../content-posts/content-posts.types";
 import type { QuickVariantDraft } from "../generate.types";
 import { getVariantDefinition } from "../utils/variantHelpers";
-
-const PLATFORM_ORDER: SocialPlatform[] = [
-  SocialPlatform.LinkedIn,
-  SocialPlatform.Facebook,
-  SocialPlatform.Instagram,
-];
-
+import { getAccountsForPlatform } from "../utils/dedupeAccountsByPlatform";
 const PLATFORM_LABELS: Record<SocialPlatform, string> = {
   [SocialPlatform.LinkedIn]: "LinkedIn",
   [SocialPlatform.Facebook]: "Facebook",
@@ -30,15 +26,28 @@ const PLATFORM_LABELS: Record<SocialPlatform, string> = {
   [SocialPlatform.TikTok]: "TikTok",
 };
 
+export type PlatformPublishState =
+  | "idle"
+  | "queued"
+  | "publishing"
+  | "published"
+  | "failed";
+
 interface PublishDestinationsPanelProps {
-  accounts: SocialAccount[];
-  selectedAccountIds: number[];
-  onSelectedAccountIdsChange: (ids: number[]) => void;
+  allAccounts: SocialAccount[];
+  enabledPlatforms: SocialPlatform[];
   enabledVariants: QuickVariantDraft[];
+  selectedByPlatform: Partial<Record<SocialPlatform, number>>;
+  onSelectedByPlatformChange: (value: Partial<Record<SocialPlatform, number>>) => void;
+  platformPublishState: Partial<Record<SocialPlatform, PlatformPublishState>>;
+  platformPublishErrors: Partial<Record<SocialPlatform, string>>;
+  requiresImage: boolean;
+  hasImage: boolean;
   scheduledAt: string;
   onScheduledAtChange: (value: string) => void;
   onConnectLinkedIn: () => void;
-  onConnectMeta: () => void;
+  onConnectFacebook: () => void;
+  onConnectInstagram: () => void;
   isSubmitting: boolean;
   onSaveDraft: () => void;
   onPublish: () => void;
@@ -53,151 +62,217 @@ function variantReady(variant: QuickVariantDraft): boolean {
   return variant.body.trim().length > 0;
 }
 
+function statusLabel(state: PlatformPublishState | undefined): string | null {
+  switch (state) {
+    case "queued":
+      return "Queued…";
+    case "publishing":
+      return "Publishing…";
+    case "published":
+      return "Published";
+    case "failed":
+      return "Failed";
+    default:
+      return null;
+  }
+}
+
 export function PublishDestinationsPanel({
-  accounts,
-  selectedAccountIds,
-  onSelectedAccountIdsChange,
+  allAccounts,
+  enabledPlatforms,
   enabledVariants,
+  selectedByPlatform,
+  onSelectedByPlatformChange,
+  platformPublishState,
+  platformPublishErrors,
+  requiresImage,
+  hasImage,
   scheduledAt,
   onScheduledAtChange,
   onConnectLinkedIn,
-  onConnectMeta,
+  onConnectFacebook,
+  onConnectInstagram,
   isSubmitting,
   onSaveDraft,
   onPublish,
   onSchedule,
 }: PublishDestinationsPanelProps) {
   const theme = useTheme();
-  const selectedSet = new Set(selectedAccountIds);
 
   const platformsWithContent = new Set(
     enabledVariants.filter(variantReady).map((v) => getVariantDefinition(v.key).platform)
   );
 
-  const accountsByPlatform = PLATFORM_ORDER.map((platform) => ({
-    platform,
-    accounts: accounts.filter((account) => account.platform === platform),
-  })).filter((group) => group.accounts.length > 0 || platformsWithContent.has(group.platform));
+  const selectedCount = enabledPlatforms.filter((platform) => selectedByPlatform[platform] != null).length;
 
-  const toggleAccount = (accountId: number) => {
-    if (selectedSet.has(accountId)) {
-      onSelectedAccountIdsChange(selectedAccountIds.filter((id) => id !== accountId));
-    } else {
-      onSelectedAccountIdsChange([...selectedAccountIds, accountId]);
-    }
+  const canPublish =
+    selectedCount > 0 &&
+    enabledPlatforms.every((platform) => {
+      if (selectedByPlatform[platform] == null) return true;
+      if (!platformsWithContent.has(platform)) return false;
+      if (platform === SocialPlatform.Instagram && requiresImage && !hasImage) return false;
+      return true;
+    });
+
+  const setPlatformAccount = (platform: SocialPlatform, accountId: number) => {
+    onSelectedByPlatformChange({ ...selectedByPlatform, [platform]: accountId });
   };
 
-  const selectAllReady = () => {
-    const readyIds = accounts
-      .filter((account) => platformsWithContent.has(account.platform))
-      .map((account) => account.id);
-    onSelectedAccountIdsChange(readyIds);
+  const clearPlatform = (platform: SocialPlatform) => {
+    const next = { ...selectedByPlatform };
+    delete next[platform];
+    onSelectedByPlatformChange(next);
   };
+
+  if (enabledPlatforms.length === 0) {
+    return (
+      <Alert severity="info">
+        Go back to step 1 and enable at least one platform you want to publish to.
+      </Alert>
+    );
+  }
 
   return (
     <Stack spacing={2}>
-      {accounts.length === 0 ? (
+      {requiresImage && !hasImage ? (
         <Alert severity="warning">
-          No connected accounts yet. Link at least one platform to publish.
+          Instagram requires an image. Go back to step 2 and add shared media before publishing.
         </Alert>
       ) : null}
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        <Button size="small" variant="outlined" onClick={onConnectLinkedIn}>
-          Connect LinkedIn
-        </Button>
-        <Button size="small" variant="outlined" onClick={onConnectMeta}>
-          Connect Meta / Instagram
-        </Button>
-        {accounts.length > 0 ? (
-          <Button size="small" onClick={selectAllReady}>
-            Select all with content
-          </Button>
-        ) : null}
-      </Stack>
-
       <Stack spacing={1.5}>
-        {accountsByPlatform.map(({ platform, accounts: platformAccounts }) => {
-          const hasContent = platformsWithContent.has(platform);
+        {enabledPlatforms.map((platform) => {
           const label = PLATFORM_LABELS[platform];
+          const platformAccounts = getAccountsForPlatform(allAccounts, platform);
+          const hasContent = platformsWithContent.has(platform);
+          const selectedId = selectedByPlatform[platform];
+          const publishState = platformPublishState[platform];
+          const publishError = platformPublishErrors[platform];
+          const status = statusLabel(publishState);
 
-          if (platformAccounts.length === 0) {
-            return (
-              <Box
-                key={platform}
-                sx={{
-                  p: 1.5,
-                  borderRadius: 1,
-                  border: "1px dashed",
-                  borderColor: "divider",
-                  opacity: 0.85,
-                }}
-              >
-                <Typography variant="body2" fontWeight={600}>
-                  {label}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {hasContent
-                    ? "Content ready — connect an account to publish."
-                    : "Enable and fill this platform variant to publish here."}
-                </Typography>
-              </Box>
-            );
-          }
+          const connectAction =
+            platform === SocialPlatform.LinkedIn
+              ? onConnectLinkedIn
+              : platform === SocialPlatform.Facebook
+                ? onConnectFacebook
+                : onConnectInstagram;
 
           return (
             <Box
               key={platform}
               sx={{
-                p: 1.5,
+                p: 2,
                 borderRadius: 1,
                 border: "1px solid",
-                borderColor: hasContent ? alpha(theme.palette.primary.main, 0.25) : "divider",
+                borderColor: hasContent
+                  ? alpha(theme.palette.primary.main, 0.25)
+                  : "divider",
                 bgcolor: hasContent ? alpha(theme.palette.primary.main, 0.03) : "transparent",
               }}
             >
-              <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
-                {label}
-                {!hasContent ? (
-                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    (no content yet)
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                <Typography variant="subtitle2" fontWeight={600}>
+                  {label}
+                  {!hasContent ? (
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      (add content in step 2)
+                    </Typography>
+                  ) : null}
+                </Typography>
+                {status ? (
+                  <Typography
+                    variant="caption"
+                    fontWeight={600}
+                    color={
+                      publishState === "published"
+                        ? "success.main"
+                        : publishState === "failed"
+                          ? "error.main"
+                          : "text.secondary"
+                    }
+                  >
+                    {status}
                   </Typography>
                 ) : null}
-              </Typography>
-              <FormGroup>
-                {platformAccounts.map((account) => {
-                  const disabled = !hasContent;
-                  return (
-                    <FormControlLabel
-                      key={account.id}
-                      disabled={disabled}
-                      control={
-                        <Checkbox
-                          checked={selectedSet.has(account.id)}
-                          onChange={() => toggleAccount(account.id)}
-                          disabled={disabled}
-                        />
-                      }
-                      label={
-                        <Typography variant="body2">
-                          {account.displayName || account.accountHandle}
-                        </Typography>
-                      }
-                    />
-                  );
-                })}
-              </FormGroup>
+              </Stack>
+
+              {platformAccounts.length === 0 ? (
+                <Stack spacing={1}>
+                  <Typography variant="body2" color="text.secondary">
+                    No {label} account connected.
+                  </Typography>
+                  <Button size="small" variant="outlined" onClick={connectAction} disabled={isSubmitting}>
+                    Connect {label}
+                  </Button>
+                </Stack>
+              ) : platformAccounts.length === 1 ? (
+                <Stack spacing={1}>
+                  <Typography variant="body2">
+                    {platformAccounts[0].displayName || platformAccounts[0].accountHandle}
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      size="small"
+                      variant={selectedId === platformAccounts[0].id ? "contained" : "outlined"}
+                      disabled={!hasContent || isSubmitting}
+                      onClick={() => setPlatformAccount(platform, platformAccounts[0].id)}
+                    >
+                      {selectedId === platformAccounts[0].id ? "Selected" : "Select"}
+                    </Button>
+                    {selectedId === platformAccounts[0].id ? (
+                      <Button size="small" onClick={() => clearPlatform(platform)} disabled={isSubmitting}>
+                        Clear
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </Stack>
+              ) : (
+                <FormControl component="fieldset" disabled={!hasContent || isSubmitting} sx={{ width: "100%" }}>
+                  <RadioGroup
+                    value={selectedId != null ? String(selectedId) : ""}
+                    onChange={(event) => setPlatformAccount(platform, Number(event.target.value))}
+                  >
+                    {platformAccounts.map((account) => (
+                      <FormControlLabel
+                        key={account.id}
+                        value={String(account.id)}
+                        control={<Radio size="small" />}
+                        label={account.displayName || account.accountHandle}
+                      />
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+              )}
+
+              {publishError ? (
+                <Typography variant="caption" color="error" sx={{ display: "block", mt: 1 }}>
+                  {publishError}
+                </Typography>
+              ) : null}
             </Box>
           );
         })}
       </Stack>
 
-      {selectedAccountIds.length > 0 ? (
-        <Typography variant="caption" color="text.secondary">
-          {selectedAccountIds.length} destination{selectedAccountIds.length > 1 ? "s" : ""} selected — each
-          receives the variant for its platform.
-        </Typography>
+      {isSubmitting && selectedCount > 0 ? (
+        <Box>
+          <LinearProgress />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+            Waiting for platforms to finish publishing…
+          </Typography>
+        </Box>
       ) : null}
+
+      {selectedCount > 0 ? (
+        <Typography variant="caption" color="text.secondary">
+          {selectedCount} platform{selectedCount > 1 ? "s" : ""} selected. Only chosen destinations will receive
+          this post.
+        </Typography>
+      ) : (
+        <Typography variant="caption" color="text.secondary">
+          Select one account per platform you want to publish to.
+        </Typography>
+      )}
 
       <TextField
         type="datetime-local"
@@ -205,7 +280,7 @@ export function PublishDestinationsPanel({
         value={scheduledAt}
         onChange={(event) => onScheduledAtChange(event.target.value)}
         InputLabelProps={{ shrink: true }}
-        helperText="Leave empty to publish immediately, or set a future time to schedule all selected destinations."
+        helperText="Set a future time to schedule all selected destinations, or leave empty to publish now."
       />
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} flexWrap="wrap" useFlexGap>
@@ -216,16 +291,16 @@ export function PublishDestinationsPanel({
           variant="contained"
           color="success"
           onClick={onPublish}
-          disabled={isSubmitting || selectedAccountIds.length === 0}
+          disabled={isSubmitting || !canPublish}
         >
           {isSubmitting
-            ? "Processing..."
-            : `Publish now${selectedAccountIds.length > 0 ? ` (${selectedAccountIds.length})` : ""}`}
+            ? "Publishing…"
+            : `Publish to ${selectedCount} platform${selectedCount !== 1 ? "s" : ""}`}
         </Button>
         <Button
           variant="contained"
           onClick={onSchedule}
-          disabled={isSubmitting || selectedAccountIds.length === 0 || !scheduledAt}
+          disabled={isSubmitting || !canPublish || !scheduledAt}
         >
           Schedule selected
         </Button>

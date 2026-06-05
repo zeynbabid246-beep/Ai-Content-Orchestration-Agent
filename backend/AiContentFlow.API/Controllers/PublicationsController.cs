@@ -43,6 +43,17 @@ public class PublicationsController : ControllerBase
         return Accepted(result);
     }
 
+    [HttpGet("publications/{publicationId:int}")]
+    public async Task<ActionResult<PublicationResponseDto>> GetById(Guid teamId, int publicationId)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _publicationService.GetByIdAsync(teamId, publicationId, userId);
+        return Ok(result);
+    }
+
     [HttpGet("publications/{publicationId:int}/analytics")]
     public async Task<ActionResult<List<PublicationAnalyticsResponseDto>>> GetAnalytics(Guid teamId, int publicationId)
     {

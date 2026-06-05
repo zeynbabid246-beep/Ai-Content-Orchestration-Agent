@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
 using Microsoft.Extensions.Configuration;
@@ -21,11 +22,11 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         _secret = Encoding.UTF8.GetBytes(secret);
     }
 
-    public string CreateState(Guid teamId, int channelId, string userId, string platform, DateTime utcNow)
+    public string CreateState(Guid teamId, int? linkChannelId, string userId, string platform, DateTime utcNow)
     {
         var payload = new SocialAuthStatePayload(
             teamId,
-            channelId,
+            linkChannelId is > 0 ? linkChannelId : null,
             userId,
             NormalizePlatform(platform),
             Guid.NewGuid().ToString("N"),
@@ -63,7 +64,8 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         if (!string.Equals(payload.Platform, NormalizePlatform(platform), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("OAuth state platform mismatch");
 
-        return new SocialAuthState(payload.TeamId, payload.ChannelId, payload.UserId, payload.Platform, payload.ExpiresAt);
+        var linkChannelId = payload.LinkChannelId is > 0 ? payload.LinkChannelId : null;
+        return new SocialAuthState(payload.TeamId, linkChannelId, payload.UserId, payload.Platform, payload.ExpiresAt);
     }
 
     private string Sign(string payloadToken)
@@ -91,7 +93,7 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
 
     private record SocialAuthStatePayload(
         Guid TeamId,
-        int ChannelId,
+        [property: JsonPropertyName("channelId")] int? LinkChannelId,
         string UserId,
         string Platform,
         string Nonce,

@@ -5,7 +5,7 @@ type SupportedSocialPlatform = "linkedin" | "facebook" | "instagram";
 
 interface SocialAuthLoginResult {
   teamId: string;
-  channelId: number;
+  linkChannelId?: number | null;
   platform: string;
   authorizationUrl: string;
 }
@@ -18,11 +18,14 @@ function getTeamId(): string {
   return teamId;
 }
 
-export async function getSocialAuthLoginUrl(platform: SupportedSocialPlatform, channelId?: number): Promise<string> {
+export async function getSocialAuthLoginUrl(
+  platform: SupportedSocialPlatform,
+  options?: { linkChannelId?: number }
+): Promise<string> {
   const teamId = getTeamId();
   const query = new URLSearchParams({ teamId });
-  if (channelId) {
-    query.set("channelId", String(channelId));
+  if (options?.linkChannelId) {
+    query.set("linkChannelId", String(options.linkChannelId));
   }
   const response = await apiRequest<SocialAuthLoginResult>(
     `/auth/${platform}/login?${query.toString()}`,

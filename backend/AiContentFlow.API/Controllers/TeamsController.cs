@@ -83,8 +83,55 @@ public class TeamController : ControllerBase
         if (string.IsNullOrEmpty(requestingUserId))
             return Unauthorized("User ID not found in token");
 
-        await _teamService.InviteUserAsync(teamId, requestingUserId, dto);
+        var result = await _teamService.InviteUserAsync(teamId, requestingUserId, dto);
+        return Ok(result);
+    }
+
+    [HttpGet("{teamId:guid}/invitations")]
+    public async Task<ActionResult<List<TeamInvitationDto>>> GetPendingInvitations(Guid teamId)
+    {
+        var requestingUserId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(requestingUserId))
+            return Unauthorized("User ID not found in token");
+
+        var invitations = await _teamService.GetPendingInvitationsAsync(teamId, requestingUserId);
+        return Ok(invitations);
+    }
+
+    [HttpDelete("{teamId:guid}/invitations/{invitationId:guid}")]
+    public async Task<IActionResult> RevokeInvitation(Guid teamId, Guid invitationId)
+    {
+        var requestingUserId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(requestingUserId))
+            return Unauthorized("User ID not found in token");
+
+        await _teamService.RevokeInvitationAsync(teamId, requestingUserId, invitationId);
         return NoContent();
+    }
+
+    [HttpGet("{teamId:guid}/activity")]
+    public async Task<ActionResult<List<TeamActivityEventDto>>> GetTeamActivity(
+        Guid teamId,
+        [FromQuery] int limit = 50)
+    {
+        var requestingUserId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(requestingUserId))
+            return Unauthorized("User ID not found in token");
+
+        var activity = await _teamService.GetTeamActivityAsync(teamId, requestingUserId, limit);
+        return Ok(activity);
+    }
+
+    [HttpPost("invitations/accept")]
+    public async Task<ActionResult<AcceptTeamInvitationResponseDto>> AcceptInvitation(
+        [FromBody] AcceptTeamInvitationDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _teamService.AcceptInvitationAsync(userId, dto);
+        return Ok(result);
     }
 
     [HttpDelete("{teamId:guid}/members/{targetUserId}")]

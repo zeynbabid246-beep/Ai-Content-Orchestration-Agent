@@ -7,6 +7,8 @@ export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
+  teamName?: string;
+  inviteToken?: string;
 }
 
 // Backend uses ASP.NET Core default camelCase JSON serialization

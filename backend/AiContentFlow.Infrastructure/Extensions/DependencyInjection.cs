@@ -8,6 +8,7 @@ using AiContentFlow.Application.Features.Campaigns;
 using AiContentFlow.Application.Features.Channels;
 using AiContentFlow.Application.Features.ContentPosts;
 using AiContentFlow.Application.Features.Publications;
+using AiContentFlow.Application.Features.Profile;
 using AiContentFlow.Application.Features.SocialAccounts;
 using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Domain.Campaigns.Interfaces;
@@ -47,6 +48,14 @@ public static class DependencyInjection
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
                 options.User.RequireUniqueEmail = true;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.AllowedForNewUsers = true;
             })
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
@@ -54,9 +63,13 @@ public static class DependencyInjection
         // 2. Repositories
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ITeamRepository, TeamRepository>();
+        services.AddScoped<ITeamInvitationRepository, TeamInvitationRepository>();
+        services.AddScoped<ITeamActivityRepository, TeamActivityRepository>();
+        services.AddScoped<ITeamActivityService, TeamActivityService>();
         services.AddScoped<IContentPostRepository, ContentPostRepository>();
         services.AddScoped<IChannelRepository, ChannelRepository>();
         services.AddScoped<ISocialAccountRepository, SocialAccountRepository>();
+        services.AddScoped<IChannelSocialAccountRepository, ChannelSocialAccountRepository>();
         services.AddScoped<ICampaignRepository, CampaignRepository>();
         services.AddScoped<IPostVariantRepository, PostVariantRepository>();
         services.AddScoped<IPostPublicationRepository, PostPublicationRepository>();
@@ -81,8 +94,10 @@ public static class DependencyInjection
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IContentPostService, ContentPostService>();
         services.AddScoped<IChannelService, ChannelService>();
+        services.AddScoped<IChannelSocialAccountService, ChannelSocialAccountService>();
         services.AddScoped<ISocialAccountService, SocialAccountService>();
         services.AddScoped<IPublicationService, PublicationService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
@@ -124,6 +139,7 @@ public static class DependencyInjection
 
         // Email Service Configuration
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+        services.Configure<AppSettings>(configuration.GetSection("App"));
         services.AddScoped<IEmailService, SmtpEmailService>();
 
         // 9. FluentValidation
