@@ -24,6 +24,8 @@ import { useChannels } from "../../channels/channels.queries";
 import { CampaignStatus } from "../campaigns.types";
 import { CampaignProgressChips } from "../components/CampaignProgressChips";
 import { campaignPaths } from "../../../shared/lib/routes";
+import { sortByEntityOption, type EntitySortOption } from "../../../shared/lib/entityListSort";
+import { EntitySortSelect } from "../../../shared/ui/EntitySortSelect";
 
 const STATUS_FILTERS: { value: "all" | CampaignStatus; label: string }[] = [
   { value: "all", label: "All campaigns" },
@@ -39,6 +41,12 @@ export function CampaignsListPage() {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
+  const [sortOption, setSortOption] = useState<EntitySortOption>("updated-desc");
+
+  const channelsSortedByName = useMemo(
+    () => [...channels].sort((a, b) => a.name.localeCompare(b.name)),
+    [channels]
+  );
 
   const channelNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -50,21 +58,17 @@ export function CampaignsListPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (campaignsQuery.data ?? [])
-      .filter((campaign) => {
-        if (channelFilter !== "all" && campaign.channelId !== channelFilter) return false;
-        if (statusFilter !== "all" && campaign.status !== statusFilter) return false;
-        if (term) {
-          const haystack = `${campaign.name} ${campaign.description ?? ""}`.toLowerCase();
-          if (!haystack.includes(term)) return false;
-        }
-        return true;
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-  }, [campaignsQuery.data, search, channelFilter, statusFilter]);
+    const filteredCampaigns = (campaignsQuery.data ?? []).filter((campaign) => {
+      if (channelFilter !== "all" && campaign.channelId !== channelFilter) return false;
+      if (statusFilter !== "all" && campaign.status !== statusFilter) return false;
+      if (term) {
+        const haystack = `${campaign.name} ${campaign.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    return sortByEntityOption(filteredCampaigns, sortOption);
+  }, [campaignsQuery.data, search, channelFilter, statusFilter, sortOption]);
 
   const campaigns = campaignsQuery.data ?? [];
 
@@ -124,7 +128,7 @@ export function CampaignsListPage() {
               sx={{ minWidth: 180 }}
             >
               <MenuItem value="all">All channels</MenuItem>
-              {channels.map((channel) => (
+              {channelsSortedByName.map((channel) => (
                 <MenuItem key={channel.id} value={channel.id}>
                   {channel.name}
                 </MenuItem>
@@ -146,6 +150,7 @@ export function CampaignsListPage() {
                 </MenuItem>
               ))}
             </TextField>
+            <EntitySortSelect value={sortOption} onChange={setSortOption} />
           </Stack>
 
           {filtered.length === 0 ? (

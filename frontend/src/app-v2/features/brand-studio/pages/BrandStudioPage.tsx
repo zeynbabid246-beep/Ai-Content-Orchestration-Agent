@@ -410,6 +410,44 @@ export function BrandStudioPage() {
                     ) : null}
                   </Stack>
                 </Grid>
+                {parsedProfile.visualIdentity.logoUrl ? (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                      Logo preview
+                    </Typography>
+                    <Box
+                      component="img"
+                      src={parsedProfile.visualIdentity.logoUrl}
+                      alt="Brand logo"
+                      sx={{ maxWidth: 120, maxHeight: 64, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
+                    />
+                  </Grid>
+                ) : null}
+                {!parsedProfile.visualIdentity.logoUrl && parsedProfile.visualIdentity.faviconUrl ? (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                      Favicon preview (used when no logo is found)
+                    </Typography>
+                    <Box
+                      component="img"
+                      src={parsedProfile.visualIdentity.faviconUrl}
+                      alt="Brand favicon"
+                      sx={{ maxWidth: 48, maxHeight: 48, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
+                    />
+                  </Grid>
+                ) : parsedProfile.visualIdentity.faviconUrl ? (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                      Favicon preview
+                    </Typography>
+                    <Box
+                      component="img"
+                      src={parsedProfile.visualIdentity.faviconUrl}
+                      alt="Brand favicon"
+                      sx={{ maxWidth: 48, maxHeight: 48, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
+                    />
+                  </Grid>
+                ) : null}
                 <Grid size={{ xs: 12, md: 6 }}>
                   <ArrayField
                     label="Primary colors"

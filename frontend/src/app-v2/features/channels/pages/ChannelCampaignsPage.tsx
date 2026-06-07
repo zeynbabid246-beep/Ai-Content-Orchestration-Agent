@@ -1,15 +1,34 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, Paper, Skeleton, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  MenuItem,
+  Paper,
+  Skeleton,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { Plus, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChannelContext } from "../hooks/useChannelContext";
 import { useCampaigns, useCreateCampaign } from "../../campaigns/campaigns.queries";
+import { CampaignStatus } from "../../campaigns/campaigns.types";
+import { sortByEntityOption, type EntitySortOption } from "../../../shared/lib/entityListSort";
+import { EntitySortSelect } from "../../../shared/ui/EntitySortSelect";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
 import { CampaignCard } from "../../campaigns/components/CampaignCard";
 import { CreateCampaignDialog } from "../../campaigns/components/CreateCampaignDialog";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import { campaignPaths } from "../../../shared/lib/routes";
+
+const STATUS_FILTERS: { value: "all" | CampaignStatus; label: string }[] = [
+  { value: "all", label: "All campaigns" },
+  { value: CampaignStatus.Active, label: "Active" },
+  { value: CampaignStatus.Archived, label: "Archived" },
+];
 
 export function ChannelCampaignsPage() {
   const navigate = useNavigate();
@@ -22,6 +41,8 @@ export function ChannelCampaignsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
+  const [sortOption, setSortOption] = useState<EntitySortOption>("updated-desc");
 
   const channelCampaigns = useMemo(
     () => allCampaigns.filter((campaign) => campaign.channelId === channelId),
@@ -30,13 +51,16 @@ export function ChannelCampaignsPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return channelCampaigns;
-    return channelCampaigns.filter(
-      (campaign) =>
-        campaign.name.toLowerCase().includes(term) ||
-        (campaign.description ?? "").toLowerCase().includes(term)
-    );
-  }, [channelCampaigns, search]);
+    const filteredCampaigns = channelCampaigns.filter((campaign) => {
+      if (statusFilter !== "all" && campaign.status !== statusFilter) return false;
+      if (term) {
+        const haystack = `${campaign.name} ${campaign.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    return sortByEntityOption(filteredCampaigns, sortOption);
+  }, [channelCampaigns, search, statusFilter, sortOption]);
 
   const postCountByCampaign = useMemo(() => {
     const map = new Map<number, number>();
@@ -103,23 +127,42 @@ export function ChannelCampaignsPage() {
           </Paper>
         ) : (
           <Stack spacing={2}>
-            <TextField
-              size="small"
-              placeholder="Search campaigns..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <Box sx={{ display: "flex", color: "text.secondary", mr: 1 }}>
-                    <Search size={16} />
-                  </Box>
-                ),
-              }}
-              sx={{ maxWidth: 360 }}
-            />
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+              <TextField
+                size="small"
+                fullWidth
+                placeholder="Search campaigns..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box sx={{ display: "flex", color: "text.secondary", mr: 1 }}>
+                      <Search size={16} />
+                    </Box>
+                  ),
+                }}
+              />
+              <TextField
+                size="small"
+                select
+                label="Status"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as typeof statusFilter)
+                }
+                sx={{ minWidth: 160 }}
+              >
+                {STATUS_FILTERS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <EntitySortSelect value={sortOption} onChange={setSortOption} />
+            </Stack>
 
             {filtered.length === 0 ? (
-              <Alert severity="info">No campaigns match "{search}".</Alert>
+              <Alert severity="info">No campaigns match your filters.</Alert>
             ) : (
               <Box
                 sx={{

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AiContentFlow.Application.Features.Ai;
 using AiContentFlow.Domain.Models;
 
 namespace AiContentFlow.Application.Features.Ai.Dtos;
@@ -13,7 +14,10 @@ public record GeneratePostRequestDto(
     string? Format = null,
     bool IncludeHashtags = false,
     bool IncludeCta = true,
-    bool IncludeEmojis = false);
+    bool IncludeEmojis = false,
+    QuickGeneratePostType PostType = QuickGeneratePostType.TextOnly,
+    string? Language = null,
+    bool GenerateVisuals = true);
 
 public record GeneratePostResponseDto(
     string ContentJson,
@@ -171,7 +175,21 @@ public record GeneratePostCreativeRequestDto(
     bool PersistToPost = true);
 
 public record GeneratePostCreativeResponseDto(
-    int ContentPostId,
+    int? ContentPostId,
+    string CreativeMode,
+    string? PosterUrl,
+    IReadOnlyList<string> CarouselAssets,
+    string? CreativeError,
+    string ContentJson,
+    string CorrelationId);
+
+public record GenerateCreativePreviewRequestDto(
+    string ContentJson,
+    SocialPlatform Platform,
+    string Language = "English",
+    string? VisualDirection = null);
+
+public record GenerateCreativePreviewResponseDto(
     string CreativeMode,
     string? PosterUrl,
     IReadOnlyList<string> CarouselAssets,

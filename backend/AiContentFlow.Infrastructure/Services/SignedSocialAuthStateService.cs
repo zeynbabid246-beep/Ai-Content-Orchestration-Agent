@@ -22,7 +22,7 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         _secret = Encoding.UTF8.GetBytes(secret);
     }
 
-    public string CreateState(Guid teamId, int? linkChannelId, string userId, string platform, DateTime utcNow)
+    public string CreateState(Guid teamId, int? linkChannelId, string userId, string platform, DateTime utcNow, string? redirectPath = null)
     {
         var payload = new SocialAuthStatePayload(
             teamId,
@@ -30,7 +30,8 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
             userId,
             NormalizePlatform(platform),
             Guid.NewGuid().ToString("N"),
-            utcNow.Add(StateLifetime));
+            utcNow.Add(StateLifetime),
+            NormalizeRedirectPath(redirectPath));
 
         var payloadJson = JsonSerializer.Serialize(payload);
         var payloadToken = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
@@ -65,7 +66,13 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
             throw new InvalidOperationException("OAuth state platform mismatch");
 
         var linkChannelId = payload.LinkChannelId is > 0 ? payload.LinkChannelId : null;
-        return new SocialAuthState(payload.TeamId, linkChannelId, payload.UserId, payload.Platform, payload.ExpiresAt);
+        return new SocialAuthState(
+            payload.TeamId,
+            linkChannelId,
+            payload.UserId,
+            payload.Platform,
+            payload.ExpiresAt,
+            NormalizeRedirectPath(payload.RedirectPath));
     }
 
     private string Sign(string payloadToken)
@@ -77,6 +84,18 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
     private static string NormalizePlatform(string platform)
     {
         return platform.Trim().ToLowerInvariant();
+    }
+
+    private static string? NormalizeRedirectPath(string? redirectPath)
+    {
+        if (string.IsNullOrWhiteSpace(redirectPath))
+            return null;
+
+        var trimmed = redirectPath.Trim();
+        if (!trimmed.StartsWith("/app/", StringComparison.Ordinal))
+            return null;
+
+        return trimmed;
     }
 
     private static string Base64UrlEncode(byte[] bytes)
@@ -97,5 +116,6 @@ public class SignedSocialAuthStateService : ISocialAuthStateService
         string UserId,
         string Platform,
         string Nonce,
-        DateTime ExpiresAt);
+        DateTime ExpiresAt,
+        string? RedirectPath);
 }

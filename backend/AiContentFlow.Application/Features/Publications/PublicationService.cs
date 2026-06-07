@@ -8,7 +8,7 @@ namespace AiContentFlow.Application.Features.Publications;
 public class PublicationService : IPublicationService
 {
     private static readonly SocialPlatform[] SupportedPublishPlatforms =
-        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram, SocialPlatform.Threads];
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
     private readonly IChannelSocialAccountRepository _channelSocialAccountRepository;
@@ -320,7 +320,7 @@ public class PublicationService : IPublicationService
 
     private static void EnsureTokenIsValid(SocialAccount socialAccount)
     {
-        if (socialAccount.Platform is SocialPlatform.Facebook or SocialPlatform.Instagram)
+        if (socialAccount.Platform is SocialPlatform.Facebook or SocialPlatform.Instagram or SocialPlatform.Threads)
         {
             // Page tokens are often effectively long-lived and may not expose a reliable expiry.
             // Defer final validity to the provider call instead of hard-failing here.

@@ -10,8 +10,11 @@ using System.Text.Json.Serialization;
 using AiContentFlow.Infrastructure;
 using Application.Interfaces;
 using AiContentFlow.Application.Features.Auth;
+using AiContentFlow.Infrastructure.Configuration;
 using AiContentFlow.Infrastructure.Extensions;
 using AiContentFlow.Infrastructure.Factories;
+
+BackendEnvLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 

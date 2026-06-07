@@ -8,4 +8,12 @@ public record LocalAiBrandContext(
     IReadOnlyList<string>? ToneOfVoice,
     IReadOnlyList<string>? AudienceSignals,
     IReadOnlyList<string>? ContentPillars,
-    string? BrandSummary);
+    string? BrandSummary,
+    string? LogoUrl = null,
+    string? FaviconUrl = null,
+    IReadOnlyList<string>? PrimaryColors = null,
+    IReadOnlyList<string>? SecondaryColors = null,
+    IReadOnlyList<string>? FontFamilies = null,
+    string? VisualStyle = null,
+    IReadOnlyList<string>? ImageUrls = null,
+    bool HasLogo = false);

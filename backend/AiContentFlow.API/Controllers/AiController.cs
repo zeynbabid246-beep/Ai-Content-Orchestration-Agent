@@ -180,6 +180,34 @@ public class AiController : ControllerBase
         }
     }
 
+    [HttpPost("creative/generate-preview")]
+    public async Task<ActionResult<GenerateCreativePreviewResponseDto>> GenerateCreativePreview(
+        Guid teamId,
+        [FromBody] GenerateCreativePreviewRequestDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized("User ID not found in token");
+
+        try
+        {
+            var result = await _aiCreativeService.GeneratePreviewAsync(teamId, userId, dto);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("LocalBackend", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("creative/generate")]
     public async Task<ActionResult<GeneratePostCreativeResponseDto>> GeneratePostCreative(
         Guid teamId,

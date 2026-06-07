@@ -22,11 +22,13 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   CalendarClock,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Dna,
   LayoutDashboard,
   LayoutGrid,
+  Link2,
   Megaphone,
   Menu as MenuIcon,
   Newspaper,
@@ -90,6 +92,16 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: "Integrations",
+    items: [
+      {
+        label: "Social Accounts",
+        path: ROUTES.integrationsSocialAccounts,
+        icon: <Link2 size={ICON_SIZE} />,
+      },
+    ],
+  },
+  {
     title: "Team",
     items: [{ label: "Members", path: ROUTES.inviteUser, icon: <Users size={ICON_SIZE} /> }],
   },
@@ -100,6 +112,24 @@ function isPathActive(currentPath: string, item: NavItem): boolean {
     return currentPath === item.path || currentPath.startsWith(`${item.path}/`);
   }
   return currentPath === item.path;
+}
+
+function AppLogo() {
+  return (
+    <Box
+      component="img"
+      src="/logo1.png"
+      alt="AiContentFlow"
+      sx={{
+        width: 28,
+        height: 28,
+        borderRadius: 1,
+        objectFit: "contain",
+        display: "block",
+        flexShrink: 0,
+      }}
+    />
+  );
 }
 
 export function AppShell() {
@@ -130,6 +160,11 @@ export function AppShell() {
     return collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH_EXPANDED;
   }, [collapsed, isMobile]);
 
+  const showBackButton = useMemo(() => {
+    const segments = location.pathname.split("/").filter(Boolean);
+    return segments.length > 2;
+  }, [location.pathname]);
+
   const toggleCollapsed = () => {
     setCollapsed((previous) => {
       const next = !previous;
@@ -149,41 +184,13 @@ export function AppShell() {
       >
         {!collapsed || isMobile ? (
           <Stack direction="row" spacing={1} alignItems="center">
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: 1,
-                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                display: "grid",
-                placeItems: "center",
-                color: "#ffffff",
-                fontWeight: 800,
-                fontSize: 13,
-              }}
-            >
-              A
-            </Box>
+            <AppLogo />
             <Typography variant="subtitle1" fontWeight={700} sx={{ letterSpacing: 0.2 }}>
               AiContentFlow
             </Typography>
           </Stack>
         ) : (
-          <Box
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: 1,
-              background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-              display: "grid",
-              placeItems: "center",
-              color: "#ffffff",
-              fontWeight: 800,
-              fontSize: 13,
-            }}
-          >
-            A
-          </Box>
+          <AppLogo />
         )}
 
         {isMobile ? (
@@ -284,6 +291,36 @@ export function AppShell() {
           </List>
         ))}
       </Box>
+
+      {!isMobile ? (
+        <>
+          <Divider />
+          <Box
+            sx={{
+              p: 1,
+              display: "flex",
+              justifyContent: collapsed ? "center" : "flex-end",
+              alignItems: "center",
+            }}
+          >
+            <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+              <IconButton
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                onClick={toggleCollapsed}
+                size="small"
+                color="inherit"
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              >
+                {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </>
+      ) : null}
     </Stack>
   );
 
@@ -352,18 +389,24 @@ export function AppShell() {
                   >
                     <MenuIcon size={18} />
                   </IconButton>
-                ) : (
-                  <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+                ) : null}
+                {showBackButton ? (
+                  <Tooltip title="Go back">
                     <IconButton
-                      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                      aria-label="Go back"
                       color="inherit"
-                      onClick={toggleCollapsed}
+                      onClick={() => navigate(-1)}
                       size="small"
+                      sx={{
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: 1,
+                      }}
                     >
-                      {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                      <ArrowLeft size={18} />
                     </IconButton>
                   </Tooltip>
-                )}
+                ) : null}
               </Stack>
 
               <Stack direction="row" spacing={2} alignItems="center">

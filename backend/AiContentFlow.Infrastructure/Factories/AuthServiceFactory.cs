@@ -20,6 +20,7 @@ public class AuthServiceFactory : IAuthServiceFactory
             "linkedin"  => _services.OfType<LinkedInAuthService>().First(),
             "facebook"  => _services.OfType<MetaAuthService>().First(),
             "instagram" => _services.OfType<MetaAuthService>().First(),
+            "threads"   => _services.OfType<ThreadsAuthService>().First(),
             _ => throw new NotSupportedException($"Platform '{platform}' is not supported.")
         };
     }

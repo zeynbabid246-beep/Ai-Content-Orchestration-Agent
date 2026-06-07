@@ -69,6 +69,7 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         string? language,
         LocalAiBrandContext? brandContext,
         string correlationId,
+        LocalAiOrchestratorMetadata? orchestratorMetadata = null,
         CancellationToken cancellationToken = default)
     {
         object? brandContextBody = null;
@@ -83,7 +84,21 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 tone_of_voice = brandContext.ToneOfVoice ?? Array.Empty<string>(),
                 audience_signals = brandContext.AudienceSignals ?? Array.Empty<string>(),
                 content_pillars = brandContext.ContentPillars ?? Array.Empty<string>(),
-                brand_summary = brandContext.BrandSummary
+                brand_summary = brandContext.BrandSummary,
+                logo_url = brandContext.LogoUrl ?? string.Empty,
+                favicon_url = brandContext.FaviconUrl ?? string.Empty,
+                has_logo = brandContext.HasLogo,
+                visual_identity = new
+                {
+                    logo_url = brandContext.LogoUrl ?? string.Empty,
+                    favicon_url = brandContext.FaviconUrl ?? string.Empty,
+                    primary_colors = brandContext.PrimaryColors ?? Array.Empty<string>(),
+                    secondary_colors = brandContext.SecondaryColors ?? Array.Empty<string>(),
+                    font_families = brandContext.FontFamilies ?? Array.Empty<string>(),
+                    visual_style = brandContext.VisualStyle ?? string.Empty,
+                    image_urls = brandContext.ImageUrls ?? Array.Empty<string>(),
+                    has_logo = brandContext.HasLogo
+                }
             };
         }
 
@@ -96,7 +111,11 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 prompt,
                 platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
                 language,
-                brand_context = brandContextBody
+                brand_context = brandContextBody,
+                content_type = orchestratorMetadata?.ContentType,
+                post_type = orchestratorMetadata?.PostType,
+                type = orchestratorMetadata?.InternalType,
+                needs_creative = orchestratorMetadata?.NeedsCreative
             },
             correlationId,
             cancellationToken);

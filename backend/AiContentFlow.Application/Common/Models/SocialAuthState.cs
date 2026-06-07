@@ -5,4 +5,5 @@ public record SocialAuthState(
     int? LinkChannelId,
     string UserId,
     string Platform,
-    DateTime ExpiresAt);
+    DateTime ExpiresAt,
+    string? RedirectPath = null);

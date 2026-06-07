@@ -323,7 +323,7 @@ namespace Infrastructure.Services
                 || value.StartsWith("__SET_IN", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Missing required Meta configuration key: {key}. Set it in user secrets or environment variables.");
+                    $"Missing required Meta configuration key: {key}. Set it in backend/.env or environment variables.");
             }
 
             return value;

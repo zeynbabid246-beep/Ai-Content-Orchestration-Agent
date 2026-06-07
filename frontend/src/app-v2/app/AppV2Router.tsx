@@ -31,6 +31,7 @@ import { CampaignAnalyticsPage } from "../features/campaigns/pages/CampaignAnaly
 import { CampaignSettingsPage } from "../features/campaigns/pages/CampaignSettingsPage";
 import { PostEditorPage } from "../features/posts/pages/PostEditorPage";
 import { CampaignAiPlanPage } from "../features/campaigns/pages/CampaignAiPlanPage";
+import { SocialAccountsPage } from "../features/integrations/pages/SocialAccountsPage";
 import { ProtectedRoute } from "../shared/ui/protectedRoute";
 import { PublicOnlyRoute } from "../shared/ui/publiconlyroute";
 import { ROUTES } from "../shared/lib/routes";
@@ -93,6 +94,9 @@ export default function AppV2Router() {
 
           {/* Cross-channel campaigns view */}
           <Route path="/campaigns" element={<CampaignsListPage />} />
+
+          {/* Integrations */}
+          <Route path="/integrations/social-accounts" element={<SocialAccountsPage />} />
 
           {/* Team */}
           <Route path="/brand-studio" element={<BrandStudioPage />} />

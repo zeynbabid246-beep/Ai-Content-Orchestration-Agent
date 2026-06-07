@@ -1,4 +1,6 @@
-import type { DashboardPost, DashboardStat, AnalyticsData } from "./dashboard.types";
+import type { DashboardPost, DashboardStat } from "./dashboard.types";
+import type { AnalyticsSummary } from "../analytics/analytics.types";
+import { getTeamAnalyticsSummary } from "../analytics/analytics.api";
 
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
@@ -47,87 +49,26 @@ export async function getDashboardStats(): Promise<DashboardStat[]> {
   const scheduledCount = posts.filter((p) => getEffectiveContentStatus(p) === ContentStatus.Scheduled).length;
   const publishedCount = posts.filter((p) => getEffectiveContentStatus(p) === ContentStatus.Published).length;
 
+  let avgEngagement = "0";
+  try {
+    const analytics = await getTeamAnalyticsSummary(30);
+    avgEngagement = `${analytics.avgEngagementRate.toFixed(1)}%`;
+  } catch {
+    avgEngagement = "0";
+  }
+
   return [
     { value: posts.length.toString(), label: "Total Posts", trend: null, direction: null },
     { value: publishedCount.toString(), label: "Published Posts", trend: null, direction: null },
     { value: scheduledCount.toString(), label: "Scheduled Posts", trend: null, direction: null },
-    { value: "0", label: "Avg. Engagement", trend: null, direction: null },
+    { value: avgEngagement, label: "Avg. Engagement", trend: null, direction: null },
   ];
 }
 
-export async function getDashboardAnalytics(): Promise<AnalyticsData | null> {
-  // Real platform analytics sync is not available yet.
-  return null;
-}
-
-export async function getDashboardAnalyticsLegacyMock(): Promise<AnalyticsData> {
-  return {
-    platforms: [
-      {
-        name: "LinkedIn",
-        color: "#0A66C2",
-        followers: 12400,
-        reach: 8900,
-        engagement: 4.2,
-        comments: 312,
-        likes: 1840,
-        shares: 290,
-        topAudience: [
-          { type: "Company", percentage: 54 },
-          { type: "Individual", percentage: 46 },
-        ],
-        weeklyActivity: [42, 58, 61, 74, 80, 55, 48],
-        activeClients: [
-          { name: "Acme Corp", type: "Company", interactions: 84, avatar: "AC" },
-          { name: "Sarah Holt", type: "Individual", interactions: 67, avatar: "SH" },
-          { name: "BrightScale", type: "Company", interactions: 55, avatar: "BS" },
-          { name: "James Wu", type: "Individual", interactions: 49, avatar: "JW" },
-        ],
-      },
-      {
-        name: "Instagram",
-        color: "#E1306C",
-        followers: 9800,
-        reach: 6200,
-        engagement: 5.8,
-        comments: 524,
-        likes: 3210,
-        shares: 180,
-        topAudience: [
-          { type: "Individual", percentage: 78 },
-          { type: "Company", percentage: 22 },
-        ],
-        weeklyActivity: [90, 112, 98, 135, 120, 145, 130],
-        activeClients: [
-          { name: "Mia Chen", type: "Individual", interactions: 142, avatar: "MC" },
-          { name: "Leo Brands", type: "Company", interactions: 98, avatar: "LB" },
-          { name: "Priya Nair", type: "Individual", interactions: 87, avatar: "PN" },
-          { name: "NovaTech", type: "Company", interactions: 72, avatar: "NT" },
-        ],
-      },
-      {
-        name: "Facebook",
-        color: "#1877F2",
-        followers: 7300,
-        reach: 4100,
-        engagement: 2.9,
-        comments: 198,
-        likes: 890,
-        shares: 340,
-        topAudience: [
-          { type: "Individual", percentage: 62 },
-          { type: "Company", percentage: 38 },
-        ],
-        weeklyActivity: [30, 28, 35, 40, 33, 38, 25],
-        activeClients: [
-          { name: "DeltaGroup", type: "Company", interactions: 76, avatar: "DG" },
-          { name: "Tom Rivera", type: "Individual", interactions: 64, avatar: "TR" },
-          { name: "Apex Media", type: "Company", interactions: 58, avatar: "AM" },
-          { name: "Lena Park", type: "Individual", interactions: 41, avatar: "LP" },
-        ],
-      },
-    ],
-    topChannel: "Instagram",
-    weekDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-  };
+export async function getDashboardAnalytics(): Promise<AnalyticsSummary | null> {
+  try {
+    return await getTeamAnalyticsSummary(30);
+  } catch {
+    return null;
+  }
 }

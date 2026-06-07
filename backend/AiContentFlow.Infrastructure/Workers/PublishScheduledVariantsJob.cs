@@ -11,7 +11,7 @@ public class PublishScheduledVariantsJob
 {
     private const int BatchSize = 25;
     private static readonly SocialPlatform[] SupportedPublishPlatforms =
-        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram, SocialPlatform.Threads];
     private readonly IPublishJobRepository _publishJobRepository;
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublisherFactory _publisherFactory;

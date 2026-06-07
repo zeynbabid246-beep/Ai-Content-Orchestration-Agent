@@ -1,4 +1,4 @@
-import { FileText, LayoutDashboard, Megaphone, Radio, Settings } from "lucide-react";
+import { LayoutDashboard, Megaphone, FileText, BarChart3, Radio, Settings } from "lucide-react";
 import { WorkspaceTabs } from "../../../shared/ui/WorkspaceTabs";
 import { channelPaths } from "../../../shared/lib/routes";
 
@@ -30,6 +30,11 @@ export function ChannelTabs({ channelId }: ChannelTabsProps) {
           label: "Publishing",
           to: channelPaths.publishing(channelId),
           icon: <Radio size={14} />,
+        },
+        {
+          label: "Analytics",
+          to: channelPaths.analytics(channelId),
+          icon: <BarChart3 size={14} />,
         },
         {
           label: "Settings",

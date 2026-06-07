@@ -14,6 +14,7 @@ public interface ILocalAiBackendClient
         string? language,
         LocalAiBrandContext? brandContext,
         string correlationId,
+        LocalAiOrchestratorMetadata? orchestratorMetadata = null,
         CancellationToken cancellationToken = default);
 
     Task<JsonElement> GenerateStrategyAsync(

@@ -10,7 +10,7 @@ namespace AiContentFlow.Application.Features.SocialAuth;
 public class SocialAuthService
 {
     private static readonly SocialPlatform[] SupportedAuthPlatforms =
-        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram];
+        [SocialPlatform.LinkedIn, SocialPlatform.Facebook, SocialPlatform.Instagram, SocialPlatform.Threads];
     private readonly IAuthServiceFactory _authServiceFactory;
     private readonly IChannelRepository _channelRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
@@ -44,7 +44,8 @@ public class SocialAuthService
         Guid teamId,
         int? linkChannelId,
         string requestingUserId,
-        string platform)
+        string platform,
+        string? redirectPath = null)
     {
         EnsurePlatformIsSupported(platform);
         await EnsureCanManageSocialAccountsAsync(teamId, requestingUserId);
@@ -55,7 +56,13 @@ public class SocialAuthService
                 ?? throw new KeyNotFoundException("Channel not found");
         }
 
-        var signedState = _stateService.CreateState(teamId, linkChannelId, requestingUserId, platform, DateTime.UtcNow);
+        var signedState = _stateService.CreateState(
+            teamId,
+            linkChannelId,
+            requestingUserId,
+            platform,
+            DateTime.UtcNow,
+            redirectPath);
         var service = _authServiceFactory.GetService(platform);
         var url = service.GetAuthUrl(signedState);
 
@@ -127,6 +134,9 @@ public class SocialAuthService
                 account.ExternalAccountId,
                 socialAccount.Id);
 
+            if (socialAccount.Id == 0)
+                await _socialAccountRepository.SaveChangesAsync();
+
             if (validatedState.LinkChannelId.HasValue)
             {
                 await EnsureChannelLinkAsync(
@@ -156,7 +166,11 @@ public class SocialAuthService
             platform,
             $"{{\"linkChannelId\":{validatedState.LinkChannelId?.ToString() ?? "null"},\"accounts\":{results.Count}}}");
 
-        return new SocialAuthCallbackResultDto(validatedState.LinkChannelId, validatedState.TeamId, results);
+        return new SocialAuthCallbackResultDto(
+            validatedState.LinkChannelId,
+            validatedState.TeamId,
+            validatedState.RedirectPath,
+            results);
     }
 
     private async Task EnsureChannelLinkAsync(Guid teamId, int channelId, SocialAccount socialAccount)
@@ -206,6 +220,8 @@ public class SocialAuthService
                 "grant Page access during login, and reconnect."),
             SocialPlatform.Facebook => new InvalidOperationException(
                 "No Facebook Page was found for this Meta account."),
+            SocialPlatform.Threads => new InvalidOperationException(
+                "No Threads profile was found for this Meta account."),
             _ => new InvalidOperationException("No accounts were returned from the provider.")
         };
     }

@@ -28,7 +28,6 @@ import {
 interface CampaignPublishDestinationsPanelProps {
   saveRequired: boolean;
   readOnly: boolean;
-  workflowReady: boolean;
   isPublished: boolean;
   selectedPlatforms: SocialPlatform[];
   variants: ContentPostVariant[];
@@ -66,7 +65,6 @@ function statusLabel(state: PlatformPublishState | undefined): string | null {
 export function CampaignPublishDestinationsPanel({
   saveRequired,
   readOnly,
-  workflowReady,
   isPublished,
   selectedPlatforms,
   variants,
@@ -96,7 +94,7 @@ export function CampaignPublishDestinationsPanel({
     (platform) => selectedByPlatform[platform] != null
   );
 
-  const controlsLocked = readOnly || saveRequired || !workflowReady || isPublished;
+  const controlsLocked = readOnly || saveRequired || isPublished;
 
   const canPublishNow =
     !controlsLocked &&
@@ -123,7 +121,6 @@ export function CampaignPublishDestinationsPanel({
 
   const scheduleHint = (() => {
     if (saveRequired) return "Save the post draft before scheduling or publishing.";
-    if (!workflowReady) return "Finish editing and save the post to unlock scheduling.";
     if (isPublished) return "This post is already published.";
     if (selectedPlatforms.length === 0) return "Select target platforms above.";
     if (readyPlatforms.length === 0) {
@@ -171,12 +168,6 @@ export function CampaignPublishDestinationsPanel({
       {isPublished ? (
         <Alert severity="success" sx={{ mb: 1.5 }}>
           This post is marked as published. Create a new post to schedule again.
-        </Alert>
-      ) : null}
-
-      {!workflowReady && !saveRequired && !isPublished ? (
-        <Alert severity="info" sx={{ mb: 1.5 }}>
-          Finish editing the post — autosave keeps your draft up to date. Publishing unlocks once the post is ready.
         </Alert>
       ) : null}
 

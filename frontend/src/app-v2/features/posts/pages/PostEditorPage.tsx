@@ -84,6 +84,8 @@ function defaultContentType(platform: SocialPlatform | null): ContentType {
       return ContentType.FacebookPost;
     case SocialPlatform.Instagram:
       return ContentType.InstagramPost;
+    case SocialPlatform.Threads:
+      return ContentType.Threads;
     default:
       return ContentType.LinkedInPost;
   }
@@ -198,6 +200,8 @@ export function PostEditorPage() {
         return "facebook";
       case SocialPlatform.Instagram:
         return "instagram";
+      case SocialPlatform.Threads:
+        return "threads";
       case SocialPlatform.X:
         return "x";
       case SocialPlatform.LinkedIn:
@@ -374,8 +378,6 @@ export function PostEditorPage() {
   if (!channelId) return null;
 
   const status = post?.status ?? null;
-  const workflowReady =
-    status === ContentStatus.Ready || status === ContentStatus.Scheduled;
   const isPublished = status === ContentStatus.Published;
   const saveRequired = isNew || !post;
   const busy =
@@ -909,7 +911,6 @@ export function PostEditorPage() {
           <CampaignPublishDestinationsPanel
             saveRequired={saveRequired}
             readOnly={readOnly}
-            workflowReady={workflowReady}
             isPublished={isPublished}
             selectedPlatforms={selectedPlatforms}
             variants={variants}

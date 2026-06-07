@@ -16,35 +16,3 @@ export interface DashboardStat {
   trend: string | null;
   direction: "up" | "down" | null;
 }
-
-export interface AudienceSegment {
-  type: "Company" | "Individual";
-  percentage: number;
-}
-
-export interface ActiveClient {
-  name: string;
-  type: "Company" | "Individual";
-  interactions: number;
-  avatar: string;
-}
-
-export interface PlatformAnalytics {
-  name: string;
-  color: string;
-  followers: number;
-  reach: number;
-  engagement: number;
-  comments: number;
-  likes: number;
-  shares: number;
-  topAudience: AudienceSegment[];
-  weeklyActivity: number[]; // 7 values Mon–Sun
-  activeClients: ActiveClient[];
-}
-
-export interface AnalyticsData {
-  platforms: PlatformAnalytics[];
-  topChannel: string;
-  weekDays: string[];
-}

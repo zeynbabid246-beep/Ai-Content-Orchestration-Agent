@@ -9,4 +9,10 @@ public interface IAiCreativeService
         string requestingUserId,
         GeneratePostCreativeRequestDto dto,
         CancellationToken cancellationToken = default);
+
+    Task<GenerateCreativePreviewResponseDto> GeneratePreviewAsync(
+        Guid teamId,
+        string requestingUserId,
+        GenerateCreativePreviewRequestDto dto,
+        CancellationToken cancellationToken = default);
 }

@@ -25,6 +25,7 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import { FileEdit, Sparkles } from "lucide-react";
 import { useBrandStudio } from "../brand-studio/hooks/useBrandStudio";
+import { ROUTES } from "../../shared/lib/routes";
 import { useSocialAccounts } from "../social-media/social-accounts.queries";
 import { getSocialAuthLoginUrl } from "../social-media/social-auth.api";
 import { SocialPlatform } from "../content-posts/content-posts.types";
@@ -46,8 +47,12 @@ import { PostVariantPreview } from "./components/PostVariantPreview";
 import { WorkflowStepHeader } from "./components/WorkflowStepHeader";
 import {
   createInitialVariants,
+  mapQuickGeneratePostType,
+  postTypeNeedsVisuals,
   QUICK_VARIANT_DEFINITIONS,
   type ComposeMode,
+  type ImagePostType,
+  type QuickPostMode,
   type QuickVariantDraft,
   type QuickVariantKey,
 } from "./generate.types";
@@ -83,6 +88,9 @@ export function GeneratePage() {
   const [includeHashtags, setIncludeHashtags] = useState(false);
   const [includeCta, setIncludeCta] = useState(true);
   const [includeEmojis, setIncludeEmojis] = useState(false);
+  const [postMode, setPostMode] = useState<QuickPostMode>("textOnly");
+  const [imagePostType, setImagePostType] = useState<ImagePostType>("staticImage");
+  const [generateVisuals, setGenerateVisuals] = useState(true);
   const [variants, setVariants] = useState<QuickVariantDraft[]>(() => createInitialVariants());
   const [activeVariantKey, setActiveVariantKey] = useState<QuickVariantKey>("linkedin-post");
 
@@ -101,6 +109,7 @@ export function GeneratePage() {
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
+  const [aiProgressMessage, setAiProgressMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [actionMessage, setActionMessage] = useState<{
@@ -151,10 +160,23 @@ export function GeneratePage() {
     window.history.replaceState({}, "", url);
   }, [refetchSocialAccounts]);
 
-  const enabledVariants = useMemo(
-    () => variants.filter((variant) => variant.enabled && variant.key !== "instagram-carousel"),
-    [variants]
-  );
+  const carouselPostTypeSelected = postMode === "withImage" && imagePostType === "carousel";
+
+  useEffect(() => {
+    if (carouselPostTypeSelected) {
+      setVariants((current) =>
+        current.map((variant) =>
+          variant.key === "instagram-carousel" ? { ...variant, enabled: true } : variant
+        )
+      );
+    }
+  }, [carouselPostTypeSelected]);
+
+  const enabledVariants = useMemo(() => {
+    const enabled = variants.filter((variant) => variant.enabled);
+    if (carouselPostTypeSelected) return enabled;
+    return enabled.filter((variant) => variant.key !== "instagram-carousel");
+  }, [variants, carouselPostTypeSelected]);
 
   const activeVariant = variants.find((variant) => variant.key === activeVariantKey) ?? variants[0];
   const activeDefinition = getVariantDefinition(activeVariant.key);
@@ -168,7 +190,10 @@ export function GeneratePage() {
   }, [enabledVariants]);
 
   const requiresInstagramImage = enabledPlatforms.includes(SocialPlatform.Instagram);
-  const hasImage = Boolean(imageFile || uploadedImageUrl);
+  const hasGeneratedMedia = enabledVariants.some(
+    (variant) => Boolean(variant.posterUrl) || (variant.carouselAssets?.length ?? 0) > 0
+  );
+  const hasImage = Boolean(imageFile || uploadedImageUrl || hasGeneratedMedia);
 
   useEffect(() => {
     setSelectedByPlatform((current) => {
@@ -193,7 +218,7 @@ export function GeneratePage() {
   };
 
   const toggleVariant = (key: QuickVariantKey) => {
-    if (key === "instagram-carousel") return;
+    if (key === "instagram-carousel" && !carouselPostTypeSelected) return;
     setVariants((current) =>
       current.map((variant) => (variant.key === key ? { ...variant, enabled: !variant.enabled } : variant))
     );
@@ -214,10 +239,13 @@ export function GeneratePage() {
       setActionMessage(null);
       setAiBusy(true);
       setAiProgress(5);
+      setAiProgressMessage("Generating captions…");
 
       try {
         const { generatePost } = await import("../ai/ai.api");
-        const prompt = [brief.trim(), language ? `Language: ${language}` : ""].filter(Boolean).join("\n");
+        const { generateCreativePreview, formatCreativeError } = await import("../ai/creative.api");
+        const postType = mapQuickGeneratePostType(postMode, imagePostType);
+        const shouldGenerateVisuals = generateVisuals && postTypeNeedsVisuals(postType);
 
         const nextVariants = [...variants];
         const step = Math.floor(90 / enabledVariants.length);
@@ -225,16 +253,44 @@ export function GeneratePage() {
         for (let index = 0; index < enabledVariants.length; index += 1) {
           const variant = enabledVariants[index];
           const definition = getVariantDefinition(variant.key);
+          setAiProgressMessage(`Generating caption for ${definition.label}…`);
+
           const result = await generatePost({
-            prompt,
+            prompt: brief.trim(),
             useBrandContext,
             platform: definition.platform,
             format: definition.format,
             includeHashtags,
             includeCta,
             includeEmojis,
+            postType,
+            language,
+            generateVisuals: shouldGenerateVisuals,
           });
-          const parsed = parseAiContent(result.contentJson, definition.format);
+
+          let contentJson = result.contentJson;
+          let posterUrl: string | null = null;
+          let carouselAssets: string[] = [];
+          let creativeError: string | null = null;
+
+          if (shouldGenerateVisuals) {
+            setAiProgressMessage(`Generating visual for ${definition.label}…`);
+            try {
+              const creative = await generateCreativePreview({
+                contentJson,
+                platform: definition.platform,
+                language,
+              });
+              contentJson = creative.contentJson;
+              posterUrl = creative.posterUrl ?? null;
+              carouselAssets = creative.carouselAssets ?? [];
+              creativeError = creative.creativeError ?? null;
+            } catch (creativeErr) {
+              creativeError = formatCreativeError(creativeErr);
+            }
+          }
+
+          const parsed = parseAiContent(contentJson, definition.format);
           const targetIndex = nextVariants.findIndex((item) => item.key === variant.key);
           if (targetIndex >= 0) {
             nextVariants[targetIndex] = {
@@ -242,6 +298,10 @@ export function GeneratePage() {
               title: nextVariants[targetIndex].title || brief.trim().slice(0, 80),
               body: parsed.text,
               slides: parsed.format === "carousel" ? parsed.slides : nextVariants[targetIndex].slides,
+              contentJson,
+              posterUrl,
+              carouselAssets,
+              creativeError,
             };
           }
           setAiProgress(5 + step * (index + 1));
@@ -259,6 +319,7 @@ export function GeneratePage() {
         setError(formatAiError(err));
       } finally {
         setAiBusy(false);
+        setAiProgressMessage("");
       }
     })();
   };
@@ -338,6 +399,17 @@ export function GeneratePage() {
   const createPostPayload = async (imageUrl: string | null, selected: SocialAccount[]) => {
     const primaryVariant = enabledVariants[0];
     const primaryDefinition = getVariantDefinition(primaryVariant.key);
+    const resolvedImageUrl =
+      imageUrl ?? primaryVariant.posterUrl ?? primaryVariant.carouselAssets?.[0] ?? null;
+    const primaryContentJson =
+      primaryVariant.contentJson ??
+      JSON.stringify({
+        text: primaryVariant.body,
+        brief,
+        language,
+        useBrandContext,
+        imageUrl: resolvedImageUrl ?? undefined,
+      });
 
     if (selected.length === 0 && dedupedAccounts.length === 0) {
       throw new Error("Connect a social account first.");
@@ -348,17 +420,11 @@ export function GeneratePage() {
       campaignId: null,
       title: primaryVariant.title.trim() || brief.trim() || "Quick post",
       contentType: defaultContentType(primaryDefinition.platform),
-      contentJson: JSON.stringify({
-        text: primaryVariant.body,
-        brief,
-        language,
-        useBrandContext,
-        imageUrl: imageUrl ?? undefined,
-      }),
-      imageUrl,
+      contentJson: primaryContentJson,
+      imageUrl: resolvedImageUrl,
       prompt: brief.trim() || undefined,
       aiModel: composeMode === "ai" ? "local-ai-backend" : "manual",
-      postVariants: toContentPostVariants(enabledVariants, imageUrl),
+      postVariants: toContentPostVariants(enabledVariants, resolvedImageUrl),
     });
   };
 
@@ -525,8 +591,8 @@ export function GeneratePage() {
     })();
   };
 
-  const startSocialAuth = (platform: "linkedin" | "facebook" | "instagram") => {
-    void getSocialAuthLoginUrl(platform)
+  const startSocialAuth = (platform: "linkedin" | "facebook" | "instagram" | "threads") => {
+    void getSocialAuthLoginUrl(platform, { redirectPath: ROUTES.generate })
       .then((url) => {
         window.location.href = url;
       })
@@ -635,6 +701,52 @@ export function GeneratePage() {
 
             {composeMode === "ai" ? (
               <Paper variant="outlined" sx={{ p: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                  Post type
+                </Typography>
+                <Stack spacing={1.5}>
+                  <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={postMode}
+                    onChange={(_, value: QuickPostMode | null) => value && setPostMode(value)}
+                  >
+                    <ToggleButton value="textOnly">Text only</ToggleButton>
+                    <ToggleButton value="withImage">Post with image</ToggleButton>
+                  </ToggleButtonGroup>
+
+                  {postMode === "withImage" ? (
+                    <TextField
+                      select
+                      size="small"
+                      label="Image post type"
+                      value={imagePostType}
+                      onChange={(event) => setImagePostType(event.target.value as ImagePostType)}
+                      sx={{ maxWidth: 280 }}
+                    >
+                      <MenuItem value="staticImage">Static Image</MenuItem>
+                      <MenuItem value="infographic">Infographic</MenuItem>
+                      <MenuItem value="carousel">Carousel</MenuItem>
+                    </TextField>
+                  ) : null}
+
+                  {postMode === "withImage" ? (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={generateVisuals}
+                          onChange={(event) => setGenerateVisuals(event.target.checked)}
+                        />
+                      }
+                      label="Generate visuals"
+                    />
+                  ) : null}
+                </Stack>
+              </Paper>
+            ) : null}
+
+            {composeMode === "ai" ? (
+              <Paper variant="outlined" sx={{ p: 1.5 }}>
                 <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
                   Options
                 </Typography>
@@ -694,7 +806,16 @@ export function GeneratePage() {
               ) : null}
             </Stack>
 
-            {aiBusy ? <LinearProgress variant="determinate" value={aiProgress} /> : null}
+            {aiBusy ? (
+              <Stack spacing={0.5}>
+                <LinearProgress variant="determinate" value={aiProgress} />
+                {aiProgressMessage ? (
+                  <Typography variant="caption" color="text.secondary">
+                    {aiProgressMessage}
+                  </Typography>
+                ) : null}
+              </Stack>
+            ) : null}
 
             <Typography variant="subtitle2" fontWeight={600} sx={{ pt: 1 }}>
               Which platforms do you need content for?
@@ -703,13 +824,14 @@ export function GeneratePage() {
               {QUICK_VARIANT_DEFINITIONS.map((definition) => {
                 const enabled = variants.find((variant) => variant.key === definition.key)?.enabled ?? false;
                 const isCarousel = definition.key === "instagram-carousel";
+                const carouselDisabled = isCarousel && !carouselPostTypeSelected;
                 return (
                   <Chip
                     key={definition.key}
-                    label={isCarousel ? `${definition.label} (soon)` : definition.label}
+                    label={carouselDisabled ? `${definition.label} (carousel type only)` : definition.label}
                     color={enabled ? "primary" : "default"}
                     variant={enabled ? "filled" : "outlined"}
-                    disabled={isCarousel}
+                    disabled={carouselDisabled}
                     onClick={() => toggleVariant(definition.key)}
                   />
                 );
@@ -794,6 +916,7 @@ export function GeneratePage() {
                   <Typography variant="caption" color="text.secondary">
                     {activeVariant.body.length} characters
                     {composeMode === "ai" && !activeVariant.body.trim() ? " · run Generate in step 1" : ""}
+                    {activeVariant.creativeError ? ` · Visual: ${activeVariant.creativeError}` : ""}
                   </Typography>
 
                   <Divider />
@@ -869,6 +992,8 @@ export function GeneratePage() {
                     body={activeVariant.body}
                     slides={activeVariant.slides}
                     imageUrl={imagePreviewUrl}
+                    posterUrl={activeVariant.posterUrl}
+                    carouselAssets={activeVariant.carouselAssets}
                     brandName={brandStudio?.parsedProfile.brandName}
                   />
                 </Box>
@@ -911,6 +1036,7 @@ export function GeneratePage() {
               onConnectLinkedIn={() => startSocialAuth("linkedin")}
               onConnectFacebook={() => startSocialAuth("facebook")}
               onConnectInstagram={() => startSocialAuth("instagram")}
+              onConnectThreads={() => startSocialAuth("threads")}
               isSubmitting={isSubmitting}
               onSaveDraft={saveDraft}
               onPublish={publishToSelected}

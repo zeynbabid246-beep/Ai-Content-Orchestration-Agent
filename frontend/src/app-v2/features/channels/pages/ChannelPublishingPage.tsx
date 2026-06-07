@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  Link,
   Paper,
   Radio,
   RadioGroup,
@@ -16,53 +17,20 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
-import { Link2, Plus, Radio as RadioIcon } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
 import { useChannelContext } from "../hooks/useChannelContext";
 import {
   useChannelSocialAccounts,
   useLinkChannelSocialAccount,
   useUnlinkChannelSocialAccount,
 } from "../hooks/useChannelSocialAccounts";
-import { useDeleteSocialAccount } from "../../social-media/social-accounts.queries";
 import { getSocialAuthLoginUrl } from "../../social-media/social-auth.api";
+import { PLATFORMS } from "../../social-media/platformConfig";
+import { useSocialAuthCallback } from "../../social-media/hooks/useSocialAuthCallback";
 import { SocialPlatform, type SocialAccount } from "../../social-media/social-accounts.types";
+import { ROUTES } from "../../../shared/lib/routes";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
-
-interface PlatformConfig {
-  id: "linkedin" | "facebook" | "instagram";
-  name: string;
-  description: string;
-  glyph: string;
-  color: string;
-  enumValue: SocialPlatform;
-}
-
-const PLATFORMS: PlatformConfig[] = [
-  {
-    id: "linkedin",
-    name: "LinkedIn",
-    description: "Professional network",
-    glyph: "in",
-    color: "#0A66C2",
-    enumValue: SocialPlatform.LinkedIn,
-  },
-  {
-    id: "facebook",
-    name: "Facebook",
-    description: "Pages & community",
-    glyph: "f",
-    color: "#1877F2",
-    enumValue: SocialPlatform.Facebook,
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    description: "Business / Creator account",
-    glyph: "ig",
-    color: "#E1306C",
-    enumValue: SocialPlatform.Instagram,
-  },
-];
 
 export function ChannelPublishingPage() {
   const theme = useTheme();
@@ -71,10 +39,9 @@ export function ChannelPublishingPage() {
   const { data, isLoading, isError, refetch } = useChannelSocialAccounts(channelId);
   const linkMutation = useLinkChannelSocialAccount(channelId ?? 0);
   const unlinkMutation = useUnlinkChannelSocialAccount(channelId ?? 0);
-  const deleteTeamMutation = useDeleteSocialAccount();
 
   const [status, setStatus] = useState<{ severity: "success" | "error"; message: string } | null>(null);
-  const [linkDialogPlatform, setLinkDialogPlatform] = useState<PlatformConfig | null>(null);
+  const [linkDialogPlatform, setLinkDialogPlatform] = useState<(typeof PLATFORMS)[number] | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
   const linkedByPlatform = useMemo(() => {
@@ -95,29 +62,16 @@ export function ChannelPublishingPage() {
     return map;
   }, [data?.availableTeamAccounts]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthStatus = params.get("socialAuthStatus");
-    if (!oauthStatus) return;
-
-    const platform = params.get("platform");
-    const error = params.get("socialAuthError");
-    if (oauthStatus === "success") {
-      setStatus({ severity: "success", message: `${platform ?? "Account"} connected and linked to this channel.` });
+  const { status: oauthStatus, setStatus: setOauthStatus } = useSocialAuthCallback(
+    () => {
       void refetch();
-    } else {
-      setStatus({ severity: "error", message: error ?? "Connection failed." });
-    }
+    },
+    (platform) => `${platform ?? "Account"} connected and linked to this channel.`
+  );
 
-    params.delete("socialAuthStatus");
-    params.delete("platform");
-    params.delete("socialAuthError");
-    const query = params.toString();
-    const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-    window.history.replaceState({}, "", url);
-  }, [refetch]);
+  const displayStatus = status ?? oauthStatus;
 
-  const handleConnectNew = async (platform: PlatformConfig) => {
+  const handleConnectNew = async (platform: (typeof PLATFORMS)[number]) => {
     if (!channelId) return;
     try {
       const authorizationUrl = await getSocialAuthLoginUrl(platform.id, { linkChannelId: channelId });
@@ -130,7 +84,7 @@ export function ChannelPublishingPage() {
     }
   };
 
-  const openLinkDialog = (platform: PlatformConfig) => {
+  const openLinkDialog = (platform: (typeof PLATFORMS)[number]) => {
     const candidates = (linkableByPlatform.get(platform.enumValue) ?? []).filter(
       (a) => !linkedByPlatform.has(platform.enumValue) || linkedByPlatform.get(platform.enumValue)?.id !== a.id
     );
@@ -154,7 +108,7 @@ export function ChannelPublishingPage() {
     });
   };
 
-  const handleUnlink = (platform: PlatformConfig) => {
+  const handleUnlink = (platform: (typeof PLATFORMS)[number]) => {
     const account = linkedByPlatform.get(platform.enumValue);
     if (!account) return;
     unlinkMutation.mutate(account.id, {
@@ -165,23 +119,6 @@ export function ChannelPublishingPage() {
         setStatus({
           severity: "error",
           message: err instanceof Error ? err.message : "Unlink failed.",
-        });
-      },
-    });
-  };
-
-  const handleRemoveFromTeam = (platform: PlatformConfig) => {
-    const account = linkedByPlatform.get(platform.enumValue);
-    if (!account) return;
-    deleteTeamMutation.mutate(account.id, {
-      onSuccess: () => {
-        setStatus({ severity: "success", message: `${platform.name} removed from team.` });
-        void refetch();
-      },
-      onError: (err) => {
-        setStatus({
-          severity: "error",
-          message: err instanceof Error ? err.message : "Remove failed.",
         });
       },
     });
@@ -203,13 +140,26 @@ export function ChannelPublishingPage() {
           Publishing identities
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-          LINK TEAM ACCOUNTS TO THIS CHANNEL — ONE ACCOUNT PER PLATFORM
+          ASSIGN TEAM ACCOUNTS TO THIS CHANNEL — ONE ACCOUNT PER PLATFORM
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Connect or disconnect credentials in{" "}
+          <Link component={RouterLink} to={ROUTES.integrationsSocialAccounts}>
+            Integrations → Social Accounts
+          </Link>
+          .
         </Typography>
       </Box>
 
-      {status ? (
-        <Alert severity={status.severity} onClose={() => setStatus(null)}>
-          {status.message}
+      {displayStatus ? (
+        <Alert
+          severity={displayStatus.severity}
+          onClose={() => {
+            setStatus(null);
+            setOauthStatus(null);
+          }}
+        >
+          {displayStatus.message}
         </Alert>
       ) : null}
 
@@ -226,9 +176,7 @@ export function ChannelPublishingPage() {
           const account = linkedByPlatform.get(platform.enumValue);
           const connected = Boolean(account);
           const teamCandidates = linkableByPlatform.get(platform.enumValue) ?? [];
-          const canLinkExisting = teamCandidates.some(
-            (a) => !connected || a.id !== account?.id
-          );
+          const canLinkExisting = teamCandidates.some((a) => !connected || a.id !== account?.id);
 
           return (
             <Paper key={platform.id} sx={{ p: 2.5 }}>
@@ -293,16 +241,6 @@ export function ChannelPublishingPage() {
                     >
                       Unlink from channel
                     </Button>
-                    <Button
-                      fullWidth
-                      variant="text"
-                      color="error"
-                      size="small"
-                      disabled={!canMutateContent || deleteTeamMutation.isPending}
-                      onClick={() => handleRemoveFromTeam(platform)}
-                    >
-                      Remove from team
-                    </Button>
                   </Stack>
                 ) : (
                   <Stack spacing={1}>
@@ -322,7 +260,7 @@ export function ChannelPublishingPage() {
                       disabled={!canMutateContent || isLoading}
                       onClick={() => void handleConnectNew(platform)}
                     >
-                      Connect {platform.name}
+                      Connect &amp; link {platform.name}
                     </Button>
                   </Stack>
                 )}
@@ -332,28 +270,16 @@ export function ChannelPublishingPage() {
         })}
       </Box>
 
-      <Paper sx={{ p: 2.5, borderStyle: "dashed" }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <RadioIcon size={18} />
-          <Box>
-            <Typography variant="body2" fontWeight={600}>
-              More platforms coming soon
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              X and Threads will appear here once full publishing support is enabled.
-            </Typography>
-          </Box>
-        </Stack>
-      </Paper>
-
       <Dialog open={linkDialogPlatform != null} onClose={() => setLinkDialogPlatform(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Link {linkDialogPlatform?.name ?? "account"}
-        </DialogTitle>
+        <DialogTitle>Link {linkDialogPlatform?.name ?? "account"}</DialogTitle>
         <DialogContent>
           {linkCandidates.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No team accounts available for this platform. Use Connect to add one.
+              No team accounts available for this platform. Connect one in{" "}
+              <Link component={RouterLink} to={ROUTES.integrationsSocialAccounts}>
+                Social Accounts
+              </Link>
+              .
             </Typography>
           ) : (
             <RadioGroup

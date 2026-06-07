@@ -22,6 +22,9 @@ export const ROUTES = {
   channels: "/app/channels",
   campaigns: "/app/campaigns",
 
+  // Integrations
+  integrationsSocialAccounts: "/app/integrations/social-accounts",
+
   // Team
   brandStudio: "/app/brand-studio",
   inviteUser: "/app/invite-user",

@@ -4,6 +4,7 @@ import {
   linkChannelSocialAccount,
   unlinkChannelSocialAccount,
 } from "../channel-social-accounts.api";
+import { socialAccountsKeys } from "../../social-media/social-accounts.queries";
 
 export function useChannelSocialAccounts(channelId: number | null) {
   return useQuery({
@@ -19,7 +20,7 @@ export function useLinkChannelSocialAccount(channelId: number) {
     mutationFn: (socialAccountId: number) => linkChannelSocialAccount(channelId, socialAccountId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["channel-social-accounts", channelId] });
-      await queryClient.invalidateQueries({ queryKey: ["social-accounts"] });
+      await queryClient.invalidateQueries({ queryKey: socialAccountsKeys.lists() });
     },
   });
 }
@@ -30,7 +31,7 @@ export function useUnlinkChannelSocialAccount(channelId: number) {
     mutationFn: (socialAccountId: number) => unlinkChannelSocialAccount(channelId, socialAccountId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["channel-social-accounts", channelId] });
-      await queryClient.invalidateQueries({ queryKey: ["social-accounts"] });
+      await queryClient.invalidateQueries({ queryKey: socialAccountsKeys.lists() });
     },
   });
 }

@@ -2,13 +2,20 @@ import { SocialPlatform } from "../content-posts/content-posts.types";
 
 export type ComposeMode = "manual" | "ai";
 
+export type QuickPostMode = "textOnly" | "withImage";
+
+export type ImagePostType = "staticImage" | "infographic" | "carousel";
+
+export type QuickGeneratePostType = "TextOnly" | "StaticImage" | "Infographic" | "Carousel";
+
 export type VariantFormat = "post" | "carousel";
 
 export type QuickVariantKey =
   | "linkedin-post"
   | "facebook-post"
   | "instagram-post"
-  | "instagram-carousel";
+  | "instagram-carousel"
+  | "threads-post";
 
 export interface QuickVariantDefinition {
   key: QuickVariantKey;
@@ -24,6 +31,30 @@ export interface QuickVariantDraft {
   title: string;
   body: string;
   slides: string[];
+  contentJson?: string;
+  posterUrl?: string | null;
+  carouselAssets?: string[];
+  creativeError?: string | null;
+}
+
+export function mapQuickGeneratePostType(
+  postMode: QuickPostMode,
+  imagePostType: ImagePostType
+): QuickGeneratePostType {
+  if (postMode === "textOnly") return "TextOnly";
+  switch (imagePostType) {
+    case "infographic":
+      return "Infographic";
+    case "carousel":
+      return "Carousel";
+    case "staticImage":
+    default:
+      return "StaticImage";
+  }
+}
+
+export function postTypeNeedsVisuals(postType: QuickGeneratePostType): boolean {
+  return postType !== "TextOnly";
 }
 
 export const QUICK_VARIANT_DEFINITIONS: QuickVariantDefinition[] = [
@@ -54,6 +85,13 @@ export const QUICK_VARIANT_DEFINITIONS: QuickVariantDefinition[] = [
     platform: SocialPlatform.Instagram,
     format: "carousel",
     description: "Multi-slide carousel with caption",
+  },
+  {
+    key: "threads-post",
+    label: "Threads Post",
+    platform: SocialPlatform.Threads,
+    format: "post",
+    description: "Short conversational Threads post",
   },
 ];
 

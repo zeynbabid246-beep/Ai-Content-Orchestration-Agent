@@ -1,6 +1,0 @@
-- Contrast: ensure text and status chips meet readable contrast on light surfaces.
-- Spacing: use consistent 8px spacing rhythm for padding and gaps.
-- Hierarchy: each page should have clear header, primary action, and secondary actions.
-- States: loading, empty, error, disabled, and read-only states must be explicit.
-- Inputs: use helper/error text consistently and avoid placeholder-only labeling.
-- Actions: keep one primary CTA per section and use outlined/text for secondary actions.

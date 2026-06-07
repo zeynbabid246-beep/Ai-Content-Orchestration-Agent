@@ -1,4 +1,4 @@
-import { FileText, LayoutDashboard, Settings } from "lucide-react";
+import { FileText, LayoutDashboard, BarChart3, Settings } from "lucide-react";
 import { WorkspaceTabs } from "../../../shared/ui/WorkspaceTabs";
 import { campaignPaths } from "../../../shared/lib/routes";
 
@@ -21,6 +21,11 @@ export function CampaignTabs({ channelId, campaignId }: CampaignTabsProps) {
           to: campaignPaths.posts(channelId, campaignId),
           icon: <FileText size={14} />,
           matchPrefix: true,
+        },
+        {
+          label: "Analytics",
+          to: campaignPaths.analytics(channelId, campaignId),
+          icon: <BarChart3 size={14} />,
         },
         {
           label: "Settings",

@@ -10,6 +10,8 @@ interface PostVariantPreviewProps {
   body: string;
   slides: string[];
   imageUrl: string | null;
+  posterUrl?: string | null;
+  carouselAssets?: string[];
   brandName?: string | null;
 }
 
@@ -47,10 +49,14 @@ export function PostVariantPreview({
   body,
   slides,
   imageUrl,
+  posterUrl,
+  carouselAssets = [],
   brandName,
 }: PostVariantPreviewProps) {
   const theme = useTheme();
   const author = brandName?.trim() || "Your brand";
+  const mediaUrl = posterUrl ?? imageUrl;
+  const carouselImages = carouselAssets.length > 0 ? carouselAssets : mediaUrl ? [mediaUrl] : [];
 
   if (definition.key === "linkedin-post") {
     return (
@@ -70,10 +76,10 @@ export function PostVariantPreview({
           <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
             {body || "Your LinkedIn post will appear here."}
           </Typography>
-          {imageUrl ? (
+          {mediaUrl ? (
             <Box
               component="img"
-              src={imageUrl}
+              src={mediaUrl}
               alt="Post media"
               sx={{ width: "100%", borderRadius: 1, maxHeight: 220, objectFit: "cover" }}
             />
@@ -119,10 +125,10 @@ export function PostVariantPreview({
           <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
             {body || "Your Facebook post will appear here."}
           </Typography>
-          {imageUrl ? (
+          {mediaUrl ? (
             <Box
               component="img"
-              src={imageUrl}
+              src={mediaUrl}
               alt="Post media"
               sx={{ width: "100%", borderRadius: 1, maxHeight: 220, objectFit: "cover" }}
             />
@@ -157,10 +163,10 @@ export function PostVariantPreview({
               bgcolor: alpha(theme.palette.text.primary, 0.03),
             }}
           >
-            {imageUrl ? (
+            {carouselImages.length > 0 ? (
               <Box
                 component="img"
-                src={imageUrl}
+                src={carouselImages[0]}
                 alt="Carousel cover"
                 sx={{ width: "100%", maxHeight: 220, objectFit: "cover" }}
               />
@@ -172,9 +178,19 @@ export function PostVariantPreview({
               </Box>
             )}
             <Stack direction="row" spacing={0.75} sx={{ p: 1, overflowX: "auto" }}>
-              {(visibleSlides.length ? visibleSlides : ["Slide 1", "Slide 2"]).map((slide, index) => (
-                <Chip key={`${slide}-${index}`} size="small" label={`${index + 1}. ${slide.slice(0, 28)}`} />
-              ))}
+              {(carouselImages.length ? carouselImages : visibleSlides.length ? visibleSlides : ["Slide 1", "Slide 2"]).map(
+                (slide, index) => (
+                  <Chip
+                    key={`${slide}-${index}`}
+                    size="small"
+                    label={
+                      carouselImages.length
+                        ? `Slide ${index + 1}`
+                        : `${index + 1}. ${String(slide).slice(0, 28)}`
+                    }
+                  />
+                )
+              )}
             </Stack>
           </Box>
           <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
@@ -185,8 +201,46 @@ export function PostVariantPreview({
     );
   }
 
-  return (
-    <PreviewFrame accent="#E1306C" header="Instagram post preview">
+  if (definition.key === "threads-post") {
+    return (
+      <PreviewFrame accent="#94A3B8" header="Threads preview">
+        <Stack spacing={1.25}>
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            <Box sx={{ width: 36, height: 36, borderRadius: "50%", bgcolor: alpha("#94A3B8", 0.15) }} />
+            <Box>
+              <Typography variant="body2" fontWeight={700}>
+                {author}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Just now
+              </Typography>
+            </Box>
+          </Stack>
+          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+            {body || "Your Threads post will appear here."}
+          </Typography>
+          {mediaUrl ? (
+            <Box
+              component="img"
+              src={mediaUrl}
+              alt="Post media"
+              sx={{ width: "100%", borderRadius: 1.5, maxHeight: 220, objectFit: "cover" }}
+            />
+          ) : null}
+          <Stack direction="row" spacing={2} color="text.secondary">
+            <Heart size={14} />
+            <MessageCircle size={14} />
+            <Repeat2 size={14} />
+            <Send size={14} />
+          </Stack>
+        </Stack>
+      </PreviewFrame>
+    );
+  }
+
+  if (definition.key === "instagram-post" || definition.platform === "Instagram") {
+    return (
+      <PreviewFrame accent="#E1306C" header="Instagram post preview">
       <Stack spacing={1.25}>
         <Stack direction="row" spacing={1.25} alignItems="center">
           <Box sx={{ width: 34, height: 34, borderRadius: "50%", bgcolor: alpha("#E1306C", 0.15) }} />
@@ -203,10 +257,10 @@ export function PostVariantPreview({
             bgcolor: alpha(theme.palette.text.primary, 0.03),
           }}
         >
-          {imageUrl ? (
+          {mediaUrl ? (
             <Box
               component="img"
-              src={imageUrl}
+              src={mediaUrl}
               alt="Instagram media"
               sx={{ width: "100%", maxHeight: 260, objectFit: "cover" }}
             />
@@ -232,6 +286,17 @@ export function PostVariantPreview({
             {title}
           </Typography>
         ) : null}
+      </Stack>
+    </PreviewFrame>
+    );
+  }
+
+  return (
+    <PreviewFrame accent="#E1306C" header="Instagram post preview">
+      <Stack spacing={1.25}>
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+          {body || "Preview not available for this platform."}
+        </Typography>
       </Stack>
     </PreviewFrame>
   );

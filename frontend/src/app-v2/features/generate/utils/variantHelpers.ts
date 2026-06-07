@@ -3,6 +3,7 @@ import {
   SocialPlatform,
   type ContentPostVariant,
 } from "../../content-posts/content-posts.types";
+import { formatGeneratedContentPreview, extractCreativeAssets } from "../../campaigns/lib/formatGeneratedContent";
 import type { QuickVariantDefinition, QuickVariantDraft, VariantFormat } from "../generate.types";
 import { QUICK_VARIANT_DEFINITIONS } from "../generate.types";
 
@@ -20,12 +21,43 @@ export function parseAiContent(contentJson: string, format: VariantFormat): Pars
   try {
     const parsed = JSON.parse(contentJson) as {
       text?: string;
-      slides?: string[];
+      slides?: string[] | Array<{ title?: string; text?: string }>;
       format?: string;
+      preview?: string;
+      generated?: Record<string, unknown>;
     };
+
+    if (parsed.preview || parsed.generated) {
+      const text = formatGeneratedContentPreview(contentJson);
+      const generated = parsed.generated ?? {};
+      const rawSlides = generated.slides;
+      const slides = Array.isArray(rawSlides)
+        ? rawSlides
+            .map((slide) => {
+              if (typeof slide === "string") return slide.trim();
+              const item = slide as { title?: string; text?: string };
+              return [item.title, item.text].filter(Boolean).join("\n").trim();
+            })
+            .filter(Boolean)
+        : [];
+      const resolvedFormat =
+        format === "carousel" ||
+        slides.length > 0 ||
+        String(generated.content_type ?? "").toLowerCase().includes("carousel")
+          ? "carousel"
+          : "post";
+      return {
+        text,
+        slides: resolvedFormat === "carousel" && slides.length === 0 ? splitCarouselFallback(text) : slides,
+        format: resolvedFormat,
+      };
+    }
+
     const text = parsed.text?.trim() ?? contentJson.trim();
     const slides = Array.isArray(parsed.slides)
-      ? parsed.slides.map((slide) => slide.trim()).filter(Boolean)
+      ? parsed.slides
+          .map((slide) => (typeof slide === "string" ? slide.trim() : String(slide)))
+          .filter(Boolean)
       : [];
     const resolvedFormat =
       parsed.format === "carousel" || format === "carousel" || slides.length > 0
@@ -55,6 +87,18 @@ export function buildVariantContentJson(
   variant: QuickVariantDraft,
   imageUrl?: string | null
 ): string {
+  if (variant.contentJson?.trim()) {
+    if (imageUrl) {
+      try {
+        const parsed = JSON.parse(variant.contentJson) as Record<string, unknown>;
+        return JSON.stringify({ ...parsed, imageUrl });
+      } catch {
+        return variant.contentJson;
+      }
+    }
+    return variant.contentJson;
+  }
+
   const definition = getVariantDefinition(variant.key);
   if (definition.format === "carousel") {
     return JSON.stringify({
@@ -72,6 +116,22 @@ export function buildVariantContentJson(
     platform: definition.platform,
     imageUrl: imageUrl ?? undefined,
   });
+}
+
+export function resolveVariantPreviewImage(
+  variant: QuickVariantDraft,
+  sharedImageUrl?: string | null
+): string | null {
+  if (variant.posterUrl) return variant.posterUrl;
+  if (variant.carouselAssets?.length) return variant.carouselAssets[0] ?? null;
+  if (variant.contentJson) {
+    const definition = getVariantDefinition(variant.key);
+    const platformKey = definition.platform.toLowerCase();
+    const assets = extractCreativeAssets(variant.contentJson, platformKey);
+    if (assets.posterUrl) return assets.posterUrl;
+    if (assets.carouselAssets.length > 0) return assets.carouselAssets[0];
+  }
+  return sharedImageUrl ?? null;
 }
 
 /** One variant per social platform (Instagram carousel wins over post if both enabled). */
@@ -128,6 +188,8 @@ export function defaultContentType(platform: SocialPlatform): ContentType {
       return ContentType.FacebookPost;
     case SocialPlatform.Instagram:
       return ContentType.InstagramPost;
+    case SocialPlatform.Threads:
+      return ContentType.LinkedInPost;
     case SocialPlatform.LinkedIn:
     default:
       return ContentType.LinkedInPost;

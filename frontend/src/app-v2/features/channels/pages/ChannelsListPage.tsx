@@ -9,6 +9,8 @@ import { useChannels, useCreateChannel } from "../channels.queries";
 import { useCampaigns } from "../../campaigns/campaigns.queries";
 import { useSocialAccounts } from "../../social-media/social-accounts.queries";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { sortByEntityOption, type EntitySortOption } from "../../../shared/lib/entityListSort";
+import { EntitySortSelect } from "../../../shared/ui/EntitySortSelect";
 
 export function ChannelsListPage() {
   const { canManageChannels } = useTeamPermissions();
@@ -19,6 +21,7 @@ export function ChannelsListPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [sortOption, setSortOption] = useState<EntitySortOption>("created-desc");
 
   const campaignCounts = useMemo(() => {
     const map = new Map<number, number>();
@@ -42,13 +45,15 @@ export function ChannelsListPage() {
   const filteredChannels = useMemo(() => {
     const list = channelsQuery.data ?? [];
     const term = search.trim().toLowerCase();
-    if (!term) return list;
-    return list.filter(
-      (channel) =>
-        channel.name.toLowerCase().includes(term) ||
-        (channel.description ?? "").toLowerCase().includes(term)
-    );
-  }, [channelsQuery.data, search]);
+    const filtered = term
+      ? list.filter(
+          (channel) =>
+            channel.name.toLowerCase().includes(term) ||
+            (channel.description ?? "").toLowerCase().includes(term)
+        )
+      : list;
+    return sortByEntityOption(filtered, sortOption);
+  }, [channelsQuery.data, search, sortOption]);
 
   const channels = channelsQuery.data ?? [];
 
@@ -112,6 +117,7 @@ export function ChannelsListPage() {
                 ),
               }}
             />
+            <EntitySortSelect value={sortOption} onChange={setSortOption} />
           </Stack>
 
           {filteredChannels.length === 0 ? (

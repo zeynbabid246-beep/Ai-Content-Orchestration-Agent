@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using AiContentFlow.Application.Features.BrandStudio;
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Features.Ai.Dtos;
 using AiContentFlow.Domain.Campaigns.Dtos;
@@ -66,6 +67,9 @@ public class AiContentService : IAiContentService
         var formatHint = BuildFormatHint(dto.Format);
         var platformHint = BuildPlatformHint(dto.Platform);
         var contentOptionsHint = BuildContentOptionsHint(dto.IncludeHashtags, dto.IncludeCta, dto.IncludeEmojis);
+        var postTypeMetadata = QuickGeneratePostTypeMapper.Resolve(dto.PostType);
+        var visualTypeHint = QuickGeneratePromptBuilder.BuildVisualTypePromptHint(dto.PostType);
+        var language = string.IsNullOrWhiteSpace(dto.Language) ? "English" : dto.Language.Trim();
 
         if (IsExternalProviderMode())
         {
@@ -75,6 +79,8 @@ public class AiContentService : IAiContentService
                 {platformHint}
                 {formatHint}
                 {contentOptionsHint}
+                {visualTypeHint}
+                {QuickGeneratePromptBuilder.BuildLanguageHint(language)}
                 Required JSON shape:
                 - For standard posts: an object with a "text" field
                 - For carousels: an object with "text" and "slides" array fields
@@ -84,10 +90,9 @@ public class AiContentService : IAiContentService
                 Return only JSON.
                 """;
             var generated = await _textGenerationService.GenerateTextAsync(prompt, model, AiUseCase.GeneratePost);
-            var contentJsonExternal = NormalizeGeneratedJson(
-                generated,
-                dto.IncludeHashtags,
-                dto.IncludeCta);
+            var contentJsonExternal = dto.PostType != QuickGeneratePostType.TextOnly
+                ? WrapQuickGenerateContent(generated, postTypeMetadata, dto.IncludeHashtags, dto.IncludeCta)
+                : NormalizeGeneratedJson(generated, dto.IncludeHashtags, dto.IncludeCta);
             LogAIMetrics("generate-post-external", teamId, model, prompt, contentJsonExternal);
             return new GeneratePostResponseDto(contentJsonExternal, model, null);
         }
@@ -117,21 +122,30 @@ public class AiContentService : IAiContentService
             {BuildPlatformHint(dto.Platform)}
             {BuildFormatHint(dto.Format)}
             {contentOptionsHint}
+            {visualTypeHint}
+            {QuickGeneratePromptBuilder.BuildLanguageHint(language)}
             """;
+
+        var orchestratorMetadata = new LocalAiOrchestratorMetadata(
+            postTypeMetadata.ContentType,
+            postTypeMetadata.PostType,
+            postTypeMetadata.InternalType,
+            postTypeMetadata.NeedsCreative);
 
         var aiResponse = await _localAiBackendClient.GenerateContentAsync(
             mode,
             mode == "prompt_only" ? null : orgId,
             aiPrompt,
             [platform],
-            language: null,
+            language,
             localBrandContext,
-            correlationId);
+            correlationId,
+            orchestratorMetadata);
 
-        var contentJson = NormalizeGeneratedJson(
-            ExtractContentText(aiResponse),
-            dto.IncludeHashtags,
-            dto.IncludeCta);
+        var rawContent = ExtractContentText(aiResponse);
+        var contentJson = dto.PostType != QuickGeneratePostType.TextOnly
+            ? WrapQuickGenerateContent(rawContent, postTypeMetadata, dto.IncludeHashtags, dto.IncludeCta)
+            : NormalizeGeneratedJson(rawContent, dto.IncludeHashtags, dto.IncludeCta);
         LogAIMetrics("generate-post-local", teamId, "local-ai-backend", aiPrompt, contentJson);
         return new GeneratePostResponseDto(contentJson, "local-ai-backend", correlationId);
     }
@@ -753,7 +767,15 @@ public class AiContentService : IAiContentService
             brandStudio.ToneOfVoice,
             brandStudio.AudienceSignals,
             brandStudio.ContentPillars,
-            brandStudio.BrandSummary ?? brandStudio.DefaultBrandSummary);
+            brandStudio.BrandSummary ?? brandStudio.DefaultBrandSummary,
+            BrandVisualIdentityHelper.ResolvePrimaryLogoUrl(brandStudio),
+            brandStudio.VisualFaviconUrl,
+            brandStudio.VisualPrimaryColors,
+            brandStudio.VisualSecondaryColors,
+            brandStudio.VisualFontFamilies,
+            brandStudio.VisualStyle,
+            brandStudio.VisualImageUrls,
+            BrandVisualIdentityHelper.HasPrimaryBrandMark(brandStudio));
     }
 
     private static string MapPlatformForLocalAi(SocialPlatform? platform)
@@ -764,6 +786,7 @@ public class AiContentService : IAiContentService
             SocialPlatform.Facebook => "facebook",
             SocialPlatform.LinkedIn => "linkedin",
             SocialPlatform.X => "x",
+            SocialPlatform.Threads => "threads",
             _ => "linkedin"
         };
     }
@@ -779,6 +802,7 @@ public class AiContentService : IAiContentService
             SocialPlatform.Facebook => "Platform: Facebook feed post.",
             SocialPlatform.Instagram => "Platform: Instagram caption.",
             SocialPlatform.X => "Platform: X/Twitter short post.",
+            SocialPlatform.Threads => "Platform: Threads short conversational post (max 500 characters).",
             _ => $"Platform: {platform}."
         };
     }
@@ -1009,15 +1033,10 @@ public class AiContentService : IAiContentService
             audience_signals = ctx.AudienceSignals ?? Array.Empty<string>(),
             content_pillars = ctx.ContentPillars ?? Array.Empty<string>(),
             brand_summary = ctx.BrandSummary,
-            visual_identity = new
-            {
-                logo_url = brandStudio.VisualLogoUrl ?? string.Empty,
-                primary_colors = brandStudio.VisualPrimaryColors,
-                secondary_colors = brandStudio.VisualSecondaryColors,
-                font_families = brandStudio.VisualFontFamilies,
-                visual_style = brandStudio.VisualStyle ?? string.Empty,
-                image_urls = brandStudio.VisualImageUrls
-            }
+            logo_url = ctx.LogoUrl ?? string.Empty,
+            favicon_url = ctx.FaviconUrl ?? string.Empty,
+            has_logo = ctx.HasLogo,
+            visual_identity = BrandVisualIdentityHelper.BuildVisualIdentityPayload(brandStudio)
         };
     }
 
@@ -1088,6 +1107,34 @@ public class AiContentService : IAiContentService
             generated = JsonSerializer.Deserialize<object>(generated.GetRawText())
         };
         return JsonSerializer.Serialize(wrapper);
+    }
+
+    private static string WrapQuickGenerateContent(
+        string generated,
+        QuickGeneratePostTypeMetadata metadata,
+        bool includeHashtags,
+        bool includeCta)
+    {
+        try
+        {
+            var json = ExtractJson(generated);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var preview = BuildGeneratedContentPreview(root, includeHashtags, includeCta);
+            var wrapper = new
+            {
+                source = "quick_generate",
+                plannerContentType = metadata.ContentType,
+                aiFormat = metadata.InternalType,
+                preview,
+                generated = JsonSerializer.Deserialize<object>(root.GetRawText())
+            };
+            return JsonSerializer.Serialize(wrapper);
+        }
+        catch
+        {
+            return NormalizeGeneratedJson(generated, includeHashtags, includeCta);
+        }
     }
 
     private static string BuildGeneratedContentPreview(

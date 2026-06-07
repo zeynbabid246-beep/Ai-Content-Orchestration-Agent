@@ -14,6 +14,7 @@ using AiContentFlow.Application.Features.Teams;
 using AiContentFlow.Domain.Campaigns.Interfaces;
 using AiContentFlow.Infrastructure.Factories;
 using AiContentFlow.Infrastructure.Identity;
+using AiContentFlow.Infrastructure.Insights;
 using AiContentFlow.Infrastructure.Persistence;
 using AiContentFlow.Infrastructure.Persistence.Repositories;
 using AiContentFlow.Infrastructure.AI;
@@ -75,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IPostPublicationRepository, PostPublicationRepository>();
         services.AddScoped<IPublishJobRepository, PublishJobRepository>();
         services.AddScoped<IPublicationAnalyticsRepository, PublicationAnalyticsRepository>();
+        services.AddScoped<IAnalyticsAggregationRepository, AnalyticsAggregationRepository>();
         services.AddScoped<IBrandStudioRepository, BrandStudioRepository>();
         services.AddScoped<IApplicationTransaction, EfCoreApplicationTransaction>();
         services.AddScoped<ISocialAuthStateService, SignedSocialAuthStateService>();
@@ -103,6 +105,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialAccountService, SocialAccountService>();
         services.AddScoped<IPublicationService, PublicationService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IAnalyticsAggregationService, AnalyticsAggregationService>();
         services.AddScoped<IBrandStudioService, BrandStudioService>();
         services.AddScoped<IBrandImportProcessor, BrandImportProcessor>();
         services.AddScoped<AiContentFlow.Application.Features.SocialAuth.SocialAuthService>();
@@ -121,6 +124,10 @@ public static class DependencyInjection
         services.AddScoped<MetaAuthService>();
         services.AddScoped<ISocialAuthService, MetaAuthService>(sp =>
             sp.GetRequiredService<MetaAuthService>());
+        services.AddHttpClient("Threads");
+        services.AddScoped<ThreadsAuthService>();
+        services.AddScoped<ISocialAuthService, ThreadsAuthService>(sp =>
+            sp.GetRequiredService<ThreadsAuthService>());
         services.AddScoped<IAuthServiceFactory, AuthServiceFactory>();
 
         // 6. Publishers
@@ -129,7 +136,14 @@ public static class DependencyInjection
         services.AddScoped<IPublisher, LinkedInPublisher>();
         services.AddScoped<IPublisher, FacebookPublisher>();
         services.AddScoped<IPublisher, InstagramPublisher>();
+        services.AddScoped<IPublisher, ThreadsPublisher>();
         services.AddScoped<IPublisherFactory, PublisherFactory>();
+
+        services.AddScoped<ISocialInsightsProvider, LinkedInInsightsProvider>();
+        services.AddScoped<ISocialInsightsProvider, FacebookInsightsProvider>();
+        services.AddScoped<ISocialInsightsProvider, InstagramInsightsProvider>();
+        services.AddScoped<ISocialInsightsProvider, ThreadsInsightsProvider>();
+        services.AddScoped<IInsightsProviderFactory, InsightsProviderFactory>();
 
         // 7. Background Jobs
         services.AddScoped<PublishScheduledVariantsJob>();

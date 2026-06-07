@@ -9,6 +9,7 @@ public record SocialAuthLoginResultDto(
 public record SocialAuthCallbackResultDto(
     int? LinkChannelId,
     Guid TeamId,
+    string? RedirectPath,
     IReadOnlyList<SocialAccountAuthResultDto> Accounts);
 
 public record SocialAccountAuthResultDto(

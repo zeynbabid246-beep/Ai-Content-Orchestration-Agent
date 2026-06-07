@@ -48,6 +48,7 @@ interface PublishDestinationsPanelProps {
   onConnectLinkedIn: () => void;
   onConnectFacebook: () => void;
   onConnectInstagram: () => void;
+  onConnectThreads: () => void;
   isSubmitting: boolean;
   onSaveDraft: () => void;
   onPublish: () => void;
@@ -92,6 +93,7 @@ export function PublishDestinationsPanel({
   onConnectLinkedIn,
   onConnectFacebook,
   onConnectInstagram,
+  onConnectThreads,
   isSubmitting,
   onSaveDraft,
   onPublish,
@@ -155,7 +157,9 @@ export function PublishDestinationsPanel({
               ? onConnectLinkedIn
               : platform === SocialPlatform.Facebook
                 ? onConnectFacebook
-                : onConnectInstagram;
+                : platform === SocialPlatform.Threads
+                  ? onConnectThreads
+                  : onConnectInstagram;
 
           return (
             <Box

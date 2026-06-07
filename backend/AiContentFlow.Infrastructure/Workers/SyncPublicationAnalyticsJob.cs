@@ -1,6 +1,6 @@
-using AiContentFlow.Application.Common.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
+using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Domain.Models;
 using Microsoft.Extensions.Logging;
 
@@ -11,15 +11,18 @@ public class SyncPublicationAnalyticsJob
     private const int BatchSize = 50;
     private readonly IPostPublicationRepository _publicationRepository;
     private readonly IPublicationAnalyticsRepository _analyticsRepository;
+    private readonly IInsightsProviderFactory _insightsProviderFactory;
     private readonly ILogger<SyncPublicationAnalyticsJob> _logger;
 
     public SyncPublicationAnalyticsJob(
         IPostPublicationRepository publicationRepository,
         IPublicationAnalyticsRepository analyticsRepository,
+        IInsightsProviderFactory insightsProviderFactory,
         ILogger<SyncPublicationAnalyticsJob> logger)
     {
         _publicationRepository = publicationRepository;
         _analyticsRepository = analyticsRepository;
+        _insightsProviderFactory = insightsProviderFactory;
         _logger = logger;
     }
 
@@ -34,8 +37,29 @@ public class SyncPublicationAnalyticsJob
 
             try
             {
+                if (string.IsNullOrWhiteSpace(publication.ExternalPostId))
+                    continue;
+
+                var account = publication.SocialAccount;
+                if (account == null)
+                    continue;
+
+                var provider = _insightsProviderFactory.GetProvider(account.Platform);
+                if (provider == null)
+                {
+                    _logger.LogDebug(
+                        "No insights provider for platform {Platform} (publication {PublicationId})",
+                        account.Platform,
+                        publication.Id);
+                    continue;
+                }
+
+                var insights = await provider.FetchPostInsightsAsync(publication, account, cancellationToken);
+                if (insights == null)
+                    continue;
+
                 var publishedAt = publication.PublishedAt ?? DateTime.UtcNow;
-                var source = publication.SocialAccount?.Platform.ToString() ?? "unknown";
+                var source = account.Platform.ToString();
                 var dedupeKey = BuildDedupeKey(publication.TeamId, publication.Id, source, publishedAt, DateTime.UtcNow.Date);
                 if (await _analyticsRepository.ExistsByDedupeKeyAsync(publication.TeamId, dedupeKey))
                     continue;
@@ -49,7 +73,11 @@ public class SyncPublicationAnalyticsJob
                     WindowStart = publishedAt,
                     WindowEnd = DateTime.UtcNow,
                     PlatformCollectedAt = DateTime.UtcNow,
-                    MetricVersion = "initial",
+                    MetricVersion = "platform-v1",
+                    Impressions = insights.Impressions,
+                    Clicks = insights.Clicks,
+                    Shares = insights.Shares,
+                    EngagementRate = insights.EngagementRate,
                     CollectedAt = DateTime.UtcNow
                 });
                 await _analyticsRepository.SaveChangesAsync();

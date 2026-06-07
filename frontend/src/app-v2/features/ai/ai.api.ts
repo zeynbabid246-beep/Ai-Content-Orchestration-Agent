@@ -99,6 +99,9 @@ export async function generatePost(payload: {
   includeHashtags?: boolean;
   includeCta?: boolean;
   includeEmojis?: boolean;
+  postType?: "TextOnly" | "StaticImage" | "Infographic" | "Carousel";
+  language?: string;
+  generateVisuals?: boolean;
 }): Promise<GeneratePostResponse> {
   const teamId = getTeamId();
   return apiRequest<GeneratePostResponse>(`/teams/${teamId}/ai/generate-post`, {
@@ -251,6 +254,8 @@ export function platformToContentType(platform: string): ContentType {
       return "FacebookPost" as ContentType;
     case "instagram":
       return "InstagramPost" as ContentType;
+    case "threads":
+      return "LinkedInPost" as ContentType;
     case "linkedin":
     default:
       return "LinkedInPost" as ContentType;

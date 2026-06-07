@@ -1,3 +1,4 @@
+using AiContentFlow.Application.Features.BrandStudio;
 using AiContentFlow.Domain.Models;
 
 namespace AiContentFlow.Application.Features.Ai;
@@ -17,7 +18,7 @@ internal static class LocalAiManualBrandMapper
 
         var visualIdentity = new Dictionary<string, object?>
         {
-            ["logo_url"] = studio.VisualLogoUrl ?? string.Empty,
+            ["logo_url"] = BrandVisualIdentityHelper.ResolvePrimaryLogoUrl(studio) ?? string.Empty,
             ["favicon_url"] = studio.VisualFaviconUrl ?? string.Empty,
             ["primary_colors"] = studio.VisualPrimaryColors,
             ["secondary_colors"] = studio.VisualSecondaryColors,
@@ -28,7 +29,7 @@ internal static class LocalAiManualBrandMapper
             ["cta_texts"] = studio.VisualCtaTexts,
             ["screenshot_path"] = studio.VisualScreenshotPath ?? string.Empty,
             ["render_mode"] = studio.VisualRenderMode ?? "sync",
-            ["has_logo"] = studio.VisualHasLogo,
+            ["has_logo"] = BrandVisualIdentityHelper.HasPrimaryBrandMark(studio),
             ["has_images"] = studio.VisualHasImages,
         };
 

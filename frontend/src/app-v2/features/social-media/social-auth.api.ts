@@ -1,7 +1,7 @@
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
 
-type SupportedSocialPlatform = "linkedin" | "facebook" | "instagram";
+type SupportedSocialPlatform = "linkedin" | "facebook" | "instagram" | "threads";
 
 interface SocialAuthLoginResult {
   teamId: string;
@@ -20,12 +20,15 @@ function getTeamId(): string {
 
 export async function getSocialAuthLoginUrl(
   platform: SupportedSocialPlatform,
-  options?: { linkChannelId?: number }
+  options?: { linkChannelId?: number; redirectPath?: string }
 ): Promise<string> {
   const teamId = getTeamId();
   const query = new URLSearchParams({ teamId });
   if (options?.linkChannelId) {
     query.set("linkChannelId", String(options.linkChannelId));
+  }
+  if (options?.redirectPath) {
+    query.set("redirectPath", options.redirectPath);
   }
   const response = await apiRequest<SocialAuthLoginResult>(
     `/auth/${platform}/login?${query.toString()}`,

@@ -251,4 +251,101 @@ public class AiCreativeServiceTests
         Assert.Equal(2, result.CarouselAssets.Count);
         localAi.Verify(x => x.GenerateCarouselAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_Poster_RoutesToPosterEndpoint()
+    {
+        var teamId = Guid.NewGuid();
+        var (service, localAi, _, importer) = BuildService(teamId);
+
+        var contentJson = """
+            {
+              "source": "quick_generate",
+              "preview": "Launch teaser",
+              "generated": {
+                "content_type": "Static Image",
+                "hook": "Launch teaser",
+                "body": "Big news coming.",
+                "visual_direction": "Minimal poster with product hero shot"
+              }
+            }
+            """;
+
+        localAi.Setup(x => x.GeneratePosterAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JsonDocument.Parse("""
+                {
+                  "status": "success",
+                  "poster_url": "/static/generated_creatives/poster_preview.png"
+                }
+                """).RootElement.Clone());
+
+        importer.Setup(x => x.ImportFromUrlAsync(teamId, "/static/generated_creatives/poster_preview.png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("http://localhost:5073/uploads/team/poster_preview.png");
+
+        var result = await service.GeneratePreviewAsync(
+            teamId,
+            "editor-1",
+            new GenerateCreativePreviewRequestDto(
+                ContentJson: contentJson,
+                Platform: SocialPlatform.LinkedIn,
+                Language: "English"));
+
+        Assert.Equal("poster", result.CreativeMode);
+        Assert.Equal("http://localhost:5073/uploads/team/poster_preview.png", result.PosterUrl);
+        localAi.Verify(x => x.GeneratePosterAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        localAi.Verify(x => x.GenerateCarouselAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_Carousel_RoutesToCarouselEndpoint()
+    {
+        var teamId = Guid.NewGuid();
+        var (service, localAi, _, importer) = BuildService(teamId);
+
+        var contentJson = """
+            {
+              "source": "quick_generate",
+              "preview": "Tips carousel",
+              "generated": {
+                "content_type": "Carousel",
+                "hook": "Tips carousel",
+                "slides": [
+                  { "title": "Slide 1", "text": "One" },
+                  { "title": "Slide 2", "text": "Two" }
+                ]
+              }
+            }
+            """;
+
+        localAi.Setup(x => x.GenerateCarouselAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JsonDocument.Parse("""
+                {
+                  "status": "success",
+                  "carousel_assets": [
+                    "/static/generated_creatives/slide-1.png",
+                    "/static/generated_creatives/slide-2.png"
+                  ]
+                }
+                """).RootElement.Clone());
+
+        importer.Setup(x => x.ImportManyAsync(teamId, It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<string>
+            {
+                "http://localhost:5073/uploads/team/slide-1.png",
+                "http://localhost:5073/uploads/team/slide-2.png",
+            });
+
+        var result = await service.GeneratePreviewAsync(
+            teamId,
+            "editor-1",
+            new GenerateCreativePreviewRequestDto(
+                ContentJson: contentJson,
+                Platform: SocialPlatform.Instagram,
+                Language: "English"));
+
+        Assert.Equal("carousel", result.CreativeMode);
+        Assert.Equal(2, result.CarouselAssets.Count);
+        localAi.Verify(x => x.GenerateCarouselAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        localAi.Verify(x => x.GeneratePosterAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

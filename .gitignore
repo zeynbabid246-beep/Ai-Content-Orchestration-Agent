@@ -36,6 +36,20 @@ frontend/dist/
 
 # Environment / secrets
 frontend/.env
-frontend/.env.*
+frontend/.env.local
+frontend/.env.*.local
+!frontend/.env.example
+backend/.env
+!backend/.env.example
 backend/AiContentFlow.API/appsettings.json
 backend/AiContentFlow.API/appsettings.Development.json
+
+# Local-only docs (PFE thesis assets)
+docs/architecture/
+
+# Embedded AI backend (separate git repo — clone alongside or use submodule)
+AI/AI-BACKEND/
+
+# Generated uploads and AI creatives
+**/wwwroot/uploads/
+**/generated_creatives/

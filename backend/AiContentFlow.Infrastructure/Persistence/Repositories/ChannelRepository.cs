@@ -33,7 +33,7 @@ public class ChannelRepository : IChannelRepository
             .Include(c => c.Branding)
             .Include(c => c.Config)
             .Where(c => c.TeamId == teamId && !c.IsDeleted)
-            .OrderBy(c => c.Name)
+            .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
     }
 

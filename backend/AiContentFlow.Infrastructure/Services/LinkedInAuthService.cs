@@ -220,7 +220,8 @@ public class LinkedInAuthService : ILinkedInAuthService, ISocialAuthService
     {
         var value = _config[key];
         if (string.IsNullOrWhiteSpace(value))
-            throw new InvalidOperationException($"Missing required LinkedIn configuration key: {key}");
+            throw new InvalidOperationException(
+                $"Missing required LinkedIn configuration key: {key}. Set it in backend/.env or environment variables.");
         return value;
     }
 }

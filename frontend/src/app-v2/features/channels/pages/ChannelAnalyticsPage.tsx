@@ -1,28 +1,31 @@
-import { Box, Paper, Stack, Typography } from "@mui/material";
-import { BarChart3 } from "lucide-react";
+import { Alert, CircularProgress, Stack } from "@mui/material";
+import { useChannelContext } from "../hooks/useChannelContext";
+import { AnalyticsSummaryView } from "../../analytics/components/AnalyticsSummaryView";
+import { useChannelAnalyticsSummary } from "../../analytics/analytics.queries";
 
 export function ChannelAnalyticsPage() {
-  return (
-    <Stack spacing={2}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight={600}>
-          Channel analytics
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-          PERFORMANCE ACROSS CAMPAIGNS AND CONNECTED ACCOUNTS
-        </Typography>
-      </Box>
+  const { channelId } = useChannelContext();
+  const { data, isLoading, isError } = useChannelAnalyticsSummary(channelId, 30);
 
-      <Paper sx={{ p: 5, textAlign: "center", borderStyle: "dashed" }}>
-        <BarChart3 size={26} style={{ opacity: 0.55 }} />
-        <Typography variant="h6" sx={{ mt: 1.5 }}>
-          Analytics — coming soon
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 480, mx: "auto" }}>
-          Channel-level analytics will roll up publication metrics from connected social accounts
-          (PostPublications) into operational reports. This view stays empty until publishing data is available.
-        </Typography>
-      </Paper>
-    </Stack>
+  if (!channelId) return null;
+
+  if (isLoading) {
+    return (
+      <Stack alignItems="center" py={8}>
+        <CircularProgress size={28} />
+      </Stack>
+    );
+  }
+
+  if (isError || !data) {
+    return <Alert severity="error">Failed to load channel analytics.</Alert>;
+  }
+
+  return (
+    <AnalyticsSummaryView
+      summary={data}
+      title="Channel analytics"
+      subtitle="PERFORMANCE FOR PUBLICATIONS IN THIS CHANNEL"
+    />
   );
 }

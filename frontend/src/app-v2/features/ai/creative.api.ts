@@ -29,6 +29,34 @@ export type GeneratePostCreativeResponse = {
   correlationId: string;
 };
 
+export type GenerateCreativePreviewRequest = {
+  contentJson: string;
+  platform: SocialPlatform;
+  language?: string;
+  visualDirection?: string;
+};
+
+export type GenerateCreativePreviewResponse = {
+  creativeMode: "poster" | "carousel" | "none" | string;
+  posterUrl?: string | null;
+  carouselAssets: string[];
+  creativeError?: string | null;
+  contentJson: string;
+  correlationId: string;
+};
+
+export async function generateCreativePreview(
+  payload: GenerateCreativePreviewRequest
+): Promise<GenerateCreativePreviewResponse> {
+  const teamId = getTeamId();
+  return apiRequest<GenerateCreativePreviewResponse>(`/teams/${teamId}/ai/creative/generate-preview`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload),
+    timeoutMs: CREATIVE_CLIENT_TIMEOUT_MS,
+  });
+}
+
 export async function generatePostCreative(
   payload: GeneratePostCreativeRequest
 ): Promise<GeneratePostCreativeResponse> {

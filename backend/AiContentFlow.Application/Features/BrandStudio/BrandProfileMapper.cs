@@ -40,7 +40,9 @@ public static class BrandProfileMapper
         brandStudio.VisualCtaTexts = GetArray(visual, "cta_texts");
         brandStudio.VisualScreenshotPath = GetString(visual, "screenshot_path");
         brandStudio.VisualRenderMode = GetString(visual, "render_mode");
-        brandStudio.VisualHasLogo = GetBool(visual, "has_logo");
+        brandStudio.VisualHasLogo = GetBool(visual, "has_logo")
+            || !string.IsNullOrWhiteSpace(brandStudio.VisualLogoUrl)
+            || !string.IsNullOrWhiteSpace(brandStudio.VisualFaviconUrl);
         brandStudio.VisualHasImages = GetBool(visual, "has_images");
 
         if (enriched.ValueKind == JsonValueKind.Object)

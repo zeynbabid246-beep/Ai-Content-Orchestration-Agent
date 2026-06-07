@@ -34,7 +34,7 @@ const PLATFORM_PREVIEW: Record<SocialPlatform, QuickVariantDefinition> = {
     description: "",
   },
   [SocialPlatform.Threads]: {
-    key: "linkedin-post",
+    key: "threads-post",
     label: "Threads",
     platform: SocialPlatform.Threads,
     format: "post",
@@ -146,6 +146,7 @@ export const PUBLISHABLE_PLATFORMS: SocialPlatform[] = [
   SocialPlatform.LinkedIn,
   SocialPlatform.Facebook,
   SocialPlatform.Instagram,
+  SocialPlatform.Threads,
 ];
 
 export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
