@@ -1,7 +1,6 @@
 import {
   AppBar,
   Box,
-  Button,
   Container,
   Divider,
   Drawer,
@@ -25,23 +24,22 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  Dna,
   LayoutDashboard,
   LayoutGrid,
-  LogOut,
   Megaphone,
   Menu as MenuIcon,
   Newspaper,
   Sparkles,
-  Store,
-  UserCircle2,
   Users,
 } from "lucide-react";
-import { logout } from "../../features/auth/auth.api";
 import { TeamNameSetupDialog } from "../../features/team/TeamNameSetupDialog";
+import { AssistantWidget } from "../../features/assistant/AssistantWidget";
 import { authStorage } from "../lib/storage";
 import { ROUTES } from "../lib/routes";
 import { TeamSwitcher } from "../../features/team/TeamSwitcher";
 import { useTeamPermissions } from "../hooks/useTeamPermissions";
+import { UserAccountMenu } from "./UserAccountMenu";
 
 const SIDEBAR_COLLAPSE_KEY = "app.sidebar.collapsed";
 const DRAWER_WIDTH_EXPANDED = 252;
@@ -62,12 +60,16 @@ type NavSection = {
 
 const NAV_SECTIONS: NavSection[] = [
   {
+    title: "Brand",
+    items: [{ label: "Brand DNA", path: ROUTES.brandStudio, icon: <Dna size={ICON_SIZE} /> }],
+  },
+  {
     title: "Workspace",
     items: [
       { label: "Dashboard", path: ROUTES.dashboard, icon: <LayoutDashboard size={ICON_SIZE} /> },
       { label: "Quick Generate", path: ROUTES.generate, icon: <Sparkles size={ICON_SIZE} /> },
       { label: "Content Feed", path: ROUTES.contentFeed, icon: <Newspaper size={ICON_SIZE} /> },
-      { label: "Scheduler", path: ROUTES.scheduler, icon: <CalendarClock size={ICON_SIZE} /> },
+      { label: "Calendar", path: ROUTES.calendar, icon: <CalendarClock size={ICON_SIZE} /> },
     ],
   },
   {
@@ -89,11 +91,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Team",
-    items: [
-      { label: "Brand Studio", path: ROUTES.brandStudio, icon: <Store size={ICON_SIZE} /> },
-      { label: "Members", path: ROUTES.inviteUser, icon: <Users size={ICON_SIZE} /> },
-      { label: "Profile", path: ROUTES.profile, icon: <UserCircle2 size={ICON_SIZE} /> },
-    ],
+    items: [{ label: "Members", path: ROUTES.inviteUser, icon: <Users size={ICON_SIZE} /> }],
   },
 ];
 
@@ -110,7 +108,6 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { canMutateContent, canManageTeam } = useTeamPermissions();
-  const username = authStorage.getUsername() ?? "User";
 
   const navSections = useMemo(() => {
     return NAV_SECTIONS.map((section) => ({
@@ -122,6 +119,7 @@ export function AppShell() {
       }),
     })).filter((section) => section.items.length > 0);
   }, [canMutateContent, canManageTeam]);
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
     localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1"
@@ -140,16 +138,11 @@ export function AppShell() {
     });
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate(ROUTES.login);
-  };
-
   const renderDrawerContent = (
     <Stack sx={{ height: 1 }}>
       <Toolbar
         sx={{
-          justifyContent: collapsed && !isMobile ? "center" : "space-between",
+          justifyContent: collapsed && !isMobile ? "center" : "flex-start",
           px: 1.5,
           minHeight: 60,
         }}
@@ -193,26 +186,17 @@ export function AppShell() {
           </Box>
         )}
 
-        {!isMobile ? (
-          <IconButton
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={toggleCollapsed}
-            size="small"
-            color="inherit"
-            sx={{ display: collapsed ? "none" : "inline-flex" }}
-          >
-            <ChevronLeft size={16} />
-          </IconButton>
-        ) : (
+        {isMobile ? (
           <IconButton
             aria-label="Close sidebar"
             onClick={() => setMobileOpen(false)}
             size="small"
             color="inherit"
+            sx={{ ml: "auto" }}
           >
             ×
           </IconButton>
-        )}
+        ) : null}
       </Toolbar>
 
       <Divider />
@@ -300,58 +284,6 @@ export function AppShell() {
           </List>
         ))}
       </Box>
-
-      <Divider />
-
-      <Stack
-        direction={collapsed && !isMobile ? "column" : "row"}
-        alignItems="center"
-        justifyContent="space-between"
-        spacing={1}
-        sx={{ p: 1.5 }}
-      >
-        {!collapsed || isMobile ? (
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                bgcolor: alpha(theme.palette.primary.main, 0.18),
-                color: "primary.main",
-                display: "grid",
-                placeItems: "center",
-                fontSize: 11,
-                fontWeight: 700,
-              }}
-            >
-              {username.slice(0, 1).toUpperCase()}
-            </Box>
-            <Typography variant="body2" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {username}
-            </Typography>
-          </Stack>
-        ) : null}
-
-        <Tooltip title="Log out" placement={collapsed ? "right" : "top"}>
-          <IconButton size="small" onClick={handleLogout} color="inherit">
-            <LogOut size={16} />
-          </IconButton>
-        </Tooltip>
-      </Stack>
-
-      {collapsed && !isMobile ? (
-        <Stack alignItems="center" sx={{ pb: 1 }}>
-          <IconButton
-            aria-label="Expand sidebar"
-            onClick={toggleCollapsed}
-            size="small"
-            color="inherit"
-          >
-            <ChevronRight size={16} />
-          </IconButton>
-        </Stack>
-      ) : null}
     </Stack>
   );
 
@@ -410,7 +342,7 @@ export function AppShell() {
               disableGutters
               sx={{ justifyContent: "space-between", px: { xs: 1, md: 2 }, minHeight: 56 }}
             >
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={0.5} alignItems="center">
                 {isMobile ? (
                   <IconButton
                     aria-label="Open sidebar"
@@ -420,14 +352,23 @@ export function AppShell() {
                   >
                     <MenuIcon size={18} />
                   </IconButton>
-                ) : null}
+                ) : (
+                  <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+                    <IconButton
+                      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                      color="inherit"
+                      onClick={toggleCollapsed}
+                      size="small"
+                    >
+                      {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Stack>
 
               <Stack direction="row" spacing={2} alignItems="center">
                 <TeamSwitcher />
-                <Typography variant="caption" color="text.secondary">
-                  Signed in as <strong style={{ color: "#0f172a" }}>{username}</strong>
-                </Typography>
+                <UserAccountMenu />
               </Stack>
             </Toolbar>
           </Container>
@@ -437,6 +378,7 @@ export function AppShell() {
           <Outlet />
         </Container>
       </Box>
+      <AssistantWidget />
     </Box>
   );
 }

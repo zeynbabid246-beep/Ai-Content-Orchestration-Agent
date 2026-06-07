@@ -89,6 +89,12 @@ export interface CreateBrandImportRequest {
   websiteUrl: string;
 }
 
+export interface CreateManualBrandStudioRequest {
+  parsedProfile: BrandParsedProfile;
+  enrichedProfile?: BrandEnrichedProfile;
+  defaultConfig?: BrandStudioDefaultConfig;
+}
+
 export interface CreateBrandImportResponse {
   brandStudio: TeamBrandStudio;
   job: BrandImportJob;

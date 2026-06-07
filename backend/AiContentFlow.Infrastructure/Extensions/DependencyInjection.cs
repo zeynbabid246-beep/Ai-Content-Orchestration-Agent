@@ -83,6 +83,8 @@ public static class DependencyInjection
         // 3. AI Services
         services.AddHttpClient(nameof(LocalAiBackendClient));
         services.AddScoped<ILocalAiBackendClient, LocalAiBackendClient>();
+        services.AddHttpClient(nameof(AiCreativeAssetImporter));
+        services.AddScoped<IAiCreativeAssetImporter, AiCreativeAssetImporter>();
         services.AddHttpClient<ITextGenerationService, TextGenerationService>();
         services.AddHttpClient<IImageGenerationService, GeminiImageService>();
         services.AddHttpClient(nameof(SafeWebsiteFetcher));
@@ -106,6 +108,7 @@ public static class DependencyInjection
         services.AddScoped<AiContentFlow.Application.Features.SocialAuth.SocialAuthService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<IAiContentService, AiContentService>();
+        services.AddScoped<IAiCreativeService, AiCreativeService>();
 
 
         // 5. Social Auth

@@ -1,5 +1,5 @@
 export type PostPlatform = "LinkedIn" | "Blog" | "Instagram" | "Facebook";
-export type PostStatus = "Draft" | "Review" | "Approved" | "Scheduled" | "Published" | "Archived";
+export type PostStatus = "Draft" | "Scheduled" | "Published" | "Deleted";
 
 export interface DashboardPost {
   id: number;

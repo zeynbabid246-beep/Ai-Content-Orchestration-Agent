@@ -1,5 +1,6 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Publishing;
+using AiContentFlow.Application.Features.Publications;
 using AiContentFlow.Domain.Models;
 using Application.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public class PublishScheduledVariantsJob
     private readonly IPostVariantRepository _postVariantRepository;
     private readonly IContentPostRepository _contentPostRepository;
     private readonly ISocialAccountRepository _socialAccountRepository;
+    private readonly IPublicationService _publicationService;
     private readonly ILogger<PublishScheduledVariantsJob> _logger;
 
     public PublishScheduledVariantsJob(
@@ -26,6 +28,7 @@ public class PublishScheduledVariantsJob
         IContentPostRepository contentPostRepository,
         ISocialAccountRepository socialAccountRepository,
         IPublisherFactory publisherFactory,
+        IPublicationService publicationService,
         ILogger<PublishScheduledVariantsJob> logger)
     {
         _publishJobRepository = publishJobRepository;
@@ -34,6 +37,7 @@ public class PublishScheduledVariantsJob
         _contentPostRepository = contentPostRepository;
         _socialAccountRepository = socialAccountRepository;
         _publisherFactory = publisherFactory;
+        _publicationService = publicationService;
         _logger = logger;
     }
 
@@ -144,6 +148,10 @@ public class PublishScheduledVariantsJob
                     {
                         publication.MarkPublished(result.PostId, result.PostUrl, DateTime.UtcNow);
                         job.MarkSucceeded(DateTime.UtcNow);
+                        await SaveProgressAsync();
+                        await _publicationService.SyncContentPostPublishedStatusAsync(
+                            publication.TeamId,
+                            publication.ContentPostId);
                     }
                     else
                     {

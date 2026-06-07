@@ -27,7 +27,7 @@ public class CampaignServiceTests
         channelRepo.Setup(x => x.GetByIdAsync(teamId, 7)).ReturnsAsync((Channel?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            service.CreateAsync(teamId, "editor-1", new CreateCampaignDto("Launch", "Desc", 7, CampaignStatus.Draft)));
+            service.CreateAsync(teamId, "editor-1", new CreateCampaignDto("Launch", "Desc", 7)));
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class CampaignServiceTests
             ChannelId = 7,
             ContentJson = "{\"text\":\"hello\"}",
             ContentType = ContentType.LinkedInPost,
-            Status = ContentStatus.Approved,
+            Status = ContentStatus.Ready,
             CreatedByUserId = "editor-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -61,7 +61,7 @@ public class CampaignServiceTests
             TeamId = teamId,
             ChannelId = 7,
             Name = "Launch",
-            Status = CampaignStatus.Draft,
+            Status = CampaignStatus.Active,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
@@ -91,7 +91,7 @@ public class CampaignServiceTests
             TeamId = teamId,
             ChannelId = 7,
             Name = "Launch",
-            Status = CampaignStatus.Draft,
+            Status = CampaignStatus.Active,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });

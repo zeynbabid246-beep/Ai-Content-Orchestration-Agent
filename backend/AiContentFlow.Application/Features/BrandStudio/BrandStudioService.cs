@@ -11,17 +11,20 @@ public class BrandStudioService : IBrandStudioService
     private readonly ITeamRepository _teamRepository;
     private readonly IBrandImportJobScheduler _importJobScheduler;
     private readonly IValidator<CreateBrandImportDto> _createImportValidator;
+    private readonly IValidator<CreateManualBrandStudioDto> _createManualValidator;
 
     public BrandStudioService(
         IBrandStudioRepository brandStudioRepository,
         ITeamRepository teamRepository,
         IBrandImportJobScheduler importJobScheduler,
-        IValidator<CreateBrandImportDto> createImportValidator)
+        IValidator<CreateBrandImportDto> createImportValidator,
+        IValidator<CreateManualBrandStudioDto> createManualValidator)
     {
         _brandStudioRepository = brandStudioRepository;
         _teamRepository = teamRepository;
         _importJobScheduler = importJobScheduler;
         _createImportValidator = createImportValidator;
+        _createManualValidator = createManualValidator;
     }
 
     public async Task<BrandStudioSnapshotDto> GetAsync(Guid teamId, string requestingUserId)
@@ -84,6 +87,45 @@ public class BrandStudioService : IBrandStudioService
         brandStudio.ImportJobs.Add(importJob);
 
         return new CreateBrandImportResponseDto(BrandProfileMapper.Map(brandStudio), BrandProfileMapper.MapJob(importJob));
+    }
+
+    public async Task<TeamBrandStudioDto> CreateManualAsync(
+        Guid teamId,
+        string requestingUserId,
+        CreateManualBrandStudioDto dto)
+    {
+        await _createManualValidator.ValidateAndThrowAsync(dto);
+        await EnsureTeamAdminAsync(teamId, requestingUserId);
+
+        var existing = await _brandStudioRepository.GetByTeamAsync(teamId);
+        if (existing is not null)
+            throw new InvalidOperationException("Brand Studio profile already exists for this team.");
+
+        var utcNow = DateTime.UtcNow;
+        var orgId = !string.IsNullOrWhiteSpace(dto.ParsedProfile.OrgId)
+            ? dto.ParsedProfile.OrgId.Trim()
+            : $"team_{teamId:N}";
+
+        var brandStudio = new TeamBrandStudio
+        {
+            TeamId = teamId,
+            OrgId = orgId,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        };
+
+        BrandProfileMapper.ApplyUpdate(brandStudio, new UpdateBrandStudioDto(
+            dto.ParsedProfile with { OrgId = orgId },
+            dto.EnrichedProfile,
+            dto.DefaultConfig));
+
+        if (string.IsNullOrWhiteSpace(brandStudio.BrandName))
+            brandStudio.BrandName = "Manual Brand";
+
+        await _brandStudioRepository.AddBrandStudioAsync(brandStudio);
+        await _brandStudioRepository.SaveChangesAsync();
+
+        return BrandProfileMapper.Map(brandStudio);
     }
 
     public async Task<BrandImportJobDto> GetJobAsync(Guid teamId, int jobId, string requestingUserId)

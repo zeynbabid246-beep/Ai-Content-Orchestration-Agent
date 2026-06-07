@@ -13,16 +13,16 @@ import {
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, FileEdit, Sparkles } from "lucide-react";
+import { ArrowLeft, FileEdit, ImageIcon, Sparkles } from "lucide-react";
 import { useChannelContext } from "../../channels/hooks/useChannelContext";
 import { useCampaignContext } from "../../campaigns/hooks/useCampaignContext";
 import {
   contentPostsKeys,
   useContentPost,
   useCreateContentPost,
-  useTransitionContentPostStatus,
   useUpdateContentPost,
 } from "../../content-posts/content-posts.queries";
+import { markContentPostReady } from "../../content-posts/content-posts.api";
 import {
   ContentStatus,
   ContentType,
@@ -36,8 +36,11 @@ import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import { campaignPaths, channelPaths, postEditorPath, ROUTES } from "../../../shared/lib/routes";
 import { ReadOnlyBanner } from "../../../shared/ui/ReadOnlyBanner";
 import { formatAiError } from "../../ai/ai.api";
+import { formatCreativeError, generatePostCreative } from "../../ai/creative.api";
+import { extractCreativeAssets } from "../../campaigns/lib/formatGeneratedContent";
 import { AiContextStack } from "../components/AiContextStack";
-import { EditorialStatePanel } from "../components/EditorialStatePanel";
+import { SaveStatusPanel, type SaveState } from "../components/SaveStatusPanel";
+import { usePostAutosave } from "../hooks/usePostAutosave";
 import { PostPlatformTargetsPanel } from "../components/PostPlatformTargetsPanel";
 import { PostVariantsWorkspace } from "../components/PostVariantsWorkspace";
 import { CampaignPublishDestinationsPanel } from "../components/CampaignPublishDestinationsPanel";
@@ -102,7 +105,6 @@ export function PostEditorPage() {
 
   const createMutation = useCreateContentPost();
   const updateMutation = useUpdateContentPost();
-  const transitionMutation = useTransitionContentPostStatus();
 
   const { canMutateContent } = useTeamPermissions();
   const readOnly = !canMutateContent;
@@ -133,6 +135,9 @@ export function PostEditorPage() {
   const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [creativeBusy, setCreativeBusy] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
 
   const {
     platformState,
@@ -185,6 +190,26 @@ export function PostEditorPage() {
 
   const effectiveImageUrl = imagePreviewUrl ?? uploadedImageUrl;
   const requiresInstagramImage = selectedPlatforms.includes(SocialPlatform.Instagram);
+
+  const creativePlatformKey = useMemo(() => {
+    const platform = selectedPlatforms[0] ?? SocialPlatform.LinkedIn;
+    switch (platform) {
+      case SocialPlatform.Facebook:
+        return "facebook";
+      case SocialPlatform.Instagram:
+        return "instagram";
+      case SocialPlatform.X:
+        return "x";
+      case SocialPlatform.LinkedIn:
+      default:
+        return "linkedin";
+    }
+  }, [selectedPlatforms]);
+
+  const creativeAssets = useMemo(() => {
+    if (!post?.contentJson) return null;
+    return extractCreativeAssets(post.contentJson, creativePlatformKey);
+  }, [post?.contentJson, creativePlatformKey]);
 
   const channelAccounts = useMemo(
     () =>
@@ -239,6 +264,98 @@ export function PostEditorPage() {
 
   const effectiveCampaignId = routeCampaignId ?? post?.campaignId ?? null;
 
+  const buildContentJson = useCallback(
+    () =>
+      JSON.stringify({
+        text: body,
+        prompt,
+        channelId,
+        campaignId: effectiveCampaignId,
+      }),
+    [body, prompt, channelId, effectiveCampaignId]
+  );
+
+  const resolveImageUrl = useCallback(async (): Promise<string | null> => {
+    if (imageFile) {
+      const upload = await uploadGenerateImage(imageFile);
+      setUploadedImageUrl(upload.url);
+      setImageFile(null);
+      return upload.url;
+    }
+    return uploadedImageUrl;
+  }, [imageFile, uploadedImageUrl]);
+
+  const imageDirty = imageFile != null || uploadedImageUrl !== savedImageUrl;
+  const isDirty = isNew
+    ? title.length > 0 || body.length > 0 || variants.length > 0 || imageDirty
+    : title !== savedTitle || body !== savedBody || imageDirty;
+
+  const buildAutosavePayload = useCallback(async () => {
+    const imageUrl = await resolveImageUrl();
+    const syncedVariants = mergeVariantsWithImage(
+      syncVariantsForPlatforms(selectedPlatforms, variants, title, body, imageUrl),
+      imageUrl
+    );
+    return {
+      channelId: channelId!,
+      campaignId: effectiveCampaignId ?? undefined,
+      title: title.trim() || "Untitled post",
+      contentType: defaultContentType(
+        selectedPlatforms[0] ?? channelAccounts[0]?.platform ?? null
+      ),
+      contentJson: buildContentJson(),
+      imageUrl,
+      prompt: prompt.trim() || undefined,
+      aiModel: post?.aiModel,
+      postVariants: syncedVariants,
+    };
+  }, [
+    body,
+    buildContentJson,
+    channelAccounts,
+    channelId,
+    effectiveCampaignId,
+    post?.aiModel,
+    prompt,
+    resolveImageUrl,
+    selectedPlatforms,
+    title,
+    variants,
+  ]);
+
+  usePostAutosave({
+    enabled:
+      channelId != null &&
+      !readOnly &&
+      hydrated &&
+      title.trim().length > 0 &&
+      body.trim().length > 0,
+    isDirty,
+    isNew,
+    postId: post?.id ?? null,
+    buildPayload: buildAutosavePayload,
+    onCreate: async (payload) => {
+      const created = await createMutation.mutateAsync(payload);
+      setSavedTitle(title);
+      setSavedBody(body);
+      setSavedImageUrl(payload.imageUrl);
+      setVariants(payload.postVariants);
+      navigate(postEditorPath(channelId!, created.id, effectiveCampaignId), { replace: true });
+      return created.id;
+    },
+    onUpdate: async (postId, payload) => {
+      await updateMutation.mutateAsync({ id: postId, data: payload });
+      setSavedTitle(title);
+      setSavedBody(body);
+      setSavedImageUrl(payload.imageUrl);
+      setVariants(payload.postVariants);
+    },
+    onSaveStateChange: (state, error) => {
+      setSaveState(state);
+      setAutosaveError(error ?? null);
+    },
+  });
+
   const navigateAfterOutboundSuccess = useCallback(
     (outcome: "published" | "scheduled") => {
       if (channelId == null) return;
@@ -256,32 +373,16 @@ export function PostEditorPage() {
 
   if (!channelId) return null;
 
-  const imageDirty = imageFile != null || uploadedImageUrl !== savedImageUrl;
-  const isDirty = isNew
-    ? title.length > 0 || body.length > 0 || variants.length > 0 || imageDirty
-    : title !== savedTitle || body !== savedBody || imageDirty;
-
   const status = post?.status ?? null;
   const workflowReady =
-    status === ContentStatus.Approved || status === ContentStatus.Scheduled;
+    status === ContentStatus.Ready || status === ContentStatus.Scheduled;
   const isPublished = status === ContentStatus.Published;
   const saveRequired = isNew || !post;
   const busy =
     createMutation.isPending ||
     updateMutation.isPending ||
-    transitionMutation.isPending ||
     isPublishing ||
     imageUploading;
-
-  const resolveImageUrl = async (): Promise<string | null> => {
-    if (imageFile) {
-      const upload = await uploadGenerateImage(imageFile);
-      setUploadedImageUrl(upload.url);
-      setImageFile(null);
-      return upload.url;
-    }
-    return uploadedImageUrl;
-  };
 
   const handleImageFileSelect = (file: File | null) => {
     if (!file || readOnly) return;
@@ -349,126 +450,63 @@ export function PostEditorPage() {
     })();
   };
 
-  const buildContentJson = () =>
-    JSON.stringify({
-      text: body,
-      prompt,
-      channelId,
-      campaignId: effectiveCampaignId,
-    });
-
-  const handleSave = () => {
+  const handleGenerateVisual = () => {
     void (async () => {
-      setStatusMessage(null);
-      const contentJson = buildContentJson();
-      let imageUrl: string | null = null;
-      try {
-        imageUrl = await resolveImageUrl();
-      } catch (error) {
+      if (isNew || !post) {
+        setStatusMessage({ severity: "info", text: "Save the draft before generating a visual." });
+        return;
+      }
+
+      if (isDirty) {
         setStatusMessage({
-          severity: "error",
-          text: error instanceof Error ? error.message : "Image upload failed.",
+          severity: "warning",
+          text: "Save your draft first so the AI uses your latest copy.",
         });
         return;
       }
 
-      const syncedVariants = mergeVariantsWithImage(
-        syncVariantsForPlatforms(selectedPlatforms, variants, title, body, imageUrl),
-        imageUrl
-      );
-      if (syncedVariants.length !== variants.length) {
-        setVariants(syncedVariants);
-      }
-      const contentType = defaultContentType(
-        selectedPlatforms[0] ?? channelAccounts[0]?.platform ?? null
-      );
-
-      if (isNew) {
-        createMutation.mutate(
-          {
-            channelId,
-            campaignId: effectiveCampaignId ?? undefined,
-            title: title.trim() || "Untitled post",
-            contentType,
-            contentJson,
-            imageUrl: imageUrl ?? undefined,
-            prompt: prompt.trim() || undefined,
-            aiModel: "manual",
-            postVariants: syncedVariants,
-          },
-          {
-            onSuccess: (created) => {
-              setSavedImageUrl(imageUrl);
-              navigate(postEditorPath(channelId, created.id, effectiveCampaignId), {
-                replace: true,
-              });
-              setStatusMessage({ severity: "success", text: "Draft saved." });
-            },
-            onError: (error) =>
-              setStatusMessage({
-                severity: "error",
-                text: error instanceof Error ? error.message : "Failed to save draft.",
-              }),
-          }
-        );
+      if (!body.trim() && !title.trim()) {
+        setStatusMessage({
+          severity: "error",
+          text: "Add title or body content before generating a visual.",
+        });
         return;
       }
 
-      if (!post) return;
-      updateMutation.mutate(
-        {
-          id: post.id,
-          data: {
-            channelId,
-            campaignId: effectiveCampaignId ?? undefined,
-            title: title.trim() || "Untitled post",
-            contentType: post.contentType,
-            contentJson,
-            imageUrl,
-            status: post.status,
-            prompt: prompt.trim() || undefined,
-            aiModel: post.aiModel,
-            postVariants: syncedVariants,
-          },
-        },
-        {
-          onSuccess: () => {
-            setSavedBody(body);
-            setSavedTitle(title);
-            setSavedImageUrl(imageUrl);
-            setVariants(syncedVariants);
-            setStatusMessage({ severity: "success", text: "Draft saved." });
-          },
-          onError: (error) =>
-            setStatusMessage({
-              severity: "error",
-              text: error instanceof Error ? error.message : "Failed to save draft.",
-            }),
-        }
-      );
-    })();
-  };
+      setStatusMessage(null);
+      setCreativeBusy(true);
 
-  const handleTransition = (next: ContentStatus) => {
-    if (!post) {
-      setStatusMessage({ severity: "info", text: "Save the draft first." });
-      return;
-    }
-    transitionMutation.mutate(
-      { id: post.id, data: { status: next } },
-      {
-        onSuccess: () =>
-          setStatusMessage({
-            severity: "success",
-            text: `Post moved to ${next}.`,
-          }),
-        onError: (error) =>
-          setStatusMessage({
-            severity: "error",
-            text: error instanceof Error ? error.message : "Transition failed.",
-          }),
+      try {
+        const platform = selectedPlatforms[0];
+        const result = await generatePostCreative({
+          contentPostId: post.id,
+          platform,
+          language: "English",
+          persistToPost: true,
+        });
+
+        if (result.posterUrl) {
+          setUploadedImageUrl(result.posterUrl);
+          setSavedImageUrl(result.posterUrl);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: contentPostsKeys.detail(post.id) });
+        setStatusMessage({
+          severity: "success",
+          text:
+            result.creativeMode === "carousel"
+              ? `Carousel visual generated (${result.carouselAssets.length} slide(s)).`
+              : "Poster visual generated.",
+        });
+      } catch (error) {
+        setStatusMessage({
+          severity: "error",
+          text: formatCreativeError(error),
+        });
+      } finally {
+        setCreativeBusy(false);
       }
-    );
+    })();
   };
 
   const persistBeforePublishing = async () => {
@@ -488,12 +526,15 @@ export function PostEditorPage() {
         contentType: post.contentType,
         contentJson: buildContentJson(),
         imageUrl,
-        status: post.status,
         prompt: prompt.trim() || undefined,
         aiModel: post.aiModel,
         postVariants: syncedVariants,
       },
     });
+    if (post.status === ContentStatus.Draft) {
+      await markContentPostReady(post.id);
+      await queryClient.invalidateQueries({ queryKey: contentPostsKeys.detail(post.id) });
+    }
     setSavedBody(body);
     setSavedTitle(title);
     setSavedImageUrl(imageUrl);
@@ -768,6 +809,69 @@ export function PostEditorPage() {
                 onFileSelect={handleImageFileSelect}
                 onRemove={handleRemoveImage}
               />
+
+              {!isNew ? (
+                <Stack spacing={1.25}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
+                    startIcon={<ImageIcon size={14} />}
+                    onClick={handleGenerateVisual}
+                    disabled={readOnly || creativeBusy || aiBusy || isDirty}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    {creativeBusy ? "Generating visual..." : "Generate visual"}
+                  </Button>
+                  {isDirty ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Save your draft to enable AI visual generation.
+                    </Typography>
+                  ) : null}
+                  {creativeBusy ? <LinearProgress /> : null}
+                  {creativeAssets?.posterUrl ? (
+                    <Box
+                      component="img"
+                      src={creativeAssets.posterUrl}
+                      alt="AI generated poster"
+                      sx={{
+                        width: "100%",
+                        maxHeight: 220,
+                        objectFit: "cover",
+                        borderRadius: 1,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    />
+                  ) : null}
+                  {creativeAssets?.carouselAssets && creativeAssets.carouselAssets.length > 1 ? (
+                    <Stack direction="row" spacing={1} sx={{ overflowX: "auto", pb: 0.5 }}>
+                      {creativeAssets.carouselAssets.map((url) => (
+                        <Box
+                          key={url}
+                          component="img"
+                          src={url}
+                          alt="Carousel slide"
+                          sx={{
+                            width: 120,
+                            height: 120,
+                            objectFit: "cover",
+                            borderRadius: 1,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            flexShrink: 0,
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  ) : null}
+                  {creativeAssets?.creativeError ? (
+                    <Alert severity="warning" variant="outlined" sx={{ py: 0.5 }}>
+                      {creativeAssets.creativeError}
+                    </Alert>
+                  ) : null}
+                </Stack>
+              ) : null}
             </Stack>
           </Paper>
 
@@ -800,15 +904,7 @@ export function PostEditorPage() {
             campaignObjective={campaign?.description ?? null}
           />
 
-          <EditorialStatePanel
-            status={status}
-            isDirty={isDirty}
-            busy={busy}
-            canSubmit={title.trim().length > 0 && body.trim().length > 0}
-            onSaveDraft={handleSave}
-            onSubmitReview={() => handleTransition(ContentStatus.Review)}
-            onApprove={() => handleTransition(ContentStatus.Approved)}
-          />
+          <SaveStatusPanel saveState={saveState} errorMessage={autosaveError} />
 
           <CampaignPublishDestinationsPanel
             saveRequired={saveRequired}

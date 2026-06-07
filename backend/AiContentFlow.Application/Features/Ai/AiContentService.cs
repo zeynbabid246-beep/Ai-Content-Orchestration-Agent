@@ -65,6 +65,7 @@ public class AiContentService : IAiContentService
 
         var formatHint = BuildFormatHint(dto.Format);
         var platformHint = BuildPlatformHint(dto.Platform);
+        var contentOptionsHint = BuildContentOptionsHint(dto.IncludeHashtags, dto.IncludeCta, dto.IncludeEmojis);
 
         if (IsExternalProviderMode())
         {
@@ -73,6 +74,7 @@ public class AiContentService : IAiContentService
                 Write a social media post as JSON.
                 {platformHint}
                 {formatHint}
+                {contentOptionsHint}
                 Required JSON shape:
                 - For standard posts: an object with a "text" field
                 - For carousels: an object with "text" and "slides" array fields
@@ -82,7 +84,10 @@ public class AiContentService : IAiContentService
                 Return only JSON.
                 """;
             var generated = await _textGenerationService.GenerateTextAsync(prompt, model, AiUseCase.GeneratePost);
-            var contentJsonExternal = NormalizeGeneratedJson(generated);
+            var contentJsonExternal = NormalizeGeneratedJson(
+                generated,
+                dto.IncludeHashtags,
+                dto.IncludeCta);
             LogAIMetrics("generate-post-external", teamId, model, prompt, contentJsonExternal);
             return new GeneratePostResponseDto(contentJsonExternal, model, null);
         }
@@ -111,6 +116,7 @@ public class AiContentService : IAiContentService
             {dto.Prompt.Trim()}
             {BuildPlatformHint(dto.Platform)}
             {BuildFormatHint(dto.Format)}
+            {contentOptionsHint}
             """;
 
         var aiResponse = await _localAiBackendClient.GenerateContentAsync(
@@ -122,7 +128,10 @@ public class AiContentService : IAiContentService
             localBrandContext,
             correlationId);
 
-        var contentJson = NormalizeGeneratedJson(ExtractContentText(aiResponse));
+        var contentJson = NormalizeGeneratedJson(
+            ExtractContentText(aiResponse),
+            dto.IncludeHashtags,
+            dto.IncludeCta);
         LogAIMetrics("generate-post-local", teamId, "local-ai-backend", aiPrompt, contentJson);
         return new GeneratePostResponseDto(contentJson, "local-ai-backend", correlationId);
     }
@@ -203,13 +212,15 @@ public class AiContentService : IAiContentService
             if (!strategyId.HasValue)
                 throw new InvalidOperationException("Strategy step did not return strategy_id.");
 
+            var selectedDirection = ResolveFirstContentDirection(strategyPayload.Value);
             planningPayload = await _localAiBackendClient.GeneratePlanningAsync(
                 strategyPayload.Value,
                 strategyId.Value,
                 postsPerWeek,
                 platforms,
                 language,
-                correlationId);
+                correlationId,
+                selectedDirection);
             var planningId = GetInt(planningPayload.Value, "planning_id") ?? GetInt(planningPayload.Value, "id");
             planningStep = planningStep with
             {
@@ -228,6 +239,7 @@ public class AiContentService : IAiContentService
                 planningPayload.Value,
                 planningId.Value,
                 orgId,
+                platforms,
                 primaryPlatform,
                 brandContextBody,
                 language,
@@ -326,13 +338,16 @@ public class AiContentService : IAiContentService
 
         var correlationId = Guid.NewGuid().ToString("N");
         var platforms = dto.Config.Platforms.Select(p => p.ToString()).ToList();
+        var selectedDirection = dto.SelectedContentDirection ?? ResolveFirstContentDirection(dto.Strategy);
         var planning = await _localAiBackendClient.GeneratePlanningAsync(
             dto.Strategy,
             dto.StrategyId,
             dto.Config.PostsPerWeek,
             platforms,
             dto.Config.Language,
-            correlationId);
+            correlationId,
+            selectedDirection,
+            dto.DirectionMode);
 
         var planningId = GetInt(planning, "planning_id") ?? GetInt(planning, "id");
         if (!planningId.HasValue)
@@ -365,6 +380,7 @@ public class AiContentService : IAiContentService
             dto.Planning,
             dto.PlanningId,
             orgId,
+            platforms,
             primaryPlatform,
             brandContextBody,
             dto.Config.Language,
@@ -428,6 +444,14 @@ public class AiContentService : IAiContentService
                     dto.PostsPerWeek,
                     dto.CustomPrompt,
                     dto.PrimaryPlatform));
+
+            if (suggestion.Errors.Count > 0 && suggestion.Posts.All(p =>
+                    p.ContentJson.Contains("\"source\":\"ai_campaign\"") is false
+                    || p.Title.StartsWith("Campaign post ", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException(
+                    $"AI campaign generation failed: {string.Join("; ", suggestion.Errors)}");
+            }
         }
         else
         {
@@ -468,7 +492,6 @@ public class AiContentService : IAiContentService
                     campaignName,
                     description,
                     dto.ChannelId,
-                    CampaignStatus.Draft,
                     dto.Goal));
             campaignId = created.Id;
         }
@@ -500,6 +523,15 @@ public class AiContentService : IAiContentService
             requestingUserId,
             new BulkCreateCampaignPostsDto(bulkItems));
 
+        var metadata = JsonSerializer.Serialize(new
+        {
+            correlationId = suggestion.CorrelationId,
+            strategyId = suggestion.Strategy.Id,
+            planningId = suggestion.Planning.Id,
+            generatedAt = DateTime.UtcNow
+        });
+        await _campaignService.SetAiGenerationMetadataAsync(teamId, campaignId, metadata);
+
         return new MaterializeCampaignResponseDto(
             campaignId,
             bulkResult.ContentPostIds,
@@ -514,6 +546,47 @@ public class AiContentService : IAiContentService
     {
         await EnsureCanMutateAsync(teamId, requestingUserId);
         await SyncBrandToAiInternalAsync(teamId);
+    }
+
+    public async Task<AssistantChatResponseDto> ChatWithAssistantAsync(
+        Guid teamId,
+        string requestingUserId,
+        AssistantChatRequestDto dto)
+    {
+        await EnsureTeamMemberAsync(teamId, requestingUserId);
+
+        if (string.IsNullOrWhiteSpace(dto.Message))
+            throw new InvalidOperationException("Message is required.");
+
+        if (IsExternalProviderMode())
+        {
+            throw new InvalidOperationException(
+                "The AI assistant requires LocalBackend provider mode. Set AI:ProviderMode to LocalBackend in configuration.");
+        }
+
+        var brandStudio = await _brandStudioRepository.GetByTeamAsync(teamId);
+        var orgId = ResolveOrgId(teamId, brandStudio);
+        var context = dto.Context ?? new Dictionary<string, JsonElement>();
+
+        var campaignId = ExtractContextId(context, "campaign_id", "campaignId");
+        var strategyId = ExtractContextId(context, "strategy_id", "strategyId");
+        var planningId = ExtractContextId(context, "planning_id", "planningId");
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var requestBody = new
+        {
+            message = dto.Message.Trim(),
+            brand_id = orgId,
+            campaign_id = campaignId,
+            strategy_id = strategyId,
+            planning_id = planningId,
+            platform = "assistant_widget",
+            language = dto.Language,
+            context = SerializeContextForPython(context)
+        };
+
+        var aiResponse = await _localAiBackendClient.AssistantChatAsync(requestBody, correlationId);
+        return MapAssistantChatResponse(aiResponse, correlationId);
     }
 
     public async Task<AiHealthResponseDto> GetAiHealthAsync()
@@ -588,6 +661,12 @@ public class AiContentService : IAiContentService
             throw new UnauthorizedAccessException("Only Admin or Editor can use AI features");
     }
 
+    private async Task EnsureTeamMemberAsync(Guid teamId, string requestingUserId)
+    {
+        _ = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
+            ?? throw new UnauthorizedAccessException("Not a team member");
+    }
+
     private async Task<string> BuildBrandContextAsync(Guid teamId, int? channelId)
     {
         var parts = new List<string>();
@@ -617,7 +696,10 @@ public class AiContentService : IAiContentService
         return parts.Count == 0 ? "No brand context available." : string.Join("\n", parts);
     }
 
-    private static string NormalizeGeneratedJson(string generated)
+    private static string NormalizeGeneratedJson(
+        string generated,
+        bool includeHashtags = true,
+        bool includeCta = true)
     {
         try
         {
@@ -632,10 +714,17 @@ public class AiContentService : IAiContentService
                         ? EnforceOutputLimit(contentEl.GetString() ?? string.Empty)
                         : string.Empty;
 
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    text = BuildGeneratedContentPreview(root, includeHashtags, includeCta);
+                }
+
                 if (root.TryGetProperty("slides", out var slidesEl) && slidesEl.ValueKind == JsonValueKind.Array)
                 {
                     var slides = slidesEl.EnumerateArray()
-                        .Select(item => item.GetString() ?? string.Empty)
+                        .Select(item => item.ValueKind == JsonValueKind.String
+                            ? item.GetString() ?? string.Empty
+                            : GetString(item, "text") ?? GetString(item, "title") ?? item.ToString())
                         .Where(item => !string.IsNullOrWhiteSpace(item))
                         .Select(EnforceOutputLimit)
                         .ToList();
@@ -702,6 +791,18 @@ public class AiContentService : IAiContentService
         }
 
         return "Format: single social post.";
+    }
+
+    private static string BuildContentOptionsHint(bool includeHashtags, bool includeCta, bool includeEmojis)
+    {
+        var lines = new List<string>
+        {
+            includeHashtags ? "Include relevant hashtags." : "Do not include hashtags.",
+            includeCta ? "Include a clear but natural call to action." : "Do not include a call to action.",
+            includeEmojis ? "Emojis are allowed in moderation." : "Do not use emojis."
+        };
+
+        return string.Join("\n", lines);
     }
 
     private static SuggestCampaignResponseDto ParseCampaignSuggestion(string generated, SuggestCampaignRequestDto dto)
@@ -907,7 +1008,16 @@ public class AiContentService : IAiContentService
             tone_of_voice = ctx.ToneOfVoice ?? Array.Empty<string>(),
             audience_signals = ctx.AudienceSignals ?? Array.Empty<string>(),
             content_pillars = ctx.ContentPillars ?? Array.Empty<string>(),
-            brand_summary = ctx.BrandSummary
+            brand_summary = ctx.BrandSummary,
+            visual_identity = new
+            {
+                logo_url = brandStudio.VisualLogoUrl ?? string.Empty,
+                primary_colors = brandStudio.VisualPrimaryColors,
+                secondary_colors = brandStudio.VisualSecondaryColors,
+                font_families = brandStudio.VisualFontFamilies,
+                visual_style = brandStudio.VisualStyle ?? string.Empty,
+                image_urls = brandStudio.VisualImageUrls
+            }
         };
     }
 
@@ -980,7 +1090,10 @@ public class AiContentService : IAiContentService
         return JsonSerializer.Serialize(wrapper);
     }
 
-    private static string BuildGeneratedContentPreview(JsonElement generated)
+    private static string BuildGeneratedContentPreview(
+        JsonElement generated,
+        bool includeHashtags = true,
+        bool includeCta = true)
     {
         if (generated.ValueKind == JsonValueKind.String)
             return EnforceOutputLimit(generated.GetString() ?? string.Empty);
@@ -995,7 +1108,7 @@ public class AiContentService : IAiContentService
             parts.Add(hook);
         if (!string.IsNullOrWhiteSpace(body))
             parts.Add(body);
-        if (!string.IsNullOrWhiteSpace(cta))
+        if (includeCta && !string.IsNullOrWhiteSpace(cta))
             parts.Add(cta);
 
         var title = GetString(generated, "title");
@@ -1029,6 +1142,16 @@ public class AiContentService : IAiContentService
                 if (!string.IsNullOrWhiteSpace(slideText))
                     parts.Add(slideText);
             }
+        }
+
+        if (includeHashtags && generated.TryGetProperty("hashtags", out var hashtags) && hashtags.ValueKind == JsonValueKind.Array)
+        {
+            var tags = hashtags.EnumerateArray()
+                .Select(item => item.GetString() ?? string.Empty)
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .ToList();
+            if (tags.Count > 0)
+                parts.Add(string.Join(" ", tags));
         }
 
         if (parts.Count > 0)
@@ -1135,5 +1258,119 @@ public class AiContentService : IAiContentService
         if (string.IsNullOrWhiteSpace(value))
             return null;
         return DateTime.TryParse(value, out var parsed) ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc) : null;
+    }
+
+    private static string? ResolveFirstContentDirection(JsonElement strategy)
+    {
+        if (strategy.ValueKind != JsonValueKind.Object
+            || !strategy.TryGetProperty("content_direction", out var directions)
+            || directions.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (var item in directions.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+                return value;
+        }
+
+        return null;
+    }
+
+    private static object? ExtractContextId(
+        Dictionary<string, JsonElement> context,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (!context.TryGetValue(key, out var value))
+                continue;
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var intValue))
+                return intValue;
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var text = value.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                    return text;
+            }
+        }
+
+        return null;
+    }
+
+    private static object SerializeContextForPython(Dictionary<string, JsonElement> context)
+    {
+        if (context.Count == 0)
+            return new { };
+
+        return JsonSerializer.Deserialize<object>(JsonSerializer.Serialize(context))
+               ?? new { };
+    }
+
+    private AssistantChatResponseDto MapAssistantChatResponse(JsonElement payload, string correlationId)
+    {
+        var localAiBaseUrl = (_configuration["LocalAI:BaseUrl"] ?? "http://127.0.0.1:8000").TrimEnd('/');
+        var screenshots = new List<AssistantScreenshotDto>();
+
+        if (payload.TryGetProperty("screenshots", out var screenshotsElement)
+            && screenshotsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in screenshotsElement.EnumerateArray())
+            {
+                var title = GetString(item, "title") ?? string.Empty;
+                var url = RewriteAssistantScreenshotUrl(GetString(item, "url"), localAiBaseUrl);
+                var description = GetString(item, "description");
+                if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(url))
+                    screenshots.Add(new AssistantScreenshotDto(title, url, description));
+            }
+        }
+
+        var metadata = new Dictionary<string, JsonElement>();
+        if (payload.TryGetProperty("metadata", out var metadataElement)
+            && metadataElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in metadataElement.EnumerateObject())
+                metadata[property.Name] = property.Value.Clone();
+        }
+
+        var suggestedActions = new List<string>();
+        if (payload.TryGetProperty("suggested_actions", out var actionsElement)
+            && actionsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var action in actionsElement.EnumerateArray())
+            {
+                var text = action.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                    suggestedActions.Add(text);
+            }
+        }
+
+        return new AssistantChatResponseDto(
+            Answer: GetString(payload, "answer") ?? string.Empty,
+            Intent: GetString(payload, "intent") ?? "general_question",
+            BrandId: GetString(payload, "brand_id"),
+            TargetAgent: GetString(payload, "target_agent"),
+            NeedsBrandSelection: payload.TryGetProperty("needs_brand_selection", out var needsBrand)
+                && needsBrand.ValueKind == JsonValueKind.True,
+            SuggestedActions: suggestedActions,
+            Language: GetString(payload, "language"),
+            Screenshots: screenshots,
+            Metadata: metadata,
+            CorrelationId: correlationId);
+    }
+
+    private static string RewriteAssistantScreenshotUrl(string? url, string localAiBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return string.Empty;
+
+        const string staticPath = "/static/assistant_screenshots/";
+        var pathIndex = url.IndexOf(staticPath, StringComparison.OrdinalIgnoreCase);
+        if (pathIndex >= 0)
+            return $"{localAiBaseUrl}{url[pathIndex..]}";
+
+        return url;
     }
 }

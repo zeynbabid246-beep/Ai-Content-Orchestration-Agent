@@ -100,10 +100,14 @@ public class PublicationService : IPublicationService
             CreatedAt = DateTime.UtcNow
         };
 
+        contentPost.Status = ContentStatus.Scheduled;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+
         await _transaction.ExecuteAsync(async () =>
         {
             await _publicationRepository.AddAsync(publication);
             await _publishJobRepository.AddAsync(job);
+            await _contentPostRepository.SaveChangesAsync();
         });
 
         return Map(publication);
@@ -187,6 +191,49 @@ public class PublicationService : IPublicationService
         return Map(publication);
     }
 
+    public async Task CancelPendingSchedulesAsync(Guid teamId, int contentPostId)
+    {
+        var pendingPublications = await _publicationRepository.GetPendingByContentPostAsync(teamId, contentPostId);
+        var utcNow = DateTime.UtcNow;
+
+        foreach (var publication in pendingPublications)
+        {
+            publication.MarkCancelled(utcNow);
+            foreach (var job in publication.PublishJobs.Where(j => j.Status == PublishJobStatus.Pending))
+            {
+                job.Status = PublishJobStatus.DeadLettered;
+                job.LastError = "Cancelled";
+                job.CompletedAt = utcNow;
+                job.DeadLetteredAt = utcNow;
+            }
+        }
+
+        if (pendingPublications.Count > 0)
+            await _publicationRepository.SaveChangesAsync();
+    }
+
+    public async Task SyncContentPostPublishedStatusAsync(Guid teamId, int contentPostId)
+    {
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId);
+        if (contentPost is null)
+            return;
+
+        var hasPending = contentPost.Publications.Any(p =>
+            p.Status is PublicationStatus.Scheduled
+                or PublicationStatus.Queued
+                or PublicationStatus.Publishing);
+
+        if (hasPending)
+            return;
+
+        if (contentPost.Publications.Any(p => p.Status == PublicationStatus.Published))
+        {
+            contentPost.Status = ContentStatus.Published;
+            contentPost.UpdatedAt = DateTime.UtcNow;
+            await _contentPostRepository.SaveChangesAsync();
+        }
+    }
+
     private async Task EnsureCanPublishAsync(Guid teamId, string requestingUserId)
     {
         _ = await _teamRepository.GetTeamByIdAsync(teamId)
@@ -246,8 +293,8 @@ public class PublicationService : IPublicationService
 
     private static void EnsurePublishable(ContentPost contentPost)
     {
-        if (contentPost.Status is not ContentStatus.Approved and not ContentStatus.Scheduled)
-            throw new InvalidOperationException("Content post must be approved before it can be published");
+        if (contentPost.Status is not ContentStatus.Ready and not ContentStatus.Scheduled)
+            throw new InvalidOperationException("Content post must be ready before it can be published or scheduled");
     }
 
     private static void EnsureInstagramHasImageIfNeeded(

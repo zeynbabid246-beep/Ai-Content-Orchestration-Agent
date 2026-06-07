@@ -22,15 +22,12 @@ import { WorkspaceEmptyState } from "../../../shared/ui/WorkspaceEmptyState";
 import { useCampaigns } from "../campaigns.queries";
 import { useChannels } from "../../channels/channels.queries";
 import { CampaignStatus } from "../campaigns.types";
-import { CampaignStatusChip } from "../components/CampaignStatusChip";
+import { CampaignProgressChips } from "../components/CampaignProgressChips";
 import { campaignPaths } from "../../../shared/lib/routes";
 
 const STATUS_FILTERS: { value: "all" | CampaignStatus; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: CampaignStatus.Draft, label: "Draft" },
+  { value: "all", label: "All campaigns" },
   { value: CampaignStatus.Active, label: "Active" },
-  { value: CampaignStatus.Paused, label: "Paused" },
-  { value: CampaignStatus.Completed, label: "Completed" },
   { value: CampaignStatus.Archived, label: "Archived" },
 ];
 
@@ -160,7 +157,7 @@ export function CampaignsListPage() {
                   <TableRow>
                     <TableCell>Campaign</TableCell>
                     <TableCell>Channel</TableCell>
-                    <TableCell>Status</TableCell>
+                    <TableCell>Progress</TableCell>
                     <TableCell align="right">Updated</TableCell>
                   </TableRow>
                 </TableHead>
@@ -191,7 +188,7 @@ export function CampaignsListPage() {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <CampaignStatusChip status={campaign.status} />
+                          <CampaignProgressChips campaign={campaign} />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">

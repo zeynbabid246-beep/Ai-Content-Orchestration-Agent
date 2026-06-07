@@ -6,6 +6,7 @@ import {
   updateContentPost, 
   deleteContentPost,
   transitionContentPostStatus,
+  markContentPostReady,
   scheduleContentPost,
   publishContentPost
 } from "./content-posts.api";
@@ -82,6 +83,18 @@ export function useTransitionContentPostStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: contentPostsKeys.lists() });
       queryClient.invalidateQueries({ queryKey: contentPostsKeys.detail(variables.id) });
+    },
+  });
+}
+
+export function useMarkContentPostReady() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => markContentPostReady(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: contentPostsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: contentPostsKeys.detail(id) });
     },
   });
 }

@@ -24,4 +24,8 @@ public interface IAiContentService
         MaterializeCampaignRequestDto dto);
     Task SyncBrandToAiAsync(Guid teamId, string requestingUserId);
     Task<AiHealthResponseDto> GetAiHealthAsync();
+    Task<AssistantChatResponseDto> ChatWithAssistantAsync(
+        Guid teamId,
+        string requestingUserId,
+        AssistantChatRequestDto dto);
 }

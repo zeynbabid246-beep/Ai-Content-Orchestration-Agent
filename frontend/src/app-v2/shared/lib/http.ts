@@ -9,6 +9,10 @@ const api = axios.create({
   },
 });
 
+const AUTH_PATHS_WITHOUT_REFRESH = ["/Auth/login", "/Auth/register", "/Auth/refresh"];
+
+let refreshInFlight: Promise<boolean> | null = null;
+
 // ─── Request interceptor — attach Bearer token ────────────────────────────────
 api.interceptors.request.use((config) => {
   const token = authStorage.getAccessToken();
@@ -23,8 +27,14 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+    const requestPath = originalRequest?.url ?? "";
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const shouldAttemptRefresh =
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !AUTH_PATHS_WITHOUT_REFRESH.some((path) => requestPath.includes(path));
+
+    if (shouldAttemptRefresh) {
       originalRequest._retry = true;
 
       const refreshed = await attemptTokenRefresh();
@@ -34,11 +44,11 @@ api.interceptors.response.use(
           (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
         }
         return api(originalRequest);
-      } else {
-        authStorage.clear();
-        window.location.href = "/app/login";
-        return Promise.reject(new Error("Session expired. Please log in again."));
       }
+
+      authStorage.clear();
+      window.location.href = "/app/login";
+      return Promise.reject(new Error("Session expired. Please log in again."));
     }
 
     if (error.response?.status === 403) {
@@ -61,15 +71,18 @@ interface RequestOptions {
   method?: string;
   body?: string;
   requiresAuth?: boolean;
+  /** Request timeout in milliseconds (axios). Omit for no client-side limit. */
+  timeoutMs?: number;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, requiresAuth = false } = options;
+  const { method = "GET", body, requiresAuth = false, timeoutMs } = options;
 
   const config: AxiosRequestConfig = {
     url: path,
     method,
     data: body ? JSON.parse(body) : undefined,
+    ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
   };
 
   // If auth not required, strip the Authorization header for this request
@@ -101,22 +114,47 @@ export async function apiFormRequest<T>(
 
 // ─── Token refresh ────────────────────────────────────────────────────────────
 async function attemptTokenRefresh(): Promise<boolean> {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = runRefreshWithLock();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
+async function runRefreshWithLock(): Promise<boolean> {
+  const executeRefresh = performTokenRefresh;
+
+  if (typeof navigator !== "undefined" && "locks" in navigator) {
+    return navigator.locks.request("aicontentflow-token-refresh", executeRefresh);
+  }
+
+  return executeRefresh();
+}
+
+async function performTokenRefresh(): Promise<boolean> {
   const refreshToken = authStorage.getRefreshToken();
   if (!refreshToken) return false;
 
   try {
-    const response = await axios.post<{ accessToken: string; refreshToken: string }>(
+    const response = await axios.post<{
+      accessToken: string;
+      refreshToken: string;
+    }>(
       `${env.apiBaseUrl}/Auth/refresh`,
       { refreshToken },
       { headers: { "Content-Type": "application/json" } }
     );
 
-    const { accessToken, refreshToken: newRefresh } = response.data;
-    if (accessToken) {
-      authStorage.setTokens(accessToken, newRefresh);
-      return true;
-    }
-    return false;
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    if (!accessToken) return false;
+
+    authStorage.setTokens(accessToken, newRefreshToken || refreshToken);
+    return true;
   } catch {
     return false;
   }

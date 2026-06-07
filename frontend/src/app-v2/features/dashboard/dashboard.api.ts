@@ -2,6 +2,8 @@ import type { DashboardPost, DashboardStat, AnalyticsData } from "./dashboard.ty
 
 import { apiRequest } from "../../shared/lib/http";
 import { authStorage } from "../../shared/lib/storage";
+import { getEffectiveContentStatus, toPostDisplayStatus } from "../content-posts/content-posts.display";
+import { ContentStatus } from "../content-posts/content-posts.types";
 
 function getTeamId(): string {
   const teamId = authStorage.getTeamId();
@@ -23,12 +25,7 @@ export async function getDashboardPosts(): Promise<DashboardPost[]> {
     else if (p.contentType === "FacebookPost") platformName = "Facebook";
     else if (p.contentType === "BlogPost") platformName = "Blog";
 
-    let statusName = "Draft";
-    if (p.status === "Review") statusName = "Review";
-    if (p.status === "Approved") statusName = "Approved";
-    if (p.status === "Scheduled") statusName = "Scheduled";
-    if (p.status === "Published") statusName = "Published";
-    if (p.status === "Archived") statusName = "Archived";
+    const statusName = toPostDisplayStatus(p);
 
     return {
       id: p.id,
@@ -47,8 +44,8 @@ export async function getDashboardStats(): Promise<DashboardStat[]> {
     requiresAuth: true,
   });
 
-  const scheduledCount = posts.filter(p => p.status === "Scheduled").length;
-  const publishedCount = posts.filter(p => p.status === "Published").length;
+  const scheduledCount = posts.filter((p) => getEffectiveContentStatus(p) === ContentStatus.Scheduled).length;
+  const publishedCount = posts.filter((p) => getEffectiveContentStatus(p) === ContentStatus.Published).length;
 
   return [
     { value: posts.length.toString(), label: "Total Posts", trend: null, direction: null },

@@ -16,9 +16,17 @@ public class LocalAiBackendClient : ILocalAiBackendClient
     private static readonly ConcurrentDictionary<string, CircuitState> Circuit = new();
     private const int MaxAttempts = 2;
     private const int FailureThreshold = 4;
+    private const int DefaultTimeoutSeconds = 75;
+    private const int BrandAnalyzeTimeoutSeconds = 95;
+    // Full campaign content can generate many posts + posters/carousels sequentially.
+    private const int CampaignContentTimeoutSeconds = 900;
+    private const int CreativeTimeoutSeconds = 180;
     private static readonly TimeSpan CircuitOpenDuration = TimeSpan.FromSeconds(45);
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(75);
-    private static readonly TimeSpan BrandAnalyzeTimeout = TimeSpan.FromSeconds(95);
+
+    private readonly TimeSpan _defaultTimeout;
+    private readonly TimeSpan _brandAnalyzeTimeout;
+    private readonly TimeSpan _campaignContentTimeout;
+    private readonly TimeSpan _creativeTimeout;
 
     private sealed class CircuitState
     {
@@ -34,7 +42,16 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         _httpClient = httpClientFactory.CreateClient(nameof(LocalAiBackendClient));
         _logger = logger;
         _baseUrl = (configuration["LocalAI:BaseUrl"] ?? "http://127.0.0.1:8000").TrimEnd('/');
-        _httpClient.Timeout = DefaultTimeout;
+        _defaultTimeout = TimeSpan.FromSeconds(
+            configuration.GetValue("LocalAI:DefaultTimeoutSeconds", DefaultTimeoutSeconds));
+        _brandAnalyzeTimeout = TimeSpan.FromSeconds(
+            configuration.GetValue("LocalAI:BrandAnalyzeTimeoutSeconds", BrandAnalyzeTimeoutSeconds));
+        _campaignContentTimeout = TimeSpan.FromSeconds(
+            configuration.GetValue("LocalAI:CampaignContentTimeoutSeconds", CampaignContentTimeoutSeconds));
+        _creativeTimeout = TimeSpan.FromSeconds(
+            configuration.GetValue("LocalAI:CreativeTimeoutSeconds", CreativeTimeoutSeconds));
+        // Per-request timeouts are enforced in SendAsync; HttpClient.Timeout must not cap them.
+        _httpClient.Timeout = Timeout.InfiniteTimeSpan;
     }
 
     public Task<JsonElement> AnalyzeBrandAsync(string orgId, string websiteUrl, string correlationId, CancellationToken cancellationToken = default)
@@ -94,6 +111,7 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         IReadOnlyList<string> platforms,
         string? customPrompt,
         string correlationId,
+        string? trendIntelligence = null,
         CancellationToken cancellationToken = default)
         => SendAsync(
             "/api/strategy/generate",
@@ -105,7 +123,9 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 language,
                 posts_per_week = postsPerWeek,
                 platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
-                custom_prompt = customPrompt ?? string.Empty
+                custom_prompt = customPrompt ?? string.Empty,
+                campaign_direction = customPrompt ?? string.Empty,
+                trend_intelligence = trendIntelligence ?? "Auto"
             },
             correlationId,
             cancellationToken);
@@ -117,6 +137,8 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         IReadOnlyList<string> platforms,
         string language,
         string correlationId,
+        string? selectedContentDirection = null,
+        string directionMode = "single",
         CancellationToken cancellationToken = default)
         => SendAsync(
             "/api/planning/generate",
@@ -126,7 +148,9 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 strategy_id = strategyId,
                 posts_per_week = postsPerWeek,
                 platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
-                language
+                language,
+                direction_mode = directionMode,
+                selected_content_direction = selectedContentDirection ?? string.Empty
             },
             correlationId,
             cancellationToken);
@@ -136,7 +160,8 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         JsonElement planning,
         int planningId,
         string orgId,
-        string platform,
+        IReadOnlyList<string> platforms,
+        string primaryPlatform,
         object? brandContext,
         string language,
         string correlationId,
@@ -149,7 +174,8 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 planning = JsonSerializer.Deserialize<object>(planning.GetRawText()),
                 planning_id = planningId,
                 org_id = orgId,
-                platform = platform.ToLowerInvariant(),
+                platforms = platforms.Select(p => p.ToLowerInvariant()).ToArray(),
+                primary_platform = primaryPlatform.ToLowerInvariant(),
                 brand_context = brandContext ?? new { },
                 language
             },
@@ -162,6 +188,24 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         CancellationToken cancellationToken = default)
         => SendAsync("/api/brand/manual", requestBody, correlationId, cancellationToken);
 
+    public Task<JsonElement> AssistantChatAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+        => SendAsync("/assistant/chat", requestBody, correlationId, cancellationToken);
+
+    public Task<JsonElement> GeneratePosterAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+        => SendAsync("/api/creative/generate-poster", requestBody, correlationId, cancellationToken);
+
+    public Task<JsonElement> GenerateCarouselAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+        => SendAsync("/api/creative/generate-carousel", requestBody, correlationId, cancellationToken);
+
     public async Task<bool> GetHealthAsync(CancellationToken cancellationToken = default)
     {
         if (IsCircuitOpen("/health"))
@@ -170,7 +214,9 @@ public class LocalAiBackendClient : ILocalAiBackendClient
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/health");
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
+            using var response = await _httpClient.SendAsync(request, timeoutCts.Token);
             MarkSuccess("/health");
             return response.IsSuccessStatusCode;
         }
@@ -197,13 +243,12 @@ public class LocalAiBackendClient : ILocalAiBackendClient
                 request.Headers.Add("X-Correlation-ID", correlationId);
                 request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
+                var requestTimeout = GetTimeoutForPath(path);
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutCts.CancelAfter(path.Equals("/api/brand/analyze", StringComparison.OrdinalIgnoreCase)
-                    ? BrandAnalyzeTimeout
-                    : DefaultTimeout);
+                timeoutCts.CancelAfter(requestTimeout);
 
                 var response = await _httpClient.SendAsync(request, timeoutCts.Token);
-                var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+                var payload = await response.Content.ReadAsStringAsync(timeoutCts.Token);
                 if (!response.IsSuccessStatusCode)
                     throw new HttpRequestException(
                         $"Local AI backend request failed ({response.StatusCode}) on '{path}': {payload}",
@@ -230,23 +275,49 @@ public class LocalAiBackendClient : ILocalAiBackendClient
             }
         }
 
+        var timeoutHint = lastException is TaskCanceledException or OperationCanceledException
+            ? path.Equals("/api/campaign-content/generate", StringComparison.OrdinalIgnoreCase)
+                ? $" Request timed out after {(int)_campaignContentTimeout.TotalSeconds}s. " +
+                  "Campaign content with multiple image creatives is slow — increase LocalAI:CampaignContentTimeoutSeconds in appsettings (default 900s)."
+                : path.Equals("/api/creative/generate-poster", StringComparison.OrdinalIgnoreCase)
+                  || path.Equals("/api/creative/generate-carousel", StringComparison.OrdinalIgnoreCase)
+                    ? $" Request timed out after {(int)_creativeTimeout.TotalSeconds}s. " +
+                      "Creative generation can be slow — increase LocalAI:CreativeTimeoutSeconds in appsettings (default 180s)."
+                    : $" Request timed out after {(int)GetTimeoutForPath(path).TotalSeconds}s."
+            : string.Empty;
+
         throw new InvalidOperationException(
-            $"Local AI backend call failed on path '{path}'. {lastException?.Message}",
+            $"Local AI backend call failed on path '{path}'.{timeoutHint} {lastException?.Message}",
             lastException);
+    }
+
+    private TimeSpan GetTimeoutForPath(string path)
+    {
+        if (path.Equals("/api/brand/analyze", StringComparison.OrdinalIgnoreCase))
+            return _brandAnalyzeTimeout;
+        if (path.Equals("/api/campaign-content/generate", StringComparison.OrdinalIgnoreCase))
+            return _campaignContentTimeout;
+        if (path.Equals("/api/creative/generate-poster", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/creative/generate-carousel", StringComparison.OrdinalIgnoreCase))
+            return _creativeTimeout;
+        return _defaultTimeout;
     }
 
     private static bool IsRetryable(string path, Exception ex)
     {
-        // Brand analyze can be expensive and often fails due to unreachable website;
-        // avoid retry storms on timeouts for this path.
-        if (path.Equals("/api/brand/analyze", StringComparison.OrdinalIgnoreCase)
-            && ex is TaskCanceledException)
+        // Long-running paths should not retry on timeout — each attempt can take many minutes.
+        if (ex is TaskCanceledException or OperationCanceledException)
         {
-            return false;
-        }
+            if (path.Equals("/api/brand/analyze", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("/api/campaign-content/generate", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("/api/creative/generate-poster", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("/api/creative/generate-carousel", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
 
-        if (ex is TaskCanceledException)
             return true;
+        }
         if (ex is HttpRequestException httpEx)
         {
             if (httpEx.StatusCode == HttpStatusCode.TooManyRequests)

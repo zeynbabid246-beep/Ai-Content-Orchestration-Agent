@@ -48,6 +48,22 @@ export async function deleteCampaign(campaignId: number): Promise<void> {
   });
 }
 
+export async function archiveCampaign(campaignId: number): Promise<Campaign> {
+  const teamId = getTeamId();
+  return apiRequest<Campaign>(`/teams/${teamId}/campaigns/${campaignId}/archive`, {
+    method: "POST",
+    requiresAuth: true,
+  });
+}
+
+export async function restoreCampaign(campaignId: number): Promise<Campaign> {
+  const teamId = getTeamId();
+  return apiRequest<Campaign>(`/teams/${teamId}/campaigns/${campaignId}/restore`, {
+    method: "POST",
+    requiresAuth: true,
+  });
+}
+
 export async function linkContentPostToCampaign(campaignId: number, contentPostId: number): Promise<void> {
   const teamId = getTeamId();
   return apiRequest<void>(`/teams/${teamId}/campaigns/${campaignId}/content-post-links`, {

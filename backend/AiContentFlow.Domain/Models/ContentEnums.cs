@@ -27,11 +27,10 @@ public enum ContentType
 public enum ContentStatus
 {
     Draft,
-    Review,
-    Approved,
+    Ready,
     Scheduled,
     Published,
-    Archived
+    Deleted
 }
 
 public enum SocialPlatform
@@ -52,10 +51,7 @@ public enum SocialAccountStatus
 
 public enum CampaignStatus
 {
-    Draft,
     Active,
-    Paused,
-    Completed,
     Archived
 }
 

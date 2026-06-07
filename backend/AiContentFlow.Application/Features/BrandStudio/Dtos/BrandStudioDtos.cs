@@ -2,6 +2,11 @@ namespace AiContentFlow.Application.Features.BrandStudio.Dtos;
 
 public record CreateBrandImportDto(string WebsiteUrl);
 
+public record CreateManualBrandStudioDto(
+    BrandParsedProfileDto ParsedProfile,
+    BrandEnrichedProfileDto? EnrichedProfile = null,
+    BrandStudioDefaultConfigDto? DefaultConfig = null);
+
 public record BrandImportJobDto(
     int Id,
     int TeamBrandStudioId,

@@ -138,6 +138,38 @@ public class AuthServiceTests
         Assert.Contains("If an account exists", result.Message);
     }
 
+    [Fact]
+    public async Task RefreshAsync_WhenTokenAlreadyRotated_DoesNotRevokeReplacementToken()
+    {
+        var refreshRepo = new Mock<IRefreshTokenRepository>();
+        var teamRepo = new Mock<ITeamRepository>();
+        var jwtGenerator = new Mock<IJwtTokenGenerator>();
+
+        refreshRepo.Setup(x => x.GetByTokenAsync("old-refresh")).ReturnsAsync(new RefreshTokenDto
+        {
+            TokenHash = "old-hash",
+            UserId = "user-1",
+            Email = "user@example.com",
+            Username = "ousse",
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            IsRevoked = true,
+            ReplacedByTokenHash = "new-hash"
+        });
+
+        var service = CreateAuthService(
+            new Mock<IIdentityService>().Object,
+            jwtGenerator.Object,
+            refreshRepo.Object,
+            teamRepo.Object,
+            new Mock<ITeamService>().Object,
+            new Mock<IApplicationTransaction>().Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.RefreshAsync(new RefreshRequestDto { RefreshToken = "old-refresh" }));
+
+        refreshRepo.Verify(x => x.RevokeByTokenHashAsync(It.IsAny<string>()), Times.Never);
+    }
+
     private static AuthService CreateAuthService(
         IIdentityService identityService,
         IJwtTokenGenerator jwtGenerator,

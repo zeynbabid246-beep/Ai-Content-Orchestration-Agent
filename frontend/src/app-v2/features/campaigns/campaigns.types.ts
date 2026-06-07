@@ -1,9 +1,12 @@
 export enum CampaignStatus {
-  Draft = "Draft",
   Active = "Active",
-  Paused = "Paused",
-  Completed = "Completed",
   Archived = "Archived",
+}
+
+export interface CampaignPostSummary {
+  draftCount: number;
+  scheduledCount: number;
+  publishedCount: number;
 }
 
 export interface Campaign {
@@ -16,6 +19,7 @@ export interface Campaign {
   toneOfVoiceOverride: string | null;
   targetAudienceOverride: string | null;
   status: CampaignStatus;
+  postSummary?: CampaignPostSummary | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,7 +28,6 @@ export interface CreateCampaignRequest {
   name: string;
   description?: string;
   channelId?: number | null;
-  status?: CampaignStatus;
   objective?: string;
   toneOfVoiceOverride?: string;
   targetAudienceOverride?: string;
@@ -34,7 +37,6 @@ export interface UpdateCampaignRequest {
   name: string;
   description?: string;
   channelId?: number | null;
-  status: CampaignStatus;
   objective?: string;
   toneOfVoiceOverride?: string;
   targetAudienceOverride?: string;

@@ -7,7 +7,7 @@ import { getEntityColor } from "../../../shared/lib/entityVisual";
 import { ROUTES, campaignPaths, channelPaths } from "../../../shared/lib/routes";
 import type { Channel } from "../../channels/channels.types";
 import type { Campaign } from "../campaigns.types";
-import { CampaignStatusChip } from "./CampaignStatusChip";
+import { CampaignProgressChips } from "./CampaignProgressChips";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 
 interface CampaignHeaderProps {
@@ -87,7 +87,7 @@ export function CampaignHeader({ channel, campaign }: CampaignHeaderProps) {
                 <Typography variant="h4" sx={{ fontWeight: 600 }}>
                   {campaign.name}
                 </Typography>
-                <CampaignStatusChip status={campaign.status} />
+                <CampaignProgressChips campaign={campaign} />
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 720 }}>
                 {campaign.description?.trim() || "No brief yet. Add a description in Settings."}

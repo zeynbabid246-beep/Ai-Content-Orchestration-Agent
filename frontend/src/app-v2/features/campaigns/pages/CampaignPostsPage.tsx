@@ -13,7 +13,11 @@ import { FileText, Plus } from "lucide-react";
 import { useChannelContext } from "../../channels/hooks/useChannelContext";
 import { useCampaignContext } from "../hooks/useCampaignContext";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
-import { ContentStatus } from "../../content-posts/content-posts.types";
+import {
+  CONTENT_DISPLAY_FILTERS,
+  matchesPostDisplayFilter,
+  type ContentDisplayStatus,
+} from "../../content-posts/content-posts.display";
 import { campaignPaths } from "../../../shared/lib/routes";
 import {
   ContentPostRow,
@@ -23,14 +27,11 @@ import { WorkspaceEmptyState } from "../../../shared/ui/WorkspaceEmptyState";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import { usePostOutboundNotice } from "../../posts/hooks/usePostOutboundNotice";
 
-type StatusFilter = "all" | ContentStatus;
+type StatusFilter = "all" | ContentDisplayStatus;
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: ContentStatus.Draft, label: "Drafts" },
-  { value: ContentStatus.Review, label: "In review" },
-  { value: ContentStatus.Scheduled, label: "Scheduled" },
-  { value: ContentStatus.Published, label: "Published" },
+  ...CONTENT_DISPLAY_FILTERS,
 ];
 
 export function CampaignPostsPage() {
@@ -44,9 +45,9 @@ export function CampaignPostsPage() {
 
   useEffect(() => {
     if (outcome === "scheduled") {
-      setStatusFilter(ContentStatus.Scheduled);
+      setStatusFilter("Scheduled");
     } else if (outcome === "published") {
-      setStatusFilter(ContentStatus.Published);
+      setStatusFilter("Published");
     }
   }, [outcome]);
 
@@ -54,7 +55,7 @@ export function CampaignPostsPage() {
     () =>
       allPosts
         .filter((post) => post.campaignId === campaignId)
-        .filter((post) => statusFilter === "all" || post.status === statusFilter)
+        .filter((post) => statusFilter === "all" || matchesPostDisplayFilter(post, statusFilter))
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

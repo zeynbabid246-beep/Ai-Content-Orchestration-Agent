@@ -9,9 +9,9 @@ import { useContentPosts } from "../../content-posts/content-posts.queries";
 import { campaignPaths, channelPaths } from "../../../shared/lib/routes";
 import { EntityAvatar } from "../../../shared/ui/EntityAvatar";
 import { getEntityColor } from "../../../shared/lib/entityVisual";
-import { CampaignStatusChip } from "../../campaigns/components/CampaignStatusChip";
+import { CampaignProgressChips } from "../../campaigns/components/CampaignProgressChips";
 import { ContentPostRow } from "../../content-posts/components/ContentPostRow";
-import { ContentStatus } from "../../content-posts/content-posts.types";
+import { toDisplayStatus } from "../../content-posts/content-posts.display";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 
 export function ChannelOverviewPage() {
@@ -46,10 +46,7 @@ export function ChannelOverviewPage() {
   const attentionPosts = useMemo(
     () =>
       channelPosts
-        .filter(
-          (p) =>
-            p.status === ContentStatus.Draft || p.status === ContentStatus.Review
-        )
+        .filter((p) => toDisplayStatus(p.status) === "Draft")
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
         .slice(0, 5),
     [channelPosts]
@@ -128,7 +125,7 @@ export function ChannelOverviewPage() {
                       {campaign.name}
                     </Typography>
                   </Box>
-                  <CampaignStatusChip status={campaign.status} />
+                  <CampaignProgressChips campaign={campaign} />
                   <ArrowUpRight size={14} style={{ opacity: 0.5 }} />
                 </Stack>
               </Paper>

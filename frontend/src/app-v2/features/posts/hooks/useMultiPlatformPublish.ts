@@ -38,7 +38,7 @@ export function useMultiPlatformPublish({ contentPostId }: UseMultiPlatformPubli
   const publishToTargets = useCallback(
     async (targets: PublishTarget[]) => {
       if (!contentPostId || targets.length === 0) {
-        throw new Error("Save and approve the post before publishing.");
+        throw new Error("Save the post before publishing.");
       }
 
       setIsPublishing(true);
@@ -86,7 +86,7 @@ export function useMultiPlatformPublish({ contentPostId }: UseMultiPlatformPubli
   const scheduleToTargets = useCallback(
     async (targets: PublishTarget[], scheduledAtIso: string) => {
       if (!contentPostId || targets.length === 0) {
-        throw new Error("Save and approve the post before scheduling.");
+        throw new Error("Save the post before scheduling.");
       }
 
       setIsPublishing(true);

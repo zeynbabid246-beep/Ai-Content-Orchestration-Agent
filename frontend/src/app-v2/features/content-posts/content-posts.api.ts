@@ -55,6 +55,30 @@ export async function deleteContentPost(contentPostId: number): Promise<void> {
   });
 }
 
+export async function markContentPostReady(contentPostId: number): Promise<ContentPost> {
+  const teamId = getTeamId();
+  return apiRequest<ContentPost>(`/teams/${teamId}/content-posts/${contentPostId}/workflow/ready`, {
+    method: "POST",
+    requiresAuth: true,
+  });
+}
+
+export async function restoreContentPost(contentPostId: number): Promise<ContentPost> {
+  const teamId = getTeamId();
+  return apiRequest<ContentPost>(`/teams/${teamId}/content-posts/${contentPostId}/workflow/restore`, {
+    method: "POST",
+    requiresAuth: true,
+  });
+}
+
+export async function cancelContentPostSchedule(contentPostId: number): Promise<ContentPost> {
+  const teamId = getTeamId();
+  return apiRequest<ContentPost>(`/teams/${teamId}/content-posts/${contentPostId}/workflow/cancel-schedule`, {
+    method: "POST",
+    requiresAuth: true,
+  });
+}
+
 export async function transitionContentPostStatus(contentPostId: number, payload: TransitionContentPostStatusRequest): Promise<ContentPost> {
   const teamId = getTeamId();
   return apiRequest<ContentPost>(`/teams/${teamId}/content-posts/${contentPostId}/workflow/transition`, {

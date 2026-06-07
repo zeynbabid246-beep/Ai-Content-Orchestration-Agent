@@ -36,12 +36,10 @@ import type { PostStatus, PlatformAnalytics } from "./dashboard.types";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<PostStatus, "success" | "info" | "default" | "secondary" | "warning"> = {
-  Approved: "success",
-  Review: "info",
   Scheduled: "info",
   Draft: "default",
-  Published: "secondary",
-  Archived: "warning",
+  Published: "success",
+  Deleted: "warning",
 };
 
 const PLATFORM_ICONS: Record<string, string> = {

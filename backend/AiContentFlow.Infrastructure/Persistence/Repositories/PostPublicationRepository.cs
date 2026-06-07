@@ -50,6 +50,17 @@ public class PostPublicationRepository : IPostPublicationRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<List<PostPublication>> GetPendingByContentPostAsync(Guid teamId, int contentPostId)
+    {
+        return await _context.PostPublications
+            .Include(p => p.PublishJobs)
+            .Where(p => p.TeamId == teamId
+                        && p.ContentPostId == contentPostId
+                        && (p.Status == PublicationStatus.Scheduled
+                            || p.Status == PublicationStatus.Queued))
+            .ToListAsync();
+    }
+
     public async Task<List<PostPublication>> GetByTeamAsync(Guid teamId)
     {
         return await _context.PostPublications

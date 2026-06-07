@@ -15,7 +15,11 @@ import { useNavigate } from "react-router-dom";
 import { useChannelContext } from "../hooks/useChannelContext";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
 import { useCampaigns } from "../../campaigns/campaigns.queries";
-import { ContentStatus } from "../../content-posts/content-posts.types";
+import {
+  CONTENT_DISPLAY_FILTERS,
+  matchesPostDisplayFilter,
+  type ContentDisplayStatus,
+} from "../../content-posts/content-posts.display";
 import {
   ContentPostRow,
   ContentPostRowSkeleton,
@@ -25,14 +29,11 @@ import { channelPaths } from "../../../shared/lib/routes";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 import { usePostOutboundNotice } from "../../posts/hooks/usePostOutboundNotice";
 
-type StatusFilter = "all" | ContentStatus;
+type StatusFilter = "all" | ContentDisplayStatus;
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: ContentStatus.Draft, label: "Drafts" },
-  { value: ContentStatus.Review, label: "In review" },
-  { value: ContentStatus.Scheduled, label: "Scheduled" },
-  { value: ContentStatus.Published, label: "Published" },
+  ...CONTENT_DISPLAY_FILTERS,
 ];
 
 export function ChannelContentPage() {
@@ -46,9 +47,9 @@ export function ChannelContentPage() {
 
   useEffect(() => {
     if (outcome === "scheduled") {
-      setStatusFilter(ContentStatus.Scheduled);
+      setStatusFilter("Scheduled");
     } else if (outcome === "published") {
-      setStatusFilter(ContentStatus.Published);
+      setStatusFilter("Published");
     }
   }, [outcome]);
 
@@ -64,7 +65,7 @@ export function ChannelContentPage() {
     () =>
       allPosts
         .filter((post) => post.channelId === channelId)
-        .filter((post) => statusFilter === "all" || post.status === statusFilter)
+        .filter((post) => statusFilter === "all" || matchesPostDisplayFilter(post, statusFilter))
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

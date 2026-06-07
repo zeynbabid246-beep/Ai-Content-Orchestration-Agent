@@ -15,7 +15,11 @@ import { useNavigate } from "react-router-dom";
 import { useContentPosts } from "../content-posts/content-posts.queries";
 import { useChannels } from "../channels/channels.queries";
 import { useCampaigns } from "../campaigns/campaigns.queries";
-import { ContentStatus } from "../content-posts/content-posts.types";
+import {
+  CONTENT_DISPLAY_FILTERS,
+  matchesPostDisplayFilter,
+  type ContentDisplayStatus,
+} from "../content-posts/content-posts.display";
 import {
   ContentPostRow,
   ContentPostRowSkeleton,
@@ -25,14 +29,11 @@ import { WorkspaceEmptyState } from "../../shared/ui/WorkspaceEmptyState";
 import { useTeamPermissions } from "../../shared/hooks/useTeamPermissions";
 import { ROUTES } from "../../shared/lib/routes";
 
-type StatusFilter = "all" | ContentStatus;
+type StatusFilter = "all" | ContentDisplayStatus;
 
 const STATUS_SEGMENTS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: ContentStatus.Draft, label: "Drafts" },
-  { value: ContentStatus.Review, label: "In review" },
-  { value: ContentStatus.Scheduled, label: "Scheduled" },
-  { value: ContentStatus.Published, label: "Published" },
+  ...CONTENT_DISPLAY_FILTERS,
 ];
 
 export function ContentFeedPage() {
@@ -63,7 +64,7 @@ export function ContentFeedPage() {
     return [...posts]
       .filter((post) => {
         if (channelFilter !== "all" && post.channelId !== channelFilter) return false;
-        if (statusFilter !== "all" && post.status !== statusFilter) return false;
+        if (statusFilter !== "all" && !matchesPostDisplayFilter(post, statusFilter)) return false;
         if (term) {
           const haystack = (post.title ?? "").toLowerCase();
           if (!haystack.includes(term)) return false;

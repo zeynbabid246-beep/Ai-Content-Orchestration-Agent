@@ -31,6 +31,25 @@ public class BrandStudioController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("manual")]
+    public async Task<ActionResult<TeamBrandStudioDto>> CreateManual(Guid teamId, [FromBody] CreateManualBrandStudioDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        try
+        {
+            var result = await _brandStudioService.CreateManualAsync(teamId, userId, dto);
+            return CreatedAtAction(nameof(Get), new { teamId }, result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("import")]
     public async Task<ActionResult<CreateBrandImportResponseDto>> Import(Guid teamId, [FromBody] CreateBrandImportDto dto)
     {

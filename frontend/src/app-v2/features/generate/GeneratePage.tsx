@@ -3,8 +3,11 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Divider,
+  FormControlLabel,
+  FormGroup,
   LinearProgress,
   MenuItem,
   Paper,
@@ -24,11 +27,10 @@ import { FileEdit, Sparkles } from "lucide-react";
 import { useBrandStudio } from "../brand-studio/hooks/useBrandStudio";
 import { useSocialAccounts } from "../social-media/social-accounts.queries";
 import { getSocialAuthLoginUrl } from "../social-media/social-auth.api";
-import { ContentStatus, SocialPlatform } from "../content-posts/content-posts.types";
-import type { SocialAccount } from "../social-media/social-accounts.types";
+import { SocialPlatform } from "../content-posts/content-posts.types";
 import {
   createContentPost,
-  transitionContentPostStatus,
+  markContentPostReady,
 } from "../content-posts/content-posts.api";
 import {
   formatPublicationError,
@@ -78,6 +80,9 @@ export function GeneratePage() {
   const [useBrandContext, setUseBrandContext] = useState(true);
   const [brief, setBrief] = useState("");
   const [language, setLanguage] = useState("English");
+  const [includeHashtags, setIncludeHashtags] = useState(false);
+  const [includeCta, setIncludeCta] = useState(true);
+  const [includeEmojis, setIncludeEmojis] = useState(false);
   const [variants, setVariants] = useState<QuickVariantDraft[]>(() => createInitialVariants());
   const [activeVariantKey, setActiveVariantKey] = useState<QuickVariantKey>("linkedin-post");
 
@@ -225,6 +230,9 @@ export function GeneratePage() {
             useBrandContext,
             platform: definition.platform,
             format: definition.format,
+            includeHashtags,
+            includeCta,
+            includeEmojis,
           });
           const parsed = parseAiContent(result.contentJson, definition.format);
           const targetIndex = nextVariants.findIndex((item) => item.key === variant.key);
@@ -394,8 +402,7 @@ export function GeneratePage() {
         const imageUrl = await resolveImageUrl();
         const created = await createPostPayload(imageUrl, selected);
 
-        await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
-        await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
+        await markContentPostReady(created.id);
 
         const states: Partial<Record<SocialPlatform, PlatformPublishState>> = {};
         const errors: Partial<Record<SocialPlatform, string>> = {};
@@ -479,8 +486,7 @@ export function GeneratePage() {
         const imageUrl = await resolveImageUrl();
         const created = await createPostPayload(imageUrl, selected);
 
-        await transitionContentPostStatus(created.id, { status: ContentStatus.Review });
-        await transitionContentPostStatus(created.id, { status: ContentStatus.Approved });
+        await markContentPostReady(created.id);
 
         let scheduled = 0;
         const failures: string[] = [];
@@ -626,6 +632,40 @@ export function GeneratePage() {
               value={brief}
               onChange={(event) => setBrief(event.target.value)}
             />
+
+            {composeMode === "ai" ? (
+              <Paper variant="outlined" sx={{ p: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
+                  Options
+                </Typography>
+                <FormGroup row>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={includeHashtags}
+                        onChange={(event) => setIncludeHashtags(event.target.checked)}
+                      />
+                    }
+                    label="Hashtags"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox checked={includeCta} onChange={(event) => setIncludeCta(event.target.checked)} />
+                    }
+                    label="Call to Action"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={includeEmojis}
+                        onChange={(event) => setIncludeEmojis(event.target.checked)}
+                      />
+                    }
+                    label="Emojis"
+                  />
+                </FormGroup>
+              </Paper>
+            ) : null}
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "flex-end" }}>
               <TextField

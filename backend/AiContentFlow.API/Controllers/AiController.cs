@@ -13,10 +13,12 @@ namespace AiContentFlow.API.Controllers;
 public class AiController : ControllerBase
 {
     private readonly IAiContentService _aiContentService;
+    private readonly IAiCreativeService _aiCreativeService;
 
-    public AiController(IAiContentService aiContentService)
+    public AiController(IAiContentService aiContentService, IAiCreativeService aiCreativeService)
     {
         _aiContentService = aiContentService;
+        _aiCreativeService = aiCreativeService;
     }
 
     [HttpPost("generate-post")]
@@ -148,6 +150,62 @@ public class AiController : ControllerBase
     {
         var result = await _aiContentService.GetAiHealthAsync();
         return Ok(result);
+    }
+
+    [HttpPost("assistant/chat")]
+    public async Task<ActionResult<AssistantChatResponseDto>> ChatWithAssistant(
+        Guid teamId,
+        [FromBody] AssistantChatRequestDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized("User ID not found in token");
+
+        try
+        {
+            var result = await _aiContentService.ChatWithAssistantAsync(teamId, userId, dto);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("LocalBackend", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("creative/generate")]
+    public async Task<ActionResult<GeneratePostCreativeResponseDto>> GeneratePostCreative(
+        Guid teamId,
+        [FromBody] GeneratePostCreativeRequestDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized("User ID not found in token");
+
+        try
+        {
+            var result = await _aiCreativeService.GenerateForPostAsync(teamId, userId, dto);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("LocalBackend", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     private string GetCurrentUserId()

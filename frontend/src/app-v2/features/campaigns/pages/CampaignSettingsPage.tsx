@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { useChannelContext } from "../../channels/hooks/useChannelContext";
 import { useCampaignContext } from "../hooks/useCampaignContext";
-import { useDeleteCampaign, useUpdateCampaign } from "../campaigns.queries";
+import {
+  useArchiveCampaign,
+  useDeleteCampaign,
+  useRestoreCampaign,
+  useUpdateCampaign,
+} from "../campaigns.queries";
+import { CampaignStatus } from "../campaigns.types";
 import { CreateCampaignDialog } from "../components/CreateCampaignDialog";
 import { ConfirmDialog } from "../../../shared/ui/ConfirmDialog";
 import { channelPaths } from "../../../shared/lib/routes";
@@ -18,11 +24,21 @@ export function CampaignSettingsPage() {
   const { campaignId, campaign } = useCampaignContext();
   const updateMutation = useUpdateCampaign();
   const deleteMutation = useDeleteCampaign();
+  const archiveMutation = useArchiveCampaign();
+  const restoreMutation = useRestoreCampaign();
 
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!channelId || !campaignId || !campaign) return null;
+
+  const archiveBusy = archiveMutation.isPending || restoreMutation.isPending;
+  const archiveError =
+    archiveMutation.isError
+      ? (archiveMutation.error as Error).message
+      : restoreMutation.isError
+        ? (restoreMutation.error as Error).message
+        : null;
 
   return (
     <>
@@ -49,7 +65,7 @@ export function CampaignSettingsPage() {
                 Campaign identity
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Edit name, brief, objective and status.
+                Edit name, brief and objective.
               </Typography>
               <Box sx={{ mt: 1.5 }}>
                 <Typography variant="body2">
@@ -64,6 +80,52 @@ export function CampaignSettingsPage() {
               <Button variant="outlined" onClick={() => setEditOpen(true)}>
                 Edit campaign
               </Button>
+            ) : null}
+          </Stack>
+        </Paper>
+
+        <Paper sx={{ p: 2.5 }}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            alignItems={{ md: "center" }}
+            justifyContent="space-between"
+          >
+            <Box>
+              <Typography variant="subtitle2" fontWeight={600}>
+                {campaign.status === CampaignStatus.Archived ? "Restore campaign" : "Archive campaign"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {campaign.status === CampaignStatus.Archived
+                  ? "Move this campaign back to active. Posts and scheduling are unaffected."
+                  : "Hide this campaign from day-to-day work without deleting it. You can restore it later."}
+              </Typography>
+              {archiveError ? (
+                <Alert severity="error" sx={{ mt: 1.5 }}>
+                  {archiveError}
+                </Alert>
+              ) : null}
+            </Box>
+            {canMutateContent ? (
+              campaign.status === CampaignStatus.Archived ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<ArchiveRestore size={14} />}
+                  disabled={archiveBusy}
+                  onClick={() => restoreMutation.mutate(campaignId)}
+                >
+                  {restoreMutation.isPending ? "Restoring..." : "Restore campaign"}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  startIcon={<Archive size={14} />}
+                  disabled={archiveBusy}
+                  onClick={() => archiveMutation.mutate(campaignId)}
+                >
+                  {archiveMutation.isPending ? "Archiving..." : "Archive campaign"}
+                </Button>
+              )
             ) : null}
           </Stack>
         </Paper>
@@ -125,7 +187,9 @@ export function CampaignSettingsPage() {
                 name: payload.name,
                 description: payload.description,
                 channelId: payload.channelId ?? channelId,
-                status: payload.status ?? campaign.status,
+                objective: payload.objective,
+                toneOfVoiceOverride: payload.toneOfVoiceOverride,
+                targetAudienceOverride: payload.targetAudienceOverride,
               },
             },
             {

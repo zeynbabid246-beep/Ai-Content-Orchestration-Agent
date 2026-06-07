@@ -7,6 +7,7 @@ import type {
   BrandStudioSnapshot,
   CreateBrandImportRequest,
   CreateBrandImportResponse,
+  CreateManualBrandStudioRequest,
   UpdateBrandStudioRequest,
 } from "../types/brandStudio.types";
 
@@ -20,6 +21,17 @@ export async function getBrandStudio(): Promise<BrandStudioSnapshot> {
   const teamId = getTeamId();
   return apiRequest<BrandStudioSnapshot>(`/teams/${teamId}/brand-studio`, {
     requiresAuth: true,
+  });
+}
+
+export async function createManualBrandStudio(
+  payload: CreateManualBrandStudioRequest
+): Promise<TeamBrandStudio> {
+  const teamId = getTeamId();
+  return apiRequest<TeamBrandStudio>(`/teams/${teamId}/brand-studio/manual`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload),
   });
 }
 

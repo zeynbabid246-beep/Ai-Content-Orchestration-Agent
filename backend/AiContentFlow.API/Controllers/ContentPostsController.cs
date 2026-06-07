@@ -85,6 +85,42 @@ public class ContentPostsController : ControllerBase
         return Ok(updated);
     }
 
+    [HttpPost("{contentPostId:int}/workflow/ready")]
+    public async Task<ActionResult<ContentPostResponseDto>> MarkReady(Guid teamId, int contentPostId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.MarkReadyAsync(teamId, contentPostId, userId);
+        return Ok(updated);
+    }
+
+    [HttpPost("{contentPostId:int}/workflow/restore")]
+    public async Task<ActionResult<ContentPostResponseDto>> Restore(Guid teamId, int contentPostId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.RestoreAsync(teamId, contentPostId, userId);
+        return Ok(updated);
+    }
+
+    [HttpPost("{contentPostId:int}/workflow/cancel-schedule")]
+    public async Task<ActionResult<ContentPostResponseDto>> CancelSchedule(Guid teamId, int contentPostId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var updated = await _contentPostService.CancelScheduleAsync(teamId, contentPostId, userId);
+        return Ok(updated);
+    }
+
     [HttpPost("{contentPostId:int}/workflow/schedule")]
     public async Task<ActionResult<ContentPostResponseDto>> Schedule(Guid teamId, int contentPostId, [FromBody] ScheduleContentPostDto dto)
     {

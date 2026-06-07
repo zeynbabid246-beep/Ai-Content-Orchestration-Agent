@@ -8,6 +8,9 @@ function getTeamId(): string {
   return teamId;
 }
 
+/** Must exceed backend LocalAI:CampaignContentTimeoutSeconds (default 900s). */
+const CAMPAIGN_CONTENT_CLIENT_TIMEOUT_MS = 16 * 60 * 1000;
+
 export type CampaignStepStatus = {
   step: string;
   status: string;
@@ -93,6 +96,9 @@ export async function generatePost(payload: {
   useBrandContext?: boolean;
   platform?: string;
   format?: "post" | "carousel";
+  includeHashtags?: boolean;
+  includeCta?: boolean;
+  includeEmojis?: boolean;
 }): Promise<GeneratePostResponse> {
   const teamId = getTeamId();
   return apiRequest<GeneratePostResponse>(`/teams/${teamId}/ai/generate-post`, {
@@ -140,6 +146,8 @@ export type CampaignPlanningStepRequest = {
   config: CampaignAiPipelineConfig;
   strategyId: number;
   strategy: Record<string, unknown>;
+  selectedContentDirection?: string;
+  directionMode?: string;
 };
 
 export type CampaignPlanningStepResponse = {
@@ -195,6 +203,7 @@ export async function generateCampaignContent(
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify(payload),
+    timeoutMs: CAMPAIGN_CONTENT_CLIENT_TIMEOUT_MS,
   });
 }
 
@@ -204,6 +213,7 @@ export async function suggestCampaign(payload: SuggestCampaignRequest): Promise<
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify(payload),
+    timeoutMs: CAMPAIGN_CONTENT_CLIENT_TIMEOUT_MS,
   });
 }
 
@@ -215,6 +225,7 @@ export async function materializeCampaign(
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify(payload),
+    timeoutMs: payload.runSuggest ? CAMPAIGN_CONTENT_CLIENT_TIMEOUT_MS : undefined,
   });
 }
 
@@ -251,6 +262,9 @@ export { formatGeneratedContentPreview, parsePostText, buildPostContentJson } fr
 export function formatAiError(error: unknown): string {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
+    if (msg.includes("timeout") || msg.includes("timed out")) {
+      return `${error.message} Content generation with multiple images can take several minutes — wait and retry, or raise LocalAI:CampaignContentTimeoutSeconds in the .NET API config.`;
+    }
     if (msg.includes("local ai") || msg.includes("connection") || msg.includes("circuit")) {
       return `${error.message} — ensure the AI backend is running (see backend/AI_BACKEND_SETUP.md).`;
     }

@@ -72,6 +72,57 @@ export function parsePostText(contentJson: string): string {
   return formatGeneratedContentPreview(contentJson);
 }
 
+export type CreativeAssets = {
+  posterUrl: string | null;
+  carouselAssets: string[];
+  creativeError: string | null;
+};
+
+/**
+ * Extract poster and carousel assets from contentJson,
+ * resolving platform_assets per the AI README rule:
+ * - Check platform_assets[currentPlatform] first
+ * - Fall back to top-level poster_url
+ */
+export function extractCreativeAssets(
+  contentJson: string,
+  platform?: string
+): CreativeAssets {
+  const empty: CreativeAssets = { posterUrl: null, carouselAssets: [], creativeError: null };
+  try {
+    const parsed = JSON.parse(contentJson) as WrappedAiContent;
+    const gen = asRecord(parsed.generated) ?? asRecord(parsed);
+    if (!gen) return empty;
+
+    const creativeError = str(gen.creative_error) || null;
+
+    if (platform) {
+      const platformAssets = asRecord(gen.platform_assets);
+      if (platformAssets) {
+        const entry = asRecord(platformAssets[platform]);
+        if (entry) {
+          const poster = str(entry.poster_url) || str(entry.creative_asset_url) || null;
+          const carousel = Array.isArray(entry.carousel_assets)
+            ? (entry.carousel_assets as string[]).filter(Boolean)
+            : [];
+          if (poster || carousel.length > 0) {
+            return { posterUrl: poster, carouselAssets: carousel, creativeError };
+          }
+        }
+      }
+    }
+
+    const posterUrl = str(gen.poster_url) || str(gen.creative_asset_url) || null;
+    const carouselAssets = Array.isArray(gen.carousel_assets)
+      ? (gen.carousel_assets as string[]).filter(Boolean)
+      : [];
+
+    return { posterUrl, carouselAssets, creativeError };
+  } catch {
+    return empty;
+  }
+}
+
 export function buildPostContentJson(text: string, previousContentJson?: string): string {
   try {
     if (previousContentJson) {

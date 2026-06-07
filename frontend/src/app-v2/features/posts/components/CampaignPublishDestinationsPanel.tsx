@@ -98,11 +98,12 @@ export function CampaignPublishDestinationsPanel({
 
   const controlsLocked = readOnly || saveRequired || !workflowReady || isPublished;
 
-  const canSchedule =
-    !controlsLocked && readyPlatforms.length > 0 && Boolean(scheduledAt.trim());
-
   const canPublishNow =
-    canSchedule && readyWithAccount.length === readyPlatforms.length;
+    !controlsLocked &&
+    readyPlatforms.length > 0 &&
+    readyWithAccount.length === readyPlatforms.length;
+
+  const canSchedule = canPublishNow && Boolean(scheduledAt.trim());
 
   useEffect(() => {
     const next = { ...selectedByPlatform };
@@ -122,15 +123,17 @@ export function CampaignPublishDestinationsPanel({
 
   const scheduleHint = (() => {
     if (saveRequired) return "Save the post draft before scheduling or publishing.";
-    if (!workflowReady) return "Approve the post (Review → Approved) to unlock scheduling.";
+    if (!workflowReady) return "Finish editing and save the post to unlock scheduling.";
     if (isPublished) return "This post is already published.";
     if (selectedPlatforms.length === 0) return "Select target platforms above.";
     if (readyPlatforms.length === 0) {
       return "Add variant copy (and an image for Instagram) for at least one selected platform.";
     }
-    if (!scheduledAt.trim()) return "Pick a date and time to enable Schedule all.";
     if (readyWithAccount.length < readyPlatforms.length) {
       return "Select a publishing account for each ready platform.";
+    }
+    if (!scheduledAt.trim()) {
+      return "Pick a date and time to use Schedule all. Publish all does not require a date.";
     }
     return null;
   })();
@@ -173,7 +176,7 @@ export function CampaignPublishDestinationsPanel({
 
       {!workflowReady && !saveRequired && !isPublished ? (
         <Alert severity="info" sx={{ mb: 1.5 }}>
-          Move through Review → Approved before scheduling or publishing.
+          Finish editing the post — autosave keeps your draft up to date. Publishing unlocks once the post is ready.
         </Alert>
       ) : null}
 

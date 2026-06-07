@@ -258,6 +258,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(c => c.Status).HasConversion<int>();
             entity.Property(c => c.CreatedAt).IsRequired();
             entity.Property(c => c.UpdatedAt).IsRequired();
+            entity.Property(c => c.AiGenerationMetadata).HasColumnType("jsonb");
             entity.Property(c => c.IsDeleted).HasDefaultValue(false);
             entity.HasIndex(c => new { c.TeamId, c.Status });
             entity.HasIndex(c => new { c.TeamId, c.CreatedAt });

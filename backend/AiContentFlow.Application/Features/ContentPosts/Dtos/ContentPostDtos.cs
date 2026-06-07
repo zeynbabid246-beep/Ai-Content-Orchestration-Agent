@@ -33,7 +33,7 @@ public record UpdateContentPostDto(
     string? Title,
     ContentType ContentType,
     string ContentJson,
-    ContentStatus Status,
+    ContentStatus? Status,
     string? Prompt,
     string? AiModel,
     int? AiTokens,
@@ -82,6 +82,9 @@ public record ContentPostResponseDto(
     string? AiModel,
     int? AiTokens,
     string? ImageUrl,
+    DateTime? ScheduledAt,
+    DateTime? PublishedAt,
+    string? CampaignName,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<PostVariantResponseDto> PostVariants

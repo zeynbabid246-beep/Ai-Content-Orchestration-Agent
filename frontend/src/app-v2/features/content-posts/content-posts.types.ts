@@ -8,11 +8,10 @@ export enum ContentType {
 
 export enum ContentStatus {
   Draft = "Draft",
-  Review = "Review",
-  Approved = "Approved",
+  Ready = "Ready",
   Scheduled = "Scheduled",
   Published = "Published",
-  Archived = "Archived",
+  Deleted = "Deleted",
 }
 
 export enum SocialPlatform {
@@ -35,6 +34,7 @@ export interface ContentPost {
   teamId: string;
   channelId: number | null;
   campaignId?: number | null;
+  campaignName?: string | null;
   socialAccountId: number | null;
   title: string;
   contentType: ContentType;

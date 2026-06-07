@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
-  Chip,
   Paper,
   Stack,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -16,10 +14,11 @@ import { useContentPosts } from "../../content-posts/content-posts.queries";
 import { campaignPaths } from "../../../shared/lib/routes";
 import { ContentPostRow } from "../../content-posts/components/ContentPostRow";
 import { CampaignWelcomeDialog } from "../components/CampaignWelcomeDialog";
-import { ContentStatus } from "../../content-posts/content-posts.types";
+import { CampaignProgressChips } from "../components/CampaignProgressChips";
+import { resolveCampaignPostSummary } from "../campaigns.display";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
 
-const WORKFLOW_STEPS = ["Draft", "Review", "Approved", "Publish"] as const;
+const WORKFLOW_STEPS = ["Create", "Edit", "Schedule or publish"] as const;
 
 export function CampaignOverviewPage() {
   const { canMutateContent } = useTeamPermissions();
@@ -43,37 +42,15 @@ export function CampaignOverviewPage() {
 
   const recentPosts = useMemo(() => posts.slice(0, 6), [posts]);
 
-  const statusCounts = useMemo(() => {
-    const counts = {
-      draft: 0,
-      review: 0,
-      approved: 0,
-      scheduled: 0,
-      published: 0,
-    };
-    for (const post of posts) {
-      switch (post.status) {
-        case ContentStatus.Draft:
-          counts.draft++;
-          break;
-        case ContentStatus.Review:
-          counts.review++;
-          break;
-        case ContentStatus.Approved:
-          counts.approved++;
-          break;
-        case ContentStatus.Scheduled:
-          counts.scheduled++;
-          break;
-        case ContentStatus.Published:
-          counts.published++;
-          break;
-        default:
-          break;
-      }
-    }
-    return counts;
-  }, [posts]);
+  const postSummary = useMemo(
+    () => resolveCampaignPostSummary(campaign?.postSummary, posts),
+    [campaign?.postSummary, posts]
+  );
+
+  const campaignWithSummary = useMemo(
+    () => (campaign ? { ...campaign, postSummary } : null),
+    [campaign, postSummary]
+  );
 
   useEffect(() => {
     if (searchParams.get("welcome") === "1" && campaign) {
@@ -97,6 +74,13 @@ export function CampaignOverviewPage() {
     }
   };
 
+  const goAiPlan = () => {
+    dismissWelcome();
+    if (channelId && campaignId) {
+      navigate(campaignPaths.aiPlan(channelId, campaignId));
+    }
+  };
+
   if (!channelId || !campaignId || !campaign) return null;
 
   const dateRange =
@@ -113,12 +97,8 @@ export function CampaignOverviewPage() {
               {dateRange}
             </Typography>
           ) : null}
-          {posts.length > 0 ? (
-            <>
-              <Chip size="small" label={`${statusCounts.draft} drafts`} variant="outlined" />
-              <Chip size="small" label={`${statusCounts.approved} approved`} variant="outlined" />
-              <Chip size="small" label={`${statusCounts.published} published`} variant="outlined" />
-            </>
+          {campaignWithSummary ? (
+            <CampaignProgressChips campaign={campaignWithSummary} />
           ) : null}
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
@@ -136,13 +116,13 @@ export function CampaignOverviewPage() {
             >
               {posts.length === 0 ? "Create first post" : "New post"}
             </Button>
-            <Tooltip title="Coming soon — bulk AI planning for this campaign">
-              <span>
-                <Button variant="outlined" startIcon={<Sparkles size={14} />} disabled>
-                  Plan with AI
-                </Button>
-              </span>
-            </Tooltip>
+            <Button
+              variant="outlined"
+              startIcon={<Sparkles size={14} />}
+              onClick={goAiPlan}
+            >
+              Plan with AI
+            </Button>
             <Button
               variant="text"
               startIcon={<FileEdit size={14} />}
@@ -208,6 +188,7 @@ export function CampaignOverviewPage() {
         open={welcomeOpen}
         campaignName={campaign.name}
         onManual={goManual}
+        onAiPlan={goAiPlan}
         onClose={dismissWelcome}
       />
     </Stack>

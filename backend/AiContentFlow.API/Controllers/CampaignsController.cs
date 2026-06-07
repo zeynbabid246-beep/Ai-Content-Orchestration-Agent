@@ -80,6 +80,30 @@ public class CampaignsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{campaignId:int}/archive")]
+    public async Task<ActionResult<CampaignResponseDto>> Archive(Guid teamId, int campaignId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var campaign = await _campaignService.ArchiveAsync(teamId, campaignId, userId);
+        return Ok(campaign);
+    }
+
+    [HttpPost("{campaignId:int}/restore")]
+    public async Task<ActionResult<CampaignResponseDto>> Restore(Guid teamId, int campaignId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        var campaign = await _campaignService.RestoreAsync(teamId, campaignId, userId);
+        return Ok(campaign);
+    }
+
     [HttpPost("{campaignId:int}/content-post-links")]
     public async Task<IActionResult> LinkContentPost(Guid teamId, int campaignId, [FromBody] LinkCampaignContentPostDto dto)
     {

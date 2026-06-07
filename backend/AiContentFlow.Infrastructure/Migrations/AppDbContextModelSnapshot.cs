@@ -80,6 +80,9 @@ namespace AiContentFlow.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AiGenerationMetadata")
+                        .HasColumnType("jsonb");
+
                     b.Property<int>("ChannelId")
                         .HasColumnType("integer");
 

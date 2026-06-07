@@ -1,4 +1,5 @@
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Domain.Campaigns.Dtos;
 using AiContentFlow.Domain.Models;
 using AiContentFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -23,9 +24,20 @@ public class ContentPostRepository : IContentPostRepository
     {
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
+            .Include(cp => cp.Publications)
+            .Include(cp => cp.Campaign)
             .FirstOrDefaultAsync(cp => cp.TeamId == teamId 
                                     && cp.Id == contentPostId 
-                                    && cp.Status != ContentStatus.Archived);
+                                    && cp.Status != ContentStatus.Deleted);
+    }
+
+    public async Task<ContentPost?> GetByIdIncludingDeletedAsync(Guid teamId, int contentPostId)
+    {
+        return await _context.ContentPosts
+            .Include(cp => cp.PostVariants)
+            .Include(cp => cp.Publications)
+            .Include(cp => cp.Campaign)
+            .FirstOrDefaultAsync(cp => cp.TeamId == teamId && cp.Id == contentPostId);
     }
 
     public async Task<List<ContentPost>> GetByTeamAsync(Guid teamId)
@@ -41,7 +53,9 @@ public class ContentPostRepository : IContentPostRepository
     {
         var query = _context.ContentPosts
             .Include(cp => cp.PostVariants)
-            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Archived);
+            .Include(cp => cp.Publications)
+            .Include(cp => cp.Campaign)
+            .Where(cp => cp.TeamId == teamId && cp.Status != ContentStatus.Deleted);
 
         if (channelId.HasValue)
             query = query.Where(cp => cp.ChannelId == channelId.Value);
@@ -61,10 +75,11 @@ public class ContentPostRepository : IContentPostRepository
     {
         return await _context.ContentPosts
             .Include(cp => cp.PostVariants)
+            .Include(cp => cp.Publications)
             .Where(cp =>
                 cp.TeamId == teamId &&
                 cp.CampaignId == campaignId &&
-                cp.Status != ContentStatus.Archived)
+                cp.Status != ContentStatus.Deleted)
             .OrderByDescending(cp => cp.UpdatedAt)
             .ToListAsync();
     }
@@ -90,9 +105,65 @@ public class ContentPostRepository : IContentPostRepository
     public async Task<List<ContentPost>> GetDeletedAsync(Guid teamId)
     {
         return await _context.ContentPosts
-            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Archived)
+            .Where(p => p.TeamId == teamId && p.Status == ContentStatus.Deleted)
             .OrderByDescending(p => p.UpdatedAt)
             .ToListAsync();
+    }
+
+    public async Task<Dictionary<int, CampaignPostSummaryDto>> GetPostSummariesByCampaignAsync(
+        Guid teamId,
+        IEnumerable<int> campaignIds)
+    {
+        var ids = campaignIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<int, CampaignPostSummaryDto>();
+
+        var posts = await _context.ContentPosts
+            .Where(p =>
+                p.TeamId == teamId &&
+                p.CampaignId.HasValue &&
+                ids.Contains(p.CampaignId.Value) &&
+                p.Status != ContentStatus.Deleted)
+            .Select(p => new
+            {
+                CampaignId = p.CampaignId!.Value,
+                p.Status,
+                HasPublished = p.Publications.Any(pub => pub.Status == PublicationStatus.Published),
+                HasActiveSchedule = p.Publications.Any(pub =>
+                    pub.Status == PublicationStatus.Scheduled || pub.Status == PublicationStatus.Queued)
+            })
+            .ToListAsync();
+
+        var result = ids.ToDictionary(
+            id => id,
+            id => new CampaignPostSummaryDto(0, 0, 0));
+
+        foreach (var group in posts.GroupBy(p => p.CampaignId))
+        {
+            var draftCount = 0;
+            var scheduledCount = 0;
+            var publishedCount = 0;
+
+            foreach (var post in group)
+            {
+                var effectiveStatus = post.Status;
+                if (post.HasPublished)
+                    effectiveStatus = ContentStatus.Published;
+                else if (post.HasActiveSchedule)
+                    effectiveStatus = ContentStatus.Scheduled;
+
+                if (effectiveStatus is ContentStatus.Draft or ContentStatus.Ready)
+                    draftCount++;
+                else if (effectiveStatus == ContentStatus.Scheduled)
+                    scheduledCount++;
+                else if (effectiveStatus == ContentStatus.Published)
+                    publishedCount++;
+            }
+
+            result[group.Key] = new CampaignPostSummaryDto(draftCount, scheduledCount, publishedCount);
+        }
+
+        return result;
     }
 
     public async Task<ContentPost> UpdateAsync(ContentPost post)

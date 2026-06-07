@@ -6,7 +6,7 @@ import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
 import { AcceptInvitePage } from "../features/auth/AcceptInvitePage";
 import { AppShell } from "../shared/ui/AppShell";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
-import { SchedulerPage } from "../features/scheduler/SchedulerPage";
+import { CalendarPage } from "../features/calendar/CalendarPage";
 import { GeneratePage } from "../features/generate/GeneratePage";
 import { TeamPage } from "../features/team/TeamPage";
 import { AdminRoute } from "../shared/ui/AdminRoute";
@@ -30,6 +30,7 @@ import { CampaignTimelinePage } from "../features/campaigns/pages/CampaignTimeli
 import { CampaignAnalyticsPage } from "../features/campaigns/pages/CampaignAnalyticsPage";
 import { CampaignSettingsPage } from "../features/campaigns/pages/CampaignSettingsPage";
 import { PostEditorPage } from "../features/posts/pages/PostEditorPage";
+import { CampaignAiPlanPage } from "../features/campaigns/pages/CampaignAiPlanPage";
 import { ProtectedRoute } from "../shared/ui/protectedRoute";
 import { PublicOnlyRoute } from "../shared/ui/publiconlyroute";
 import { ROUTES } from "../shared/lib/routes";
@@ -56,7 +57,8 @@ export default function AppV2Router() {
             <Route path="/generate" element={<GeneratePage />} />
           </Route>
           <Route path="/content-feed" element={<ContentFeedPage />} />
-          <Route path="/scheduler" element={<SchedulerPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/scheduler" element={<Navigate to={ROUTES.calendar} replace />} />
 
           {/* Operations: Channels (list + nested workspace) */}
           <Route path="/channels" element={<ChannelsListPage />} />
@@ -84,6 +86,10 @@ export default function AppV2Router() {
             <Route path="analytics" element={<CampaignAnalyticsPage />} />
             <Route path="settings" element={<CampaignSettingsPage />} />
           </Route>
+          <Route
+            path="/channels/:channelId/campaigns/:campaignId/ai-plan"
+            element={<CampaignAiPlanPage />}
+          />
 
           {/* Cross-channel campaigns view */}
           <Route path="/campaigns" element={<CampaignsListPage />} />

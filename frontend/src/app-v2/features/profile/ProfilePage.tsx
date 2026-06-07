@@ -59,7 +59,6 @@ export function ProfilePage() {
   const removeAvatarMutation = useRemoveAvatar();
 
   const [tab, setTab] = useState<TabValue>("Personal");
-  const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [username, setUsername] = useState("");
@@ -107,13 +106,24 @@ export function ProfilePage() {
     .toUpperCase()
     .slice(0, 2);
 
-  const handleCancelEdit = () => {
+  const handleDiscardChanges = () => {
     if (!profile) return;
     setUsername(profile.username);
     setBio(profile.bio);
-    setAvatarUrl(profile.avatarUrl);
-    setEditing(false);
     setSaved(false);
+  };
+
+  const handleSaveChanges = () => {
+    updateProfileMutation.mutate(
+      { username: username.trim(), bio },
+      {
+        onSuccess: (updated) => {
+          setUsername(updated.username);
+          setBio(updated.bio);
+          setSaved(true);
+        },
+      }
+    );
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,7 +151,7 @@ export function ProfilePage() {
   }
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 760, mx: "auto", py: 3, px: 2 }}>
+    <Stack spacing={3} sx={{ maxWidth: 880, mx: "auto", py: 3, px: 2, pb: hasChanges ? 10 : 3 }}>
       <Typography variant="h4" fontWeight={700}>
         My Profile
       </Typography>
@@ -171,42 +181,30 @@ export function ProfilePage() {
           </Box>
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {editing && (
-              <>
-                <Button
-                  component="label"
-                  size="small"
-                  variant="outlined"
-                  disabled={uploadAvatarMutation.isPending}
-                >
-                  {uploadAvatarMutation.isPending ? "Uploading…" : "Change photo"}
-                  <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
-                </Button>
-                {avatarUrl && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="inherit"
-                    disabled={removeAvatarMutation.isPending}
-                    onClick={() =>
-                      removeAvatarMutation.mutate(undefined, {
-                        onSuccess: () => setAvatarUrl(null),
-                      })
-                    }
-                  >
-                    Remove photo
-                  </Button>
-                )}
-              </>
-            )}
             <Button
+              component="label"
               size="small"
-              variant={editing ? "outlined" : "contained"}
-              color={editing ? "inherit" : "primary"}
-              onClick={() => (editing ? handleCancelEdit() : setEditing(true))}
+              variant="outlined"
+              disabled={uploadAvatarMutation.isPending}
             >
-              {editing ? "Cancel" : "Edit profile"}
+              {uploadAvatarMutation.isPending ? "Uploading…" : "Change photo"}
+              <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
             </Button>
+            {avatarUrl && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                disabled={removeAvatarMutation.isPending}
+                onClick={() =>
+                  removeAvatarMutation.mutate(undefined, {
+                    onSuccess: () => setAvatarUrl(null),
+                  })
+                }
+              >
+                Remove photo
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -228,7 +226,6 @@ export function ProfilePage() {
             <TextField
               label="Username"
               value={username}
-              disabled={!editing}
               onChange={(e) => setUsername(e.target.value)}
               fullWidth
             />
@@ -242,13 +239,12 @@ export function ProfilePage() {
             <TextField
               label="Bio"
               value={bio}
-              disabled={!editing}
               onChange={(e) => setBio(e.target.value)}
               multiline
               minRows={3}
               fullWidth
               inputProps={{ maxLength: 300 }}
-              helperText={editing ? `${bio.length}/300` : undefined}
+              helperText={`${bio.length}/300`}
             />
             <TextField
               label="Member since"
@@ -257,35 +253,11 @@ export function ProfilePage() {
               fullWidth
             />
 
-            {editing && (
-              <Button
-                variant="contained"
-                disabled={
-                  updateProfileMutation.isPending || !username.trim() || !hasChanges
-                }
-                onClick={() =>
-                  updateProfileMutation.mutate(
-                    { username: username.trim(), bio },
-                    {
-                      onSuccess: (updated) => {
-                        setUsername(updated.username);
-                        setBio(updated.bio);
-                        setSaved(true);
-                        setEditing(false);
-                      },
-                    }
-                  )
-                }
-              >
-                {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            )}
-
             {updateProfileMutation.isError && (
               <Alert severity="error">{(updateProfileMutation.error as Error).message}</Alert>
             )}
 
-            {saved && (
+            {saved && !hasChanges && (
               <Alert severity="success" onClose={() => setSaved(false)}>
                 Profile updated successfully.
               </Alert>
@@ -431,6 +403,46 @@ export function ProfilePage() {
                 Sign out
               </Button>
             </Stack>
+          </Stack>
+        </Paper>
+      )}
+
+      {hasChanges && tab === "Personal" && (
+        <Paper
+          elevation={4}
+          sx={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: theme => theme.zIndex.appBar,
+            borderRadius: 0,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            px: { xs: 2, md: 3 },
+            py: 1.5,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            justifyContent="flex-end"
+            sx={{ maxWidth: 880, mx: "auto" }}
+          >
+            <Typography variant="body2" color="text.secondary" sx={{ mr: "auto", display: { xs: "none", sm: "block" } }}>
+              You have unsaved changes
+            </Typography>
+            <Button variant="outlined" color="inherit" onClick={handleDiscardChanges}>
+              Discard
+            </Button>
+            <Button
+              variant="contained"
+              disabled={updateProfileMutation.isPending || !username.trim()}
+              onClick={handleSaveChanges}
+            >
+              {updateProfileMutation.isPending ? "Saving…" : "Save changes"}
+            </Button>
           </Stack>
         </Paper>
       )}

@@ -3,6 +3,7 @@ import { Box, Paper, Stack, Typography } from "@mui/material";
 import { CalendarRange } from "lucide-react";
 import { useCampaignContext } from "../hooks/useCampaignContext";
 import { useContentPosts } from "../../content-posts/content-posts.queries";
+import { getEffectiveContentStatus } from "../../content-posts/content-posts.display";
 import { StatusChip } from "../../../shared/ui/StatusChip";
 
 function formatDate(value: string | null | undefined): { day: string; time: string } | null {
@@ -96,7 +97,7 @@ export function CampaignTimelinePage() {
                       {kind === "published" ? "Published" : "Scheduled"} · {post.contentType}
                     </Typography>
                   </Box>
-                  <StatusChip status={post.status} />
+                  <StatusChip status={getEffectiveContentStatus(post)} />
                 </Stack>
               );
             })}

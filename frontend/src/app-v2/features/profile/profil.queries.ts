@@ -7,6 +7,7 @@ import {
   Profile,
   UpdateProfilePayload,
 } from "./profil.api";
+import { authStorage } from "../../shared/lib/storage";
 
 export const profileKeys = {
   all: ["profile"] as const,
@@ -16,6 +17,7 @@ export const useProfile = () => {
   return useQuery<Profile>({
     queryKey: profileKeys.all,
     queryFn: getProfile,
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -26,6 +28,10 @@ export const useUpdateProfile = () => {
     mutationFn: (payload: UpdateProfilePayload) => updateProfile(payload),
     onSuccess: (updated) => {
       queryClient.setQueryData<Profile>(profileKeys.all, updated);
+      const userId = authStorage.getUserId();
+      if (userId) {
+        authStorage.setUser(userId, updated.username, updated.email);
+      }
     },
   });
 };

@@ -126,28 +126,45 @@ public class ContentPostService : IContentPostService
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        if (contentPost.Status == ContentStatus.Archived)
+        if (contentPost.Status == ContentStatus.Deleted)
             throw new KeyNotFoundException("Content post not found");
 
         var channelId = await ResolveChannelIdAsync(teamId, dto.ChannelId, contentPost.ChannelId);
         await ValidateCampaignAsync(teamId, channelId, dto.CampaignId);
 
+        var normalizedTitle = Normalize(dto.Title);
+        var normalizedImageUrl = Normalize(dto.ImageUrl);
+        var normalizedContentJson = JsonContentValidator.Normalize(dto.ContentJson);
+        var contentChanged =
+            normalizedTitle != contentPost.Title ||
+            normalizedImageUrl != contentPost.ImageUrl ||
+            normalizedContentJson != contentPost.ContentJson ||
+            dto.PostVariants is not null;
+
+        if (contentChanged && contentPost.Status is ContentStatus.Ready or ContentStatus.Scheduled or ContentStatus.Published)
+        {
+            if (contentPost.Status == ContentStatus.Scheduled)
+                await _publicationService.CancelPendingSchedulesAsync(teamId, contentPostId);
+
+            contentPost.Status = ContentStatus.Draft;
+        }
+
         contentPost.ChannelId = channelId;
         contentPost.CampaignId = dto.CampaignId;
-        contentPost.Title = Normalize(dto.Title);
-        contentPost.ImageUrl = Normalize(dto.ImageUrl);
+        contentPost.Title = normalizedTitle;
+        contentPost.ImageUrl = normalizedImageUrl;
         contentPost.ContentType = dto.ContentType;
-        contentPost.ContentJson = JsonContentValidator.Normalize(dto.ContentJson);
-        if (dto.Status != contentPost.Status)
+        contentPost.ContentJson = normalizedContentJson;
+
+        if (dto.Status.HasValue && dto.Status.Value != contentPost.Status)
         {
-            if (dto.Status == ContentStatus.Scheduled)
+            if (dto.Status.Value == ContentStatus.Scheduled)
                 throw new InvalidOperationException("Use schedule endpoint to move content post to Scheduled");
 
-            if (dto.Status == ContentStatus.Published)
+            if (dto.Status.Value == ContentStatus.Published)
                 throw new InvalidOperationException("Use publish endpoint to move content post to Published");
 
-        if (dto.Status != contentPost.Status)
-            ApplyLifecycleTransition(contentPost, dto.Status);
+            ApplyLifecycleTransition(contentPost, dto.Status.Value);
         }
         contentPost.Prompt = Normalize(dto.Prompt);
         contentPost.AiModel = Normalize(dto.AiModel);
@@ -181,9 +198,68 @@ public class ContentPostService : IContentPostService
         if (dto.Status == ContentStatus.Published)
             throw new InvalidOperationException("Use publish endpoint to move content post to Published");
 
+        if (dto.Status == ContentStatus.Ready)
+            throw new InvalidOperationException("Use ready endpoint to mark content post as ready");
+
+        if (dto.Status == ContentStatus.Deleted)
+            throw new InvalidOperationException("Use delete endpoint to soft-delete content posts");
+
         if (dto.Status != contentPost.Status)
             ApplyLifecycleTransition(contentPost, dto.Status);
 
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task<ContentPostResponseDto> MarkReadyAsync(Guid teamId, int contentPostId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can mark content posts as ready");
+
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
+
+        if (contentPost.Status != ContentStatus.Draft)
+            throw new InvalidOperationException("Only draft content posts can be marked as ready");
+
+        contentPost.Status = ContentStatus.Ready;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task<ContentPostResponseDto> RestoreAsync(Guid teamId, int contentPostId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can restore content posts");
+
+        var contentPost = await _contentPostRepository.GetByIdIncludingDeletedAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
+
+        if (contentPost.Status != ContentStatus.Deleted)
+            throw new InvalidOperationException("Only deleted content posts can be restored");
+
+        contentPost.Status = ContentStatus.Draft;
+        contentPost.UpdatedAt = DateTime.UtcNow;
+        await _contentPostRepository.SaveChangesAsync();
+
+        return Map(contentPost);
+    }
+
+    public async Task<ContentPostResponseDto> CancelScheduleAsync(Guid teamId, int contentPostId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId, "Only Admin or Editor can cancel scheduled content posts");
+
+        var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
+            ?? throw new KeyNotFoundException("Content post not found");
+
+        if (contentPost.Status != ContentStatus.Scheduled)
+            throw new InvalidOperationException("Only scheduled content posts can have their schedule cancelled");
+
+        await _publicationService.CancelPendingSchedulesAsync(teamId, contentPostId);
+
+        contentPost.Status = ContentStatus.Draft;
         contentPost.UpdatedAt = DateTime.UtcNow;
         await _contentPostRepository.SaveChangesAsync();
 
@@ -255,7 +331,7 @@ public class ContentPostService : IContentPostService
         var contentPost = await _contentPostRepository.GetByIdAsync(teamId, contentPostId)
             ?? throw new KeyNotFoundException("Content post not found");
 
-        contentPost.Status = ContentStatus.Archived;
+        contentPost.Status = ContentStatus.Deleted;
         contentPost.UpdatedAt = DateTime.UtcNow;
 
         await _contentPostRepository.SaveChangesAsync();
@@ -297,6 +373,24 @@ public class ContentPostService : IContentPostService
 
     private static ContentPostResponseDto Map(ContentPost contentPost)
     {
+        var activePublications = contentPost.Publications
+            .Where(p => p.Status is PublicationStatus.Scheduled or PublicationStatus.Queued)
+            .ToList();
+
+        DateTime? scheduledAt = activePublications
+            .Where(p => p.ScheduledAt.HasValue)
+            .Select(p => p.ScheduledAt)
+            .OrderBy(d => d)
+            .FirstOrDefault();
+
+        DateTime? publishedAt = contentPost.Publications
+            .Where(p => p.Status == PublicationStatus.Published && p.PublishedAt.HasValue)
+            .Select(p => p.PublishedAt)
+            .OrderByDescending(d => d)
+            .FirstOrDefault();
+
+        var status = ContentPostStatusResolver.Resolve(contentPost.Status, scheduledAt, publishedAt);
+
         return new ContentPostResponseDto(
             contentPost.Id,
             contentPost.TeamId,
@@ -305,11 +399,14 @@ public class ContentPostService : IContentPostService
             contentPost.Title,
             contentPost.ContentType,
             contentPost.ContentJson,
-            contentPost.Status,
+            status,
             contentPost.Prompt,
             contentPost.AiModel,
             contentPost.AiTokens,
             contentPost.ImageUrl,
+            scheduledAt,
+            publishedAt,
+            contentPost.Campaign?.Name,
             contentPost.CreatedAt,
             contentPost.UpdatedAt,
             contentPost.PostVariants.Select(Map).ToList()
@@ -344,18 +441,20 @@ public class ContentPostService : IContentPostService
 
     private static void EnsureValidLifecycleTransition(ContentStatus currentStatus, ContentStatus targetStatus)
     {
-        if (currentStatus == ContentStatus.Archived)
-            throw new InvalidOperationException("Archived content posts cannot be transitioned");
+        if (currentStatus == ContentStatus.Deleted)
+            throw new InvalidOperationException("Deleted content posts cannot be transitioned");
 
         if (currentStatus == targetStatus)
             return;
 
         var isValidTransition =
-            (currentStatus == ContentStatus.Draft && targetStatus == ContentStatus.Review) ||
-            (currentStatus == ContentStatus.Review && targetStatus == ContentStatus.Approved) ||
-            (currentStatus == ContentStatus.Approved && targetStatus == ContentStatus.Scheduled) ||
+            (currentStatus == ContentStatus.Draft && targetStatus == ContentStatus.Ready) ||
+            (currentStatus == ContentStatus.Ready && targetStatus == ContentStatus.Draft) ||
+            (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Ready) ||
+            (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Draft) ||
             (currentStatus == ContentStatus.Scheduled && targetStatus == ContentStatus.Published) ||
-            (currentStatus == ContentStatus.Published && targetStatus == ContentStatus.Archived);
+            (currentStatus == ContentStatus.Published && targetStatus == ContentStatus.Draft) ||
+            (currentStatus == ContentStatus.Published && targetStatus == ContentStatus.Deleted);
 
         if (!isValidTransition)
             throw new InvalidOperationException($"Invalid content post status transition: {currentStatus} -> {targetStatus}");

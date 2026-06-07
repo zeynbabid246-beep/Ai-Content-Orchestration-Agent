@@ -204,11 +204,6 @@ namespace AiContentFlow.Application.Features.Auth
 
             if (tokenData.IsRevoked)
             {
-                if (!string.IsNullOrWhiteSpace(tokenData.ReplacedByTokenHash))
-                {
-                    await _refreshTokenRepository.RevokeByTokenHashAsync(tokenData.ReplacedByTokenHash);
-                }
-
                 throw new UnauthorizedAccessException("Token revoked");
             }
 

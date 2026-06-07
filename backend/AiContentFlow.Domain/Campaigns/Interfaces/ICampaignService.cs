@@ -8,6 +8,8 @@ public interface ICampaignService
     Task<List<CampaignResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId);
     Task<CampaignResponseDto> GetByIdAsync(Guid teamId, int campaignId, string requestingUserId);
     Task<CampaignResponseDto> UpdateAsync(Guid teamId, int campaignId, string requestingUserId, UpdateCampaignDto dto);
+    Task<CampaignResponseDto> ArchiveAsync(Guid teamId, int campaignId, string requestingUserId);
+    Task<CampaignResponseDto> RestoreAsync(Guid teamId, int campaignId, string requestingUserId);
     Task DeleteAsync(Guid teamId, int campaignId, string requestingUserId);
     Task LinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId);
     Task UnlinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId);
@@ -16,4 +18,6 @@ public interface ICampaignService
         int campaignId,
         string requestingUserId,
         BulkCreateCampaignPostsDto dto);
+
+    Task SetAiGenerationMetadataAsync(Guid teamId, int campaignId, string metadataJson);
 }

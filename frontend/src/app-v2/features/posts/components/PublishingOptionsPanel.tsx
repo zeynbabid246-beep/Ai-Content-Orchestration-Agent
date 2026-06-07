@@ -5,7 +5,7 @@ import type { SocialAccount } from "../../social-media/social-accounts.types";
 
 interface PublishingOptionsPanelProps {
   disabled: boolean;
-  approved: boolean;
+  workflowReady: boolean;
   publishedAt: string | null | undefined;
   scheduledAt: string;
   onScheduledAtChange: (value: string) => void;
@@ -20,7 +20,7 @@ interface PublishingOptionsPanelProps {
 
 export function PublishingOptionsPanel({
   disabled,
-  approved,
+  workflowReady,
   publishedAt,
   scheduledAt,
   onScheduledAtChange,
@@ -56,7 +56,7 @@ export function PublishingOptionsPanel({
         </Typography>
       </Stack>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-        Separate from editorial state. Posts must be approved before publishing actions take effect.
+        Publish now or schedule for a future date.
       </Typography>
 
       {publishedAt ? (
@@ -65,9 +65,9 @@ export function PublishingOptionsPanel({
         </Alert>
       ) : null}
 
-      {!approved && !publishedAt ? (
+      {!workflowReady && !publishedAt ? (
         <Alert severity="info" sx={{ mb: 1.5 }}>
-          Move this post through Review → Approved before scheduling or publishing.
+          Finish editing the post before scheduling or publishing.
         </Alert>
       ) : null}
 
@@ -109,7 +109,7 @@ export function PublishingOptionsPanel({
           value={scheduledAt}
           onChange={(event) => onScheduledAtChange(event.target.value)}
           InputLabelProps={{ shrink: true }}
-          disabled={disabled || !approved}
+          disabled={disabled || !workflowReady}
         />
 
         <Stack direction="row" spacing={1}>
@@ -119,7 +119,7 @@ export function PublishingOptionsPanel({
             size="small"
             startIcon={<CalendarClock size={14} />}
             onClick={onSchedule}
-            disabled={busy || disabled || !approved || !scheduledAt || !selectedAccountId}
+            disabled={busy || disabled || !workflowReady || !scheduledAt || !selectedAccountId}
           >
             Schedule
           </Button>
@@ -130,7 +130,7 @@ export function PublishingOptionsPanel({
             color="warning"
             startIcon={<Send size={14} />}
             onClick={onPublishNow}
-            disabled={busy || disabled || !approved || !selectedAccountId}
+            disabled={busy || disabled || !workflowReady || !selectedAccountId}
           >
             Publish
           </Button>

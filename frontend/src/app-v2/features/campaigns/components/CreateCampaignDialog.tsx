@@ -12,7 +12,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { CampaignStatus, type Campaign, type CreateCampaignRequest } from "../campaigns.types";
+import type { Campaign, CreateCampaignRequest } from "../campaigns.types";
 
 const OBJECTIVE_OPTIONS = [
   { value: "", label: "Use brand default" },
@@ -51,7 +51,6 @@ function CreateCampaignDialogInner({
   const [objective, setObjective] = useState(initial?.objective ?? "");
   const [toneOfVoice, setToneOfVoice] = useState(initial?.toneOfVoiceOverride ?? "");
   const [targetAudience, setTargetAudience] = useState(initial?.targetAudienceOverride ?? "");
-  const [status, setStatus] = useState<CampaignStatus>(initial?.status ?? CampaignStatus.Draft);
 
   const canSubmit = name.trim().length >= 2 && !saving;
 
@@ -64,7 +63,6 @@ function CreateCampaignDialogInner({
       name: name.trim(),
       description: objectivePrefix || undefined,
       channelId,
-      status,
       objective: objective || undefined,
       toneOfVoiceOverride: toneOfVoice || undefined,
       targetAudienceOverride: targetAudience || undefined,
@@ -111,33 +109,19 @@ function CreateCampaignDialogInner({
             minRows={3}
           />
 
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField
-              select
-              label="Objective"
-              value={objective}
-              onChange={(event) => setObjective(event.target.value)}
-              fullWidth
-            >
-              {OBJECTIVE_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              select
-              label="Initial status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as CampaignStatus)}
-              fullWidth
-            >
-              <MenuItem value={CampaignStatus.Draft}>Draft</MenuItem>
-              <MenuItem value={CampaignStatus.Active}>Active</MenuItem>
-              <MenuItem value={CampaignStatus.Paused}>Paused</MenuItem>
-            </TextField>
-          </Stack>
+          <TextField
+            select
+            label="Objective"
+            value={objective}
+            onChange={(event) => setObjective(event.target.value)}
+            fullWidth
+          >
+            {OBJECTIVE_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <TextField

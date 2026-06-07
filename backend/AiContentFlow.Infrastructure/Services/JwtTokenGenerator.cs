@@ -10,12 +10,14 @@ namespace AiContentFlow.Infrastructure.Services;
 
 public class JwtTokenGenerator : IJwtTokenGenerator
 {
+    private readonly IConfiguration _configuration;
     private readonly string _secret;
     private readonly string _issuer;
     private readonly string _audience;
 
     public JwtTokenGenerator(IConfiguration configuration)
     {
+        _configuration = configuration;
         _secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Jwt:Secret is not configured");
         _issuer = configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is not configured");
         _audience = configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience is not configured");
@@ -33,11 +35,13 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        var accessTokenMinutes = _configuration.GetValue("Jwt:AccessTokenMinutes", 480);
+
         var token = new JwtSecurityToken(
             issuer: _issuer,
             audience: _audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddMinutes(accessTokenMinutes),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

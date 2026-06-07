@@ -15,7 +15,12 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import { BrandStudioEmptyState } from "../components/BrandStudioEmptyState";
 import { ImportStatus } from "../components/ImportStatus";
-import { useBrandImportJob, useBrandStudio, useStartBrandImport } from "../hooks/useBrandStudio";
+import {
+  useBrandImportJob,
+  useBrandStudio,
+  useCreateManualBrandStudio,
+  useStartBrandImport,
+} from "../hooks/useBrandStudio";
 import { updateBrandStudio } from "../services/brandStudio.service";
 import { formatAiError, syncBrandToAi } from "../../ai/ai.api";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
@@ -89,6 +94,7 @@ export function BrandStudioPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const brandStudioQuery = useBrandStudio();
   const importMutation = useStartBrandImport();
+  const manualCreateMutation = useCreateManualBrandStudio();
   const jobQuery = useBrandImportJob(activeJobId);
   const refetchBrandStudio = brandStudioQuery.refetch;
 
@@ -118,8 +124,11 @@ export function BrandStudioPage() {
   }, [brandStudio]);
 
   const canAccept = useMemo(() => {
-    return canImportBrand && !saving && (parsedProfile.websiteUrl?.trim().length ?? 0) > 0;
-  }, [canImportBrand, saving, parsedProfile.websiteUrl]);
+    const hasIdentity =
+      (parsedProfile.brandName?.trim().length ?? 0) > 0 ||
+      (parsedProfile.brandSummary?.trim().length ?? 0) > 0;
+    return canImportBrand && !saving && hasIdentity;
+  }, [canImportBrand, saving, parsedProfile.brandName, parsedProfile.brandSummary]);
 
   const handleImport = (websiteUrl: string) => {
     if (!websiteUrl) return;
@@ -128,6 +137,24 @@ export function BrandStudioPage() {
       { websiteUrl },
       {
         onSuccess: (data) => setActiveJobId(data.job.id),
+      }
+    );
+  };
+
+  const handleCreateManual = (profile: BrandParsedProfile) => {
+    manualCreateMutation.mutate(
+      { parsedProfile: profile },
+      {
+        onSuccess: async (created) => {
+          setParsedProfile(created.parsedProfile);
+          setEnrichedProfile(created.enrichedProfile);
+          try {
+            await syncBrandToAi();
+            setSyncMessage("Brand profile created and synced to the AI service.");
+          } catch (syncErr) {
+            setSyncMessage(formatAiError(syncErr));
+          }
+        },
       }
     );
   };
@@ -157,11 +184,11 @@ export function BrandStudioPage() {
     <Stack spacing={3}>
       <Box>
         <Typography variant="h4" sx={{ mb: 0.5 }}>
-          Brand Studio
+          Brand DNA
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Import a website or edit your profile manually. AI campaigns sync this context to the AI
-          backend (strategy, planning, and content generation).
+          Import a website or create a brand profile manually. AI campaigns and Quick Generate can
+          use this context when enabled.
         </Typography>
       </Box>
 
@@ -173,9 +200,17 @@ export function BrandStudioPage() {
         <Alert severity="error">{importMutation.error.message}</Alert>
       ) : null}
 
+      {manualCreateMutation.isError ? (
+        <Alert severity="error">{manualCreateMutation.error.message}</Alert>
+      ) : null}
+
       {!brandStudio ? (
         <Stack spacing={3}>
-          <BrandStudioEmptyState isSubmitting={importMutation.isPending} onImport={handleImport} />
+          <BrandStudioEmptyState
+            isSubmitting={importMutation.isPending || manualCreateMutation.isPending}
+            onImport={handleImport}
+            onCreateManual={handleCreateManual}
+          />
           <ImportStatus job={displayedJob} />
         </Stack>
       ) : (

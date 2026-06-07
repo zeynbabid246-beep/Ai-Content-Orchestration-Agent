@@ -25,6 +25,7 @@ public interface ILocalAiBackendClient
         IReadOnlyList<string> platforms,
         string? customPrompt,
         string correlationId,
+        string? trendIntelligence = null,
         CancellationToken cancellationToken = default);
 
     Task<JsonElement> GeneratePlanningAsync(
@@ -34,6 +35,8 @@ public interface ILocalAiBackendClient
         IReadOnlyList<string> platforms,
         string language,
         string correlationId,
+        string? selectedContentDirection = null,
+        string directionMode = "single",
         CancellationToken cancellationToken = default);
 
     Task<JsonElement> GenerateCampaignContentAsync(
@@ -41,7 +44,8 @@ public interface ILocalAiBackendClient
         JsonElement planning,
         int planningId,
         string orgId,
-        string platform,
+        IReadOnlyList<string> platforms,
+        string primaryPlatform,
         object? brandContext,
         string language,
         string correlationId,
@@ -53,4 +57,19 @@ public interface ILocalAiBackendClient
         CancellationToken cancellationToken = default);
 
     Task<bool> GetHealthAsync(CancellationToken cancellationToken = default);
+
+    Task<JsonElement> AssistantChatAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default);
+
+    Task<JsonElement> GeneratePosterAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default);
+
+    Task<JsonElement> GenerateCarouselAsync(
+        object requestBody,
+        string correlationId,
+        CancellationToken cancellationToken = default);
 }

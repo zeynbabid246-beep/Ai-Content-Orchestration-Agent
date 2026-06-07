@@ -16,7 +16,7 @@ export const ROUTES = {
   dashboard: "/app/dashboard",
   generate: "/app/generate",
   contentFeed: "/app/content-feed",
-  scheduler: "/app/scheduler",
+  calendar: "/app/calendar",
 
   // Operations
   channels: "/app/channels",
@@ -83,4 +83,6 @@ export const campaignPaths = {
     `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/analytics`,
   settings: (channelId: number | string, campaignId: number | string) =>
     `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/settings`,
+  aiPlan: (channelId: number | string, campaignId: number | string) =>
+    `${ROUTES.channels}/${channelId}/campaigns/${campaignId}/ai-plan`,
 };

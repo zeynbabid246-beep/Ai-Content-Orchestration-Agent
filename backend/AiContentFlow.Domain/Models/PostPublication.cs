@@ -45,6 +45,12 @@ public class PostPublication
         UpdatedAt = utcNow;
     }
 
+    public void MarkCancelled(DateTime utcNow)
+    {
+        Status = PublicationStatus.Cancelled;
+        UpdatedAt = utcNow;
+    }
+
     public void MarkFailed(string? errorMessage, DateTime utcNow)
     {
         Status = PublicationStatus.Failed;

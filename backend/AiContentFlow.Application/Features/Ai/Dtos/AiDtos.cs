@@ -10,7 +10,10 @@ public record GeneratePostRequestDto(
     int? CampaignId,
     bool UseBrandContext = true,
     SocialPlatform? Platform = null,
-    string? Format = null);
+    string? Format = null,
+    bool IncludeHashtags = false,
+    bool IncludeCta = true,
+    bool IncludeEmojis = false);
 
 public record GeneratePostResponseDto(
     string ContentJson,
@@ -114,7 +117,9 @@ public record CampaignStrategyStepResponseDto(
 public record CampaignPlanningStepRequestDto(
     CampaignAiPipelineConfigDto Config,
     int StrategyId,
-    JsonElement Strategy);
+    JsonElement Strategy,
+    string? SelectedContentDirection = null,
+    string DirectionMode = "single");
 
 public record CampaignPlanningStepResponseDto(
     int? PlanningId,
@@ -134,4 +139,42 @@ public record CampaignContentStepResponseDto(
     IReadOnlyList<SuggestedCampaignPostDto> Posts,
     string CampaignName,
     string Description,
+    string CorrelationId);
+
+public record AssistantChatRequestDto(
+    string Message,
+    string? Language = null,
+    Dictionary<string, JsonElement>? Context = null);
+
+public record AssistantScreenshotDto(
+    string Title,
+    string Url,
+    string? Description = null);
+
+public record AssistantChatResponseDto(
+    string Answer,
+    string Intent,
+    string? BrandId,
+    string? TargetAgent,
+    bool NeedsBrandSelection,
+    IReadOnlyList<string> SuggestedActions,
+    string? Language,
+    IReadOnlyList<AssistantScreenshotDto> Screenshots,
+    Dictionary<string, JsonElement> Metadata,
+    string? CorrelationId = null);
+
+public record GeneratePostCreativeRequestDto(
+    int ContentPostId,
+    SocialPlatform? Platform = null,
+    string Language = "English",
+    string? VisualDirection = null,
+    bool PersistToPost = true);
+
+public record GeneratePostCreativeResponseDto(
+    int ContentPostId,
+    string CreativeMode,
+    string? PosterUrl,
+    IReadOnlyList<string> CarouselAssets,
+    string? CreativeError,
+    string ContentJson,
     string CorrelationId);

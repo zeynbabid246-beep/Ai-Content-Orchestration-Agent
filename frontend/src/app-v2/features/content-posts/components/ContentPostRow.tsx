@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { StatusChip } from "../../../shared/ui/StatusChip";
 import { postEditorPath } from "../../../shared/lib/routes";
 import type { ContentPost } from "../content-posts.types";
+import { ContentStatus } from "../content-posts.types";
+import { getEffectiveContentStatus } from "../content-posts.display";
 import { PLATFORM_COLORS, PLATFORM_LABELS } from "../../posts/utils/variantPreview";
 
 export interface ContentPostRowProps {
@@ -38,13 +40,14 @@ export function ContentPostRow({
   const channelId = post.channelId;
   const canOpen = channelId != null;
 
+  const effectiveStatus = getEffectiveContentStatus(post);
   const meta: string[] = [];
   if (showChannel && channelName) meta.push(channelName);
   if (showCampaign && campaignName) meta.push(campaignName);
   const updated = formatWhen(post.updatedAt);
   if (updated) meta.push(`Updated ${updated}`);
   const scheduled = formatWhen(post.scheduledAt);
-  if (scheduled && post.status === "Scheduled") meta.push(`Scheduled ${scheduled}`);
+  if (scheduled && effectiveStatus === ContentStatus.Scheduled) meta.push(`Scheduled ${scheduled}`);
 
   const platformVariants = (post.postVariants ?? []).filter(
     (variant) => PLATFORM_LABELS[variant.platform] != null
@@ -121,7 +124,7 @@ export function ContentPostRow({
           </Stack>
         ) : null}
       </Box>
-      <StatusChip status={post.status} />
+      <StatusChip status={effectiveStatus} />
       {canOpen ? <ChevronRight size={16} style={{ opacity: 0.45, flexShrink: 0 }} /> : null}
     </Stack>
   );

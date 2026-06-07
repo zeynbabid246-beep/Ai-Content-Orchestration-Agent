@@ -72,7 +72,7 @@ public class CampaignService : ICampaignService
             Objective = Normalize(dto.Objective) ?? defaults?.DefaultCampaignObjective,
             ToneOfVoiceOverride = Normalize(dto.ToneOfVoiceOverride) ?? defaults?.DefaultToneOfVoice,
             TargetAudienceOverride = Normalize(dto.TargetAudienceOverride) ?? defaults?.DefaultTargetAudience,
-            Status = dto.Status,
+            Status = CampaignStatus.Active,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -87,7 +87,7 @@ public class CampaignService : ICampaignService
             "Campaign",
             campaign.Id.ToString());
 
-        return Map(campaign, Array.Empty<ContentPost>());
+        return Map(campaign, Array.Empty<ContentPost>(), EmptyPostSummary);
     }
 
     public async Task<List<CampaignResponseDto>> GetByTeamAsync(Guid teamId, string requestingUserId)
@@ -99,7 +99,16 @@ public class CampaignService : ICampaignService
             throw new UnauthorizedAccessException("Not a team member");
 
         var campaigns = await _campaignRepository.GetByTeamAsync(teamId);
-        return campaigns.Select(c => Map(c, Array.Empty<ContentPost>())).ToList();
+        var summaries = await _contentPostRepository.GetPostSummariesByCampaignAsync(
+            teamId,
+            campaigns.Select(c => c.Id));
+
+        return campaigns
+            .Select(c => Map(
+                c,
+                Array.Empty<ContentPost>(),
+                summaries.GetValueOrDefault(c.Id, EmptyPostSummary)))
+            .ToList();
     }
 
     public async Task<CampaignResponseDto> GetByIdAsync(Guid teamId, int campaignId, string requestingUserId)
@@ -139,7 +148,6 @@ public class CampaignService : ICampaignService
         campaign.Objective = string.IsNullOrWhiteSpace(dto.Objective) ? campaign.Objective : dto.Objective.Trim();
         campaign.ToneOfVoiceOverride = string.IsNullOrWhiteSpace(dto.ToneOfVoiceOverride) ? campaign.ToneOfVoiceOverride : dto.ToneOfVoiceOverride.Trim();
         campaign.TargetAudienceOverride = string.IsNullOrWhiteSpace(dto.TargetAudienceOverride) ? campaign.TargetAudienceOverride : dto.TargetAudienceOverride.Trim();
-        campaign.Status = dto.Status;
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _campaignRepository.SaveChangesAsync();
@@ -167,6 +175,40 @@ public class CampaignService : ICampaignService
             TeamActivityActions.CampaignDeleted,
             "Campaign",
             campaign.Id.ToString());
+    }
+
+    public async Task<CampaignResponseDto> ArchiveAsync(Guid teamId, int campaignId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+
+        var campaign = await EnsureCampaignMutableAsync(teamId, campaignId);
+
+        if (campaign.Status == CampaignStatus.Archived)
+            throw new InvalidOperationException("Campaign is already archived");
+
+        campaign.Status = CampaignStatus.Archived;
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _campaignRepository.SaveChangesAsync();
+
+        var posts = await _contentPostRepository.GetByCampaignAsync(teamId, campaignId);
+        return Map(campaign, posts);
+    }
+
+    public async Task<CampaignResponseDto> RestoreAsync(Guid teamId, int campaignId, string requestingUserId)
+    {
+        await EnsureCanMutateAsync(teamId, requestingUserId);
+
+        var campaign = await EnsureCampaignMutableAsync(teamId, campaignId);
+
+        if (campaign.Status == CampaignStatus.Active)
+            throw new InvalidOperationException("Campaign is already active");
+
+        campaign.Status = CampaignStatus.Active;
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _campaignRepository.SaveChangesAsync();
+
+        var posts = await _contentPostRepository.GetByCampaignAsync(teamId, campaignId);
+        return Map(campaign, posts);
     }
 
     public async Task LinkContentPostAsync(Guid teamId, int campaignId, string requestingUserId, int contentPostId)
@@ -283,6 +325,16 @@ public class CampaignService : ICampaignService
         return new BulkCreateCampaignPostsResponseDto(createdIds.Count, createdIds);
     }
 
+    public async Task SetAiGenerationMetadataAsync(Guid teamId, int campaignId, string metadataJson)
+    {
+        var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
+            ?? throw new KeyNotFoundException("Campaign not found");
+
+        campaign.AiGenerationMetadata = metadataJson;
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _campaignRepository.SaveChangesAsync();
+    }
+
     private async Task EnsureCanMutateAsync(Guid teamId, string requestingUserId)
     {
         var membership = await _teamRepository.GetUserMembershipAsync(teamId, requestingUserId)
@@ -292,7 +344,23 @@ public class CampaignService : ICampaignService
             throw new UnauthorizedAccessException("Only Admin/Editor can manage campaigns");
     }
 
-    private static CampaignResponseDto Map(Campaign campaign, IReadOnlyList<ContentPost> linkedPosts)
+    private async Task<Campaign> EnsureCampaignMutableAsync(Guid teamId, int campaignId)
+    {
+        var campaign = await _campaignRepository.GetByIdAsync(teamId, campaignId)
+            ?? throw new KeyNotFoundException("Campaign not found");
+
+        if (campaign.IsDeleted)
+            throw new InvalidOperationException("Campaign is deleted");
+
+        return campaign;
+    }
+
+    private static readonly CampaignPostSummaryDto EmptyPostSummary = new(0, 0, 0);
+
+    private static CampaignResponseDto Map(
+        Campaign campaign,
+        IReadOnlyList<ContentPost> linkedPosts,
+        CampaignPostSummaryDto? postSummary = null)
     {
         var contentPosts = linkedPosts
             .Select(p => new CampaignContentPostResponseDto(
@@ -300,6 +368,8 @@ public class CampaignService : ICampaignService
                 p.UpdatedAt,
                 p.CreatedByUserId))
             .ToList();
+
+        var summary = postSummary ?? BuildPostSummary(linkedPosts);
 
         return new CampaignResponseDto(
             campaign.Id,
@@ -311,9 +381,34 @@ public class CampaignService : ICampaignService
             campaign.ToneOfVoiceOverride,
             campaign.TargetAudienceOverride,
             campaign.Status,
+            summary,
             campaign.CreatedAt,
             campaign.UpdatedAt,
             contentPosts);
+    }
+
+    private static CampaignPostSummaryDto BuildPostSummary(IReadOnlyList<ContentPost> linkedPosts)
+    {
+        var draftCount = 0;
+        var scheduledCount = 0;
+        var publishedCount = 0;
+
+        foreach (var post in linkedPosts)
+        {
+            if (post.Status == ContentStatus.Deleted)
+                continue;
+
+            var effectiveStatus = ContentPostStatusResolver.Resolve(post.Status, post.Publications);
+
+            if (effectiveStatus is ContentStatus.Draft or ContentStatus.Ready)
+                draftCount++;
+            else if (effectiveStatus == ContentStatus.Scheduled)
+                scheduledCount++;
+            else if (effectiveStatus == ContentStatus.Published)
+                publishedCount++;
+        }
+
+        return new CampaignPostSummaryDto(draftCount, scheduledCount, publishedCount);
     }
 
     private static string NormalizeRequired(string value)

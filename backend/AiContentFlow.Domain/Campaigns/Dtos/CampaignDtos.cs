@@ -6,7 +6,6 @@ public record CreateCampaignDto(
     string Name,
     string? Description,
     int ChannelId,
-    CampaignStatus Status,
     string? Objective = null,
     string? ToneOfVoiceOverride = null,
     string? TargetAudienceOverride = null
@@ -16,7 +15,6 @@ public record UpdateCampaignDto(
     string Name,
     string? Description,
     int ChannelId,
-    CampaignStatus Status,
     string? Objective = null,
     string? ToneOfVoiceOverride = null,
     string? TargetAudienceOverride = null
@@ -32,6 +30,12 @@ public record CampaignContentPostResponseDto(
     string LinkedByUserId
 );
 
+public record CampaignPostSummaryDto(
+    int DraftCount,
+    int ScheduledCount,
+    int PublishedCount
+);
+
 public record CampaignResponseDto(
     int Id,
     Guid TeamId,
@@ -42,6 +46,7 @@ public record CampaignResponseDto(
     string? ToneOfVoiceOverride,
     string? TargetAudienceOverride,
     CampaignStatus Status,
+    CampaignPostSummaryDto PostSummary,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<CampaignContentPostResponseDto> ContentPosts

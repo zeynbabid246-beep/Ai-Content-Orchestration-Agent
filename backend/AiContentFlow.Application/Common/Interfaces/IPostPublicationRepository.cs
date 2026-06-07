@@ -9,6 +9,6 @@ public interface IPostPublicationRepository
     Task<PostPublication?> GetByIdempotencyKeyAsync(Guid teamId, string idempotencyKey);
     Task<PostPublication?> GetActiveByIntentAsync(Guid teamId, int contentPostId, int socialAccountId, int? postVariantId, DateTime? scheduledAt);
     Task<List<PostPublication>> GetPublishedNeedingAnalyticsAsync(DateTime utcNow, int batchSize);
-    Task<List<PostPublication>> GetByTeamAsync(Guid teamId);
+    Task<List<PostPublication>> GetPendingByContentPostAsync(Guid teamId, int contentPostId);
     Task SaveChangesAsync();
 }

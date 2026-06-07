@@ -13,6 +13,7 @@ public class Campaign
     public string? ToneOfVoiceOverride { get; set; }
     public string? TargetAudienceOverride { get; set; }
     public CampaignStatus Status { get; set; }
+    public string? AiGenerationMetadata { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; }

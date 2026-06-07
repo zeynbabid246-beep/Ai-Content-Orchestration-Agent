@@ -6,7 +6,7 @@ import { getEntityColor } from "../../../shared/lib/entityVisual";
 import { EntityCard } from "../../../shared/ui/EntityCard";
 import { campaignPaths } from "../../../shared/lib/routes";
 import type { Campaign } from "../campaigns.types";
-import { CampaignStatusChip } from "./CampaignStatusChip";
+import { CampaignProgressChips } from "./CampaignProgressChips";
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -35,7 +35,7 @@ export function CampaignCard({ campaign, postCount }: CampaignCardProps) {
       }
       trailing={
         <Stack direction="row" spacing={1} alignItems="center">
-          <CampaignStatusChip status={campaign.status} />
+          <CampaignProgressChips campaign={campaign} />
           <ArrowUpRight size={16} style={{ opacity: 0.55 }} />
         </Stack>
       }

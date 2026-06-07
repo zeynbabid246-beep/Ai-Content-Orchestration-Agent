@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getBrandImportJob, getBrandStudio, startBrandImport } from "../services/brandStudio.service";
+import {
+  createManualBrandStudio,
+  getBrandImportJob,
+  getBrandStudio,
+  startBrandImport,
+} from "../services/brandStudio.service";
 import { brandStudioKeys } from "../store/brandStudio.store";
-import type { CreateBrandImportRequest } from "../types/brandStudio.types";
+import type { CreateBrandImportRequest, CreateManualBrandStudioRequest } from "../types/brandStudio.types";
 
 export function useBrandStudio() {
   return useQuery({
@@ -32,6 +37,20 @@ export function useStartBrandImport() {
         brandStudio: data.brandStudio,
       });
       queryClient.setQueryData(brandStudioKeys.job(data.job.id), data.job);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: brandStudioKeys.detail() });
+    },
+  });
+}
+
+export function useCreateManualBrandStudio() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateManualBrandStudioRequest) => createManualBrandStudio(payload),
+    onSuccess: (brandStudio) => {
+      queryClient.setQueryData(brandStudioKeys.detail(), { brandStudio });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: brandStudioKeys.detail() });
