@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/psql\" -U postgres -c \"SELECT datname FROM pg_database WHERE datname='brand_ai';\")",
+      "Bash(\"/c/Users/zeynb/AppData/Local/Programs/Ollama/ollama.exe\" list *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(\"/c/Users/zeynb/AppData/Local/Programs/Ollama/ollama.exe\" pull *)",
+      "Bash(find \"/c/Users/zeynb/OneDrive/Bureau/aicontentflow/AI/AI-BACKEND\" -not -path \"*/\\\\.git/*\" -maxdepth 3 2>&1 | head -50)",
+      "Read(//c/Users/zeynb/OneDrive/Bureau/aicontentflow/*/.git/**)",
+      "Bash(find \"/c/Users/zeynb/OneDrive/Bureau/aicontentflow/AI/AI-BACKEND\" -not -path \"*/\\\\.git/*\" -maxdepth 2 -name \"*.txt\" -o -name \"*.env*\" -o -name \"docker-compose*\" -o -name \"create_tables*\" 2>&1 | grep -v \".git\")",
+      "Bash(venv/Scripts/uvicorn app.main:app --host 127.0.0.1 --port 8000)",
+      "Bash(curl -s http://127.0.0.1:8000/health)"
+    ]
+  }
+}

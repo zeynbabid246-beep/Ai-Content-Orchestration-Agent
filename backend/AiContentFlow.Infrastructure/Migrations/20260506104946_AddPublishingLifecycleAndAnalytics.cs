@@ -131,11 +131,18 @@ namespace AiContentFlow.Infrastructure.Migrations
                 name: "TeamId1",
                 table: "ContentPosts");
 
-            // Note: SocialAccounts.PlatformAccountId -> ExternalAccountId rename
-            // was applied by an earlier (now-deleted) migration that still has a
-            // row in __EFMigrationsHistory. The column is already named
-            // ExternalAccountId in the database, so this rename is intentionally
-            // omitted to keep auto-migrate idempotent.
+            // Rename PlatformAccountId -> ExternalAccountId (idempotent for fresh DB)
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'SocialAccounts' AND column_name = 'PlatformAccountId'
+                    ) THEN
+                        ALTER TABLE "SocialAccounts" RENAME COLUMN "PlatformAccountId" TO "ExternalAccountId";
+                    END IF;
+                END $$;
+                """);
 
             migrationBuilder.RenameColumn(
                 name: "SocialAccountId",
@@ -511,9 +518,17 @@ namespace AiContentFlow.Infrastructure.Migrations
                 name: "NextAttemptAt",
                 table: "PublishJobs");
 
-            // See note in Up(): the ExternalAccountId rename is owned by a prior
-            // (deleted) migration whose history row still exists, so we do not
-            // attempt to rename it back here either.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'SocialAccounts' AND column_name = 'ExternalAccountId'
+                    ) THEN
+                        ALTER TABLE "SocialAccounts" RENAME COLUMN "ExternalAccountId" TO "PlatformAccountId";
+                    END IF;
+                END $$;
+                """);
 
             migrationBuilder.RenameColumn(
                 name: "ScheduledAt",

@@ -162,6 +162,35 @@ public class AnalyticsAggregationService : IAnalyticsAggregationService
             topPosts);
     }
 
+    public async Task<IReadOnlyList<TopPostMetricsDto>> GetPlatformPostsAsync(
+        Guid teamId,
+        string requestingUserId,
+        string platform,
+        int days = 30)
+    {
+        await EnsureMemberAsync(teamId, requestingUserId);
+        var normalizedDays = Math.Clamp(days, 1, 90);
+        var sinceUtc = DateTime.UtcNow.Date.AddDays(-normalizedDays + 1);
+
+        var snapshots = await _aggregationRepository.GetLatestSnapshotsAsync(teamId, sinceUtc);
+
+        return snapshots
+            .Where(s => string.Equals(s.Platform, platform, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(s => s.Impressions)
+            .ThenByDescending(s => s.EngagementRate)
+            .Select(s => new TopPostMetricsDto(
+                s.PublicationId,
+                s.ContentPostId,
+                s.Title,
+                s.Platform,
+                s.Impressions,
+                s.Clicks,
+                s.Shares,
+                s.EngagementRate,
+                s.PublishedAt))
+            .ToList();
+    }
+
     private static IReadOnlyList<DailyMetricsDto> BuildEmptyDailyTrend(int days)
     {
         var trend = new List<DailyMetricsDto>();

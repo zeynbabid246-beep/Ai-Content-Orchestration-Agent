@@ -27,6 +27,7 @@ import { FileEdit, Sparkles } from "lucide-react";
 import { useBrandStudio } from "../brand-studio/hooks/useBrandStudio";
 import { ROUTES } from "../../shared/lib/routes";
 import { useSocialAccounts } from "../social-media/social-accounts.queries";
+import type { SocialAccount } from "../social-media/social-accounts.types";
 import { getSocialAuthLoginUrl } from "../social-media/social-auth.api";
 import { SocialPlatform } from "../content-posts/content-posts.types";
 import {

@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Frontend — AiContentFlow</title>
+<style>
+  :root {
+    --ink: #0f1117;
+    --ink-soft: #374151;
+    --ink-muted: #6b7280;
+    --rule: #e5e7eb;
+    --rule-strong: #d1d5db;
+    --accent: #7c3aed;
+    --accent-2: #0ea5e9;
+    --accent-light: #f5f3ff;
+    --accent-muted: #c4b5fd;
+    --surface: #ffffff;
+    --surface-alt: #fafafa;
+    --surface-code: #f3f4f6;
+    --tag-bg: #ede9fe;
+    --tag-text: #7c3aed;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --amber: #d97706;
+    --amber-bg: #fffbeb;
+    --sky: #0ea5e9;
+    --sky-bg: #f0f9ff;
+    --rose: #e11d48;
+    --serif: 'Georgia', 'Times New Roman', serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--ink);
+    background: var(--surface);
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 258px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #0f1117;
+    border-right: 1px solid #1e2130;
+    padding: 28px 0;
+    z-index: 100;
+  }
+
+  #sidebar .nav-brand {
+    padding: 0 20px 22px;
+    border-bottom: 1px solid #1e2130;
+    margin-bottom: 12px;
+  }
+
+  #sidebar .nav-brand .logo {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-muted);
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  #sidebar .nav-brand .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.4;
+  }
+
+  #sidebar .nav-brand .subtitle {
+    font-size: 11px;
+    color: #4b5563;
+    margin-top: 2px;
+  }
+
+  #sidebar nav ul { list-style: none; }
+
+  #sidebar nav li a {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 20px;
+    font-size: 12px;
+    color: #9ca3af;
+    text-decoration: none;
+    line-height: 1.4;
+    transition: color .15s, background .15s;
+    border-left: 2px solid transparent;
+  }
+
+  #sidebar nav li a:hover { color: #e2e8f0; background: #1a1d2e; }
+  #sidebar nav li a.active { color: var(--accent-muted); border-left-color: var(--accent); background: #1a1025; }
+
+  #sidebar nav li a .num {
+    font-variant-numeric: tabular-nums;
+    color: #4b5563;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  #sidebar nav .section-sep {
+    padding: 14px 20px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #374151;
+  }
+
+  /* ── PROGRESS ── */
+  #scroll-progress {
+    position: fixed;
+    top: 0; left: 258px; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transform-origin: left;
+    transform: scaleX(0);
+    z-index: 200;
+  }
+
+  /* ── MAIN ── */
+  #main { margin-left: 258px; min-height: 100vh; }
+
+  /* ── COVER ── */
+  #cover {
+    background: #0f1117;
+    color: #fff;
+    padding: 72px 56px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #cover::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 420px; height: 420px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #cover::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 200px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #cover .eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-muted);
+    margin-bottom: 18px;
+    position: relative;
+  }
+
+  #cover h1 {
+    font-family: var(--serif);
+    font-size: clamp(26px, 3.5vw, 40px);
+    font-weight: normal;
+    line-height: 1.2;
+    margin-bottom: 18px;
+    max-width: 640px;
+    position: relative;
+  }
+
+  #cover h1 em { font-style: italic; color: #c4b5fd; }
+  #cover h1 span { color: #7dd3fc; }
+
+  #cover .subtitle {
+    font-size: 14.5px;
+    color: rgba(255,255,255,0.55);
+    max-width: 540px;
+    line-height: 1.65;
+    position: relative;
+  }
+
+  #cover .tech-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 36px;
+    position: relative;
+  }
+
+  #cover .pill {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.75);
+    font-size: 11.5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: var(--mono);
+  }
+
+  /* ── CONTENT ── */
+  #content {
+    max-width: 940px;
+    padding: 0 56px 96px;
+    margin: 0 auto;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    padding-top: 60px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+
+  .section-num {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    margin-top: 5px;
+  }
+
+  .section-num.sky { background: var(--sky); }
+  .section-num.green { background: var(--green); }
+  .section-num.amber { background: var(--amber); }
+  .section-num.rose { background: var(--rose); }
+
+  .section-header h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: normal;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 32px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  p { margin-bottom: 12px; color: var(--ink-soft); }
+  strong { color: var(--ink); font-weight: 600; }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; color: var(--ink-soft); }
+  li { margin-bottom: 4px; }
+
+  /* ── CODE ── */
+  pre {
+    background: #0d0f18;
+    color: #c9d1f0;
+    border-radius: 10px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    margin: 14px 0;
+    border: 1px solid #1e2130;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--tag-bg);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+
+  /* ── DIAGRAM ── */
+  .diagram {
+    background: #07090f;
+    border: 1px solid #1a1d2e;
+    border-radius: 10px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0;
+  }
+
+  .diagram pre {
+    background: none; border: none; padding: 0; margin: 0;
+    color: #8a9bc0; font-size: 12px; line-height: 1.6;
+  }
+
+  /* ── FILE TREE ── */
+  .file-tree {
+    background: #07090f;
+    border: 1px solid #1a1d2e;
+    border-radius: 10px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: #8a9bc0;
+  }
+
+  .file-tree .folder { color: #7dd3fc; }
+  .file-tree .file { color: #c9d1f0; }
+  .file-tree .comment { color: #4b5563; }
+
+  /* ── TABLES ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 14px 0;
+    border-radius: 10px;
+    border: 1px solid var(--rule);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+
+  thead { background: #0f1117; color: #e2e8f0; }
+  thead th { padding: 10px 16px; font-weight: 600; font-size: 11.5px; letter-spacing: 0.04em; text-align: left; white-space: nowrap; }
+
+  tbody tr:nth-child(even) { background: var(--surface-alt); }
+  tbody tr:hover { background: var(--accent-light); }
+  tbody td { padding: 9px 16px; border-bottom: 1px solid var(--rule); color: var(--ink-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child { color: var(--ink); font-weight: 500; }
+  tbody td code { font-size: 11.5px; background: var(--tag-bg); color: var(--accent); padding: 1px 5px; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-light);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .callout.sky { border-left-color: var(--sky); background: var(--sky-bg); }
+  .callout.green { border-left-color: var(--green); background: var(--green-bg); }
+  .callout.amber { border-left-color: var(--amber); background: var(--amber-bg); }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+
+  .flow-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .flow-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .flow-dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .flow-dot.purple { background: var(--accent); }
+  .flow-dot.sky { background: var(--sky); }
+  .flow-dot.green { background: var(--green); }
+  .flow-dot.amber { background: var(--amber); }
+  .flow-dot.rose { background: var(--rose); }
+
+  .flow-line {
+    width: 2px;
+    flex: 1;
+    min-height: 20px;
+    background: var(--rule-strong);
+    margin: 0 auto;
+  }
+
+  .flow-body { padding-bottom: 20px; flex: 1; }
+
+  .flow-body h4 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 4px 0 4px;
+  }
+
+  .flow-body p { font-size: 13px; margin: 0; }
+  .flow-item:last-child .flow-line { display: none; }
+
+  /* ── LAYER STACK ── */
+  .layer-stack { margin: 16px 0; display: flex; flex-direction: column; gap: 2px; }
+
+  .layer {
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    border: 1px solid transparent;
+  }
+
+  .layer.purple { background: #f5f3ff; border-color: #ddd6fe; }
+  .layer.sky { background: #f0f9ff; border-color: #bae6fd; }
+  .layer.green { background: #ecfdf5; border-color: #a7f3d0; }
+  .layer.amber { background: #fffbeb; border-color: #fde68a; }
+  .layer.dark { background: #07090f; border-color: #1a1d2e; color: #8a9bc0; }
+
+  .layer .layer-tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  .layer.purple .layer-tag { background: #ddd6fe; color: var(--accent); }
+  .layer.sky .layer-tag { background: #bae6fd; color: #0369a1; }
+  .layer.green .layer-tag { background: #a7f3d0; color: #065f46; }
+  .layer.amber .layer-tag { background: #fde68a; color: #92400e; }
+  .layer.dark .layer-tag { background: #1a1d2e; color: #6b7280; }
+
+  .layer .layer-body h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .layer.dark .layer-body h4 { color: #c9d1f0; }
+  .layer .layer-body p { font-size: 12.5px; margin: 0; }
+  .layer.dark .layer-body p { color: #6b7280; }
+
+  /* ── STEPPER ── */
+  .stepper {
+    display: flex;
+    gap: 0;
+    margin: 16px 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .step-box {
+    text-align: center;
+    padding: 12px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--surface-alt);
+    min-width: 110px;
+  }
+
+  .step-box .step-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .step-box .step-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .step-box .step-sub {
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+
+  .step-arrow {
+    font-size: 18px;
+    color: var(--rule-strong);
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+
+  /* ── STATE GRID ── */
+  .state-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 14px 0;
+  }
+
+  .state-item {
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+
+  .state-item .key {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .state-item .desc { font-size: 12px; color: var(--ink-muted); }
+
+  /* ── SUMMARY ── */
+  .summary-box {
+    background: #0f1117;
+    color: #c9d1f0;
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin: 22px 0;
+    font-size: 13.5px;
+    line-height: 1.75;
+    border: 1px solid #1e2130;
+  }
+
+  .summary-box strong { color: #e2e8f0; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 28px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    border-top: 1px solid var(--rule);
+    background: var(--surface-alt);
+    margin-left: 258px;
+  }
+
+  @media (max-width: 880px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+    footer { margin-left: 0; }
+    #content { padding: 0 24px 60px; }
+    #cover { padding: 48px 24px 40px; }
+    .state-grid { grid-template-columns: 1fr; }
+    .stepper { flex-direction: column; }
+    .step-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="nav-brand">
+    <span class="logo">PFE — Documentation technique</span>
+    <span class="title">Architecture Frontend</span>
+    <span class="subtitle">AiContentFlow</span>
+  </div>
+  <nav>
+    <ul>
+      <div class="section-sep">Structure</div>
+      <li><a href="#s1"><span class="num">1</span> Vue d'ensemble</a></li>
+      <li><a href="#s2"><span class="num">2</span> Feature-Sliced Design</a></li>
+      <li><a href="#s3"><span class="num">3</span> Couche App</a></li>
+      <div class="section-sep">Communication</div>
+      <li><a href="#s4"><span class="num">4</span> Couche Shared — HTTP</a></li>
+      <li><a href="#s5"><span class="num">5</span> Pattern API → Query → Composant</a></li>
+      <div class="section-sep">Features clés</div>
+      <li><a href="#s6"><span class="num">6</span> Feature IA — pipeline agents</a></li>
+      <li><a href="#s7"><span class="num">7</span> Permissions RBAC</a></li>
+      <li><a href="#s8"><span class="num">8</span> Autosave éditeur de post</a></li>
+      <li><a href="#s9"><span class="num">9</span> Assistant IA Widget</a></li>
+      <div class="section-sep">Synthèse</div>
+      <li><a href="#s10"><span class="num">10</span> Flux complet frontend → backend</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- COVER -->
+  <header id="cover">
+    <p class="eyebrow">Rapport de Projet de Fin d'Études — Documentation technique</p>
+    <h1>Architecture <em>Frontend</em><br>— <span>Explication complète</span></h1>
+    <p class="subtitle">Feature-Sliced Design, client HTTP Axios, pipeline agents IA, RBAC, autosave, et flux de données complet de React vers le backend .NET.</p>
+    <div class="tech-pills">
+      <span class="pill">React 19</span>
+      <span class="pill">TypeScript</span>
+      <span class="pill">Feature-Sliced Design</span>
+      <span class="pill">TanStack Query</span>
+      <span class="pill">Material UI</span>
+      <span class="pill">Axios</span>
+      <span class="pill">React Router</span>
+    </div>
+  </header>
+
+  <!-- CONTENT -->
+  <main id="content">
+
+    <!-- ── SECTION 1 ── -->
+    <section class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h2>Vue d'ensemble : structure du projet</h2>
+      </div>
+
+      <div class="file-tree">
+        <span class="folder">frontend/src/</span><br>
+        ├── <span class="file">main.tsx</span>                    <span class="comment">← point d'entrée React</span><br>
+        └── <span class="folder">app-v2/</span>                     <span class="comment">← Feature-Sliced Design (FSD)</span><br>
+        &nbsp;&nbsp;&nbsp; ├── <span class="folder">app/</span>                    <span class="comment">← couche App (providers, router, thème)</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="file">AppV2Entry.tsx</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="file">AppV2Router.tsx</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="file">providers.tsx</span><br>
+        &nbsp;&nbsp;&nbsp; │   └── <span class="file">theme.ts</span><br>
+        &nbsp;&nbsp;&nbsp; ├── <span class="folder">features/</span>               <span class="comment">← couche Features (fonctionnalités métier)</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">auth/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">ai/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">campaigns/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">channels/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">content-posts/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">posts/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">analytics/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">assistant/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">brand-studio/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">calendar/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">dashboard/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">generate/</span><br>
+        &nbsp;&nbsp;&nbsp; │   ├── <span class="folder">social-media/</span><br>
+        &nbsp;&nbsp;&nbsp; │   └── <span class="folder">team/</span><br>
+        &nbsp;&nbsp;&nbsp; └── <span class="folder">shared/</span>                 <span class="comment">← couche Shared (code réutilisable)</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <span class="folder">lib/</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   ├── <span class="file">http.ts</span>         <span class="comment">← client HTTP Axios</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   ├── <span class="file">storage.ts</span>      <span class="comment">← localStorage (JWT, teamId, rôle)</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <span class="file">routes.ts</span>       <span class="comment">← constantes de routes</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <span class="folder">hooks/</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <span class="file">useTeamPermissions.ts</span> <span class="comment">← RBAC côté frontend</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <span class="folder">types/</span>              <span class="comment">← types TypeScript globaux</span><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <span class="folder">ui/</span>                 <span class="comment">← composants partagés (AppShell, routes gardées...)</span>
+      </div>
+    </section>
+
+    <!-- ── SECTION 2 ── -->
+    <section class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num sky">2</div>
+        <h2>La philosophie Feature-Sliced Design (FSD)</h2>
+      </div>
+
+      <p>Chaque feature est un dossier autonome qui suit toujours la même structure interne :</p>
+
+      <div class="file-tree">
+        <span class="folder">features/campaigns/</span><br>
+        ├── <span class="file">campaigns.api.ts</span>        <span class="comment">← fonctions d'appel HTTP (fetch/POST vers le backend)</span><br>
+        ├── <span class="file">campaigns.queries.ts</span>    <span class="comment">← hooks TanStack Query (useQuery/useMutation)</span><br>
+        ├── <span class="file">campaigns.types.ts</span>      <span class="comment">← types TypeScript</span><br>
+        ├── <span class="file">campaigns.display.ts</span>    <span class="comment">← utilitaires d'affichage (labels, couleurs...)</span><br>
+        ├── <span class="folder">components/</span>             <span class="comment">← composants React de cette feature</span><br>
+        │   ├── <span class="file">CampaignCard.tsx</span><br>
+        │   ├── <span class="file">CampaignAiStepper.tsx</span><br>
+        │   └── <span class="file">...</span><br>
+        ├── <span class="folder">pages/</span>                  <span class="comment">← pages complètes (une page = une route)</span><br>
+        │   ├── <span class="file">CampaignAiPlanPage.tsx</span><br>
+        │   ├── <span class="file">CampaignOverviewPage.tsx</span><br>
+        │   └── <span class="file">...</span><br>
+        ├── <span class="folder">hooks/</span>                  <span class="comment">← hooks métier propres à la feature</span><br>
+        │   ├── <span class="file">useCampaignAiPipeline.ts</span><br>
+        │   └── <span class="file">useCampaignContext.ts</span><br>
+        ├── <span class="folder">layouts/</span>                <span class="comment">← layouts avec Outlet React Router</span><br>
+        │   └── <span class="file">CampaignWorkspaceLayout.tsx</span><br>
+        └── <span class="folder">lib/</span>                    <span class="comment">← helpers spécifiques</span><br>
+        &nbsp;&nbsp;&nbsp; ├── <span class="file">campaignAi.types.ts</span><br>
+        &nbsp;&nbsp;&nbsp; └── <span class="file">formatGeneratedContent.ts</span>
+      </div>
+
+      <div class="callout sky">Cette règle est identique pour <code>channels/</code>, <code>auth/</code>, <code>posts/</code>, <code>analytics/</code>, etc.</div>
+    </section>
+
+    <!-- ── SECTION 3 ── -->
+    <section class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num green">3</div>
+        <h2>La couche App — <code>frontend/src/app-v2/app/</code></h2>
+      </div>
+
+      <h3>Providers (<code>providers.tsx</code>)</h3>
+
+      <pre><code>&lt;StyledEngineProvider injectFirst&gt;        // MUI — priorité CSS
+  &lt;ThemeProvider theme={appTheme}&gt;        // thème global Material UI
+    &lt;CssBaseline /&gt;                        // reset CSS
+    &lt;QueryClientProvider client={queryClient}&gt; // TanStack Query (cache HTTP)
+      {children}
+    &lt;/QueryClientProvider&gt;
+  &lt;/ThemeProvider&gt;
+&lt;/StyledEngineProvider&gt;</code></pre>
+
+      <p>Le <code>QueryClient</code> est configuré avec :</p>
+      <ul>
+        <li><code>staleTime: 60_000</code> → les données restent fraîches 60 secondes (pas de refetch inutile)</li>
+        <li><code>refetchOnWindowFocus: false</code> → pas de rechargement quand l'utilisateur revient sur l'onglet</li>
+      </ul>
+
+      <h3>Router (<code>AppV2Router.tsx</code>)</h3>
+      <p>La structure de routage reflète exactement l'architecture métier :</p>
+
+      <div class="diagram">
+<pre>
+/login, /register, /forgot-password      ← PublicOnlyRoute (redirige vers /dashboard si connecté)
+/dashboard                               ← DashboardPage
+/generate                                ← EditorRoute → GeneratePage (Admin/Editor uniquement)
+/content-feed                            ← ContentFeedPage
+/calendar                                ← CalendarPage
+/channels                                ← ChannelsListPage
+/channels/:channelId/                    ← ChannelWorkspaceLayout (layout imbriqué)
+  overview, campaigns, content, publishing, analytics, settings
+  posts/new, posts/:postId               ← PostEditorPage
+/channels/:channelId/campaigns/:campaignId/  ← CampaignWorkspaceLayout
+  overview, posts, timeline, analytics, settings
+/channels/:channelId/campaigns/:campaignId/ai-plan  ← CampaignAiPlanPage
+/campaigns                               ← CampaignsListPage (vue cross-channel)
+/integrations/social-accounts            ← SocialAccountsPage
+/brand-studio                            ← BrandStudioPage
+/invite-user                             ← AdminRoute (Admin uniquement)
+/profile                                 ← ProfilePage
+</pre>
+      </div>
+
+      <p>Les routes gardées sont des composants Outlet spécialisés :</p>
+      <ul>
+        <li><strong>ProtectedRoute</strong> → redirige vers <code>/login</code> si pas de token JWT</li>
+        <li><strong>PublicOnlyRoute</strong> → redirige vers <code>/dashboard</code> si déjà connecté</li>
+        <li><strong>AdminRoute</strong> → bloque si rôle ≠ Admin</li>
+        <li><strong>EditorRoute</strong> → bloque si rôle = Viewer</li>
+      </ul>
+    </section>
+
+    <!-- ── SECTION 4 ── -->
+    <section class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num amber">4</div>
+        <h2>La couche Shared — le client HTTP</h2>
+      </div>
+
+      <h3><code>http.ts</code> — <code>frontend/src/app-v2/shared/lib/http.ts</code></h3>
+      <p>C'est le fichier central qui gère toute la communication avec le backend. Il est basé sur Axios avec deux intercepteurs :</p>
+
+      <div class="layer-stack">
+        <div class="layer purple">
+          <span class="layer-tag">Intercepteur requête</span>
+          <div class="layer-body">
+            <h4>Ligne 17 — Attache le JWT Bearer</h4>
+            <pre style="margin:6px 0 0;"><code>// Attache automatiquement le JWT Bearer à chaque requête
+config.headers.Authorization = `Bearer ${token}`;</code></pre>
+          </div>
+        </div>
+        <div class="layer sky">
+          <span class="layer-tag">Intercepteur réponse</span>
+          <div class="layer-body">
+            <h4>Ligne 26 — Gestion automatique du refresh token</h4>
+            <pre style="margin:6px 0 0;"><code>Réponse 401 (token expiré) ?
+    → appelle POST /Auth/refresh avec le refreshToken
+    → si succès → relance la requête originale avec le nouveau token
+    → si échec  → vide le localStorage + redirige vers /login</code></pre>
+          </div>
+        </div>
+        <div class="layer amber">
+          <span class="layer-tag">Mécanisme de lock</span>
+          <div class="layer-body">
+            <h4>Ligne 132 — Prévention des refreshs multiples simultanés</h4>
+            <p>Si plusieurs requêtes expirent en même temps, un seul refresh est exécuté grâce à <code>navigator.locks.request()</code>. Les autres attendent le résultat du premier.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3><code>storage.ts</code> — <code>frontend/src/app-v2/shared/lib/storage.ts</code></h3>
+      <p>Centralise tout ce qui est stocké en localStorage :</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Clé</th><th>Contenu</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>accessToken</code></td><td>JWT d'accès (courte durée)</td></tr>
+            <tr><td><code>refreshToken</code></td><td>Token de refresh (longue durée)</td></tr>
+            <tr><td><code>userId</code></td><td>ID de l'utilisateur connecté</td></tr>
+            <tr><td><code>username</code></td><td>Nom d'affichage</td></tr>
+            <tr><td><code>teamId</code></td><td>teamId de l'équipe active → utilisé dans toutes les URLs API</td></tr>
+            <tr><td><code>teamRole</code></td><td>Admin / Editor / Viewer → RBAC frontend</td></tr>
+            <tr><td><code>email</code></td><td>Email de l'utilisateur</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SECTION 5 ── -->
+    <section class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num rose">5</div>
+        <h2>Couche Features — comment chaque feature est organisée</h2>
+      </div>
+
+      <h3>Pattern <code>.api.ts</code> → <code>.queries.ts</code> → composant</h3>
+
+      <div class="layer-stack">
+        <div class="layer purple">
+          <span class="layer-tag">Niveau 1</span>
+          <div class="layer-body">
+            <h4><code>campaigns.api.ts</code> — fonctions pures qui appellent l'API</h4>
+            <pre style="margin:6px 0 0;"><code>// campaigns.api.ts
+export async function getCampaigns(channelId: number) {
+  const teamId = authStorage.getTeamId();
+  return apiRequest&lt;Campaign[]&gt;(`/teams/${teamId}/channels/${channelId}/campaigns`);
+}</code></pre>
+          </div>
+        </div>
+        <div class="layer sky">
+          <span class="layer-tag">Niveau 2</span>
+          <div class="layer-body">
+            <h4><code>campaigns.queries.ts</code> — hooks TanStack Query</h4>
+            <pre style="margin:6px 0 0;"><code>// campaigns.queries.ts
+export function useCampaigns(channelId: number) {
+  return useQuery({
+    queryKey: ["campaigns", channelId],
+    queryFn: () => getCampaigns(channelId),
+  });
+}</code></pre>
+          </div>
+        </div>
+        <div class="layer green">
+          <span class="layer-tag">Niveau 3</span>
+          <div class="layer-body">
+            <h4>Composant / page — consomme le hook</h4>
+            <pre style="margin:6px 0 0;"><code>// CampaignsListPage.tsx
+const { data: campaigns, isLoading } = useCampaigns(channelId);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">Ce pattern est identique dans toutes les features : <code>auth</code>, <code>channels</code>, <code>analytics</code>, <code>brand-studio</code>, <code>ai</code>, etc.</div>
+    </section>
+
+    <!-- ── SECTION 6 ── -->
+    <section class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h2>La feature IA — comment le pipeline agents est orchestré côté frontend</h2>
+      </div>
+
+      <h3><code>ai.api.ts</code> — <code>frontend/src/app-v2/features/ai/ai.api.ts</code></h3>
+      <p>Définit les fonctions d'appel pour chaque étape du pipeline et les types TypeScript correspondants. Points importants :</p>
+
+      <pre><code>// Timeout côté client : 16 minutes (dépasse le backend 15min)
+const CAMPAIGN_CONTENT_CLIENT_TIMEOUT_MS = 16 * 60 * 1000;
+
+// Chaque étape est un appel API distinct
+generateCampaignStrategy(config)   → POST /teams/{id}/ai/campaigns/strategy
+generateCampaignPlanning(payload)  → POST /teams/{id}/ai/campaigns/planning
+generateCampaignContent(payload)   → POST /teams/{id}/ai/campaigns/content</code></pre>
+
+      <h3><code>useCampaignAiPipeline.ts</code> — <code>frontend/src/app-v2/features/campaigns/hooks/useCampaignAiPipeline.ts</code></h3>
+      <p>C'est le cerveau du workflow IA côté frontend. C'est un hook custom qui gère l'état de toutes les étapes :</p>
+
+      <h4 style="font-size:13px;font-weight:700;color:var(--ink);margin:16px 0 8px;text-transform:none;letter-spacing:0;">État interne géré</h4>
+      <div class="state-grid">
+        <div class="state-item"><span class="key">activeStep</span><span class="desc">étape courante (0=configure, 1=strategy, 2=planning, 3=content, 4=confirm)</span></div>
+        <div class="state-item"><span class="key">strategyProfile</span><span class="desc">résultat JSON de l'étape Strategy Agent</span></div>
+        <div class="state-item"><span class="key">strategyId</span><span class="desc">ID retourné par le backend</span></div>
+        <div class="state-item"><span class="key">selectedDirection</span><span class="desc">direction de contenu choisie par l'utilisateur</span></div>
+        <div class="state-item"><span class="key">planningProfile</span><span class="desc">résultat JSON de l'étape Planning Agent</span></div>
+        <div class="state-item"><span class="key">planningId</span><span class="desc">ID retourné par le backend</span></div>
+        <div class="state-item"><span class="key">posts</span><span class="desc">liste des posts générés (étape Campaign Agent)</span></div>
+        <div class="state-item"><span class="key">busy</span><span class="desc">loading state global</span></div>
+        <div class="state-item"><span class="key">error</span><span class="desc">message d'erreur formaté</span></div>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:700;color:var(--ink);margin:16px 0 8px;text-transform:none;letter-spacing:0;">Fonctions exposées</h4>
+      <ul>
+        <li><code>runStrategy()</code> → appelle <code>generateCampaignStrategy()</code> → stocke <code>strategyProfile</code></li>
+        <li><code>runPlanning()</code> → appelle <code>generateCampaignPlanning(strategyProfile)</code> → stocke <code>planningProfile</code></li>
+        <li><code>runContent()</code> → appelle <code>generateCampaignContent(strategyProfile + planningProfile)</code></li>
+        <li><code>finalize()</code> → appelle <code>bulkCreateCampaignPosts()</code> pour sauvegarder en base</li>
+      </ul>
+
+      <div class="callout green">L'utilisateur peut modifier les résultats de chaque étape avant de passer à la suivante (ex : éditer la stratégie générée avant de lancer le planning).</div>
+
+      <h3><code>CampaignAiPlanPage.tsx</code> — <code>frontend/src/app-v2/features/campaigns/pages/CampaignAiPlanPage.tsx</code></h3>
+      <p>C'est la page qui utilise <code>useCampaignAiPipeline</code> et affiche le stepper MUI à 5 étapes :</p>
+
+      <div class="stepper">
+        <div class="step-item">
+          <div class="step-box">
+            <span class="step-num">Étape 0</span>
+            <span class="step-label">Configure</span>
+            <span class="step-sub">Formulaire<br>dates/goal</span>
+          </div>
+        </div>
+        <div class="step-item"><div class="step-arrow">›</div></div>
+        <div class="step-item">
+          <div class="step-box">
+            <span class="step-num">Étape 1</span>
+            <span class="step-label">Strategy</span>
+            <span class="step-sub">Bouton<br>"Generate strategy"</span>
+          </div>
+        </div>
+        <div class="step-item"><div class="step-arrow">›</div></div>
+        <div class="step-item">
+          <div class="step-box">
+            <span class="step-num">Étape 2</span>
+            <span class="step-label">Planning</span>
+            <span class="step-sub">Bouton<br>"Generate calendar"</span>
+          </div>
+        </div>
+        <div class="step-item"><div class="step-arrow">›</div></div>
+        <div class="step-item">
+          <div class="step-box">
+            <span class="step-num">Étape 3</span>
+            <span class="step-label">Content</span>
+            <span class="step-sub">Bouton<br>"Generate posts"</span>
+          </div>
+        </div>
+        <div class="step-item"><div class="step-arrow">›</div></div>
+        <div class="step-item">
+          <div class="step-box">
+            <span class="step-num">Étape 4</span>
+            <span class="step-label">Confirm</span>
+            <span class="step-sub">Checkbox<br>"Schedule posts?"</span>
+          </div>
+        </div>
+      </div>
+
+      <p>Chaque étape 1, 2 et 3 est <strong>éditable avant</strong> de passer à la suivante.</p>
+    </section>
+
+    <!-- ── SECTION 7 ── -->
+    <section class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num sky">7</div>
+        <h2>La gestion des permissions RBAC côté frontend</h2>
+      </div>
+
+      <p><code>useTeamPermissions.ts</code> — <code>frontend/src/app-v2/shared/hooks/useTeamPermissions.ts</code></p>
+
+      <pre><code>const role = authStorage.getTeamRole();  // "Admin" | "Editor" | "Viewer"
+
+return {
+  isAdmin:          role === "Admin",
+  isEditor:         role === "Editor",
+  canMutateContent: isAdmin || isEditor,  // peut créer/modifier du contenu
+  canManageTeam:    isAdmin,               // peut inviter des membres
+  canImportBrand:   isAdmin,               // peut importer une marque
+}</code></pre>
+
+      <p>Utilisé partout dans les pages :</p>
+
+      <pre><code>// CampaignAiPlanPage.tsx ligne 89
+if (!canMutateContent) {
+  return &lt;Alert&gt;You need Editor or Admin permissions to use AI planning.&lt;/Alert&gt;
+}</code></pre>
+
+      <div class="callout amber"><strong>Important :</strong> La vérification est doublée côté backend (RBAC dans <code>AiContentService</code>) — le frontend est une garde UI, pas une protection de sécurité.</div>
+    </section>
+
+    <!-- ── SECTION 8 ── -->
+    <section class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num green">8</div>
+        <h2>L'autosave de l'éditeur de post</h2>
+      </div>
+
+      <p><code>usePostAutosave.ts</code> — <code>frontend/src/app-v2/features/posts/hooks/usePostAutosave.ts</code></p>
+      <p>Implémente une sauvegarde automatique intelligente :</p>
+
+      <div class="flow">
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot sky">①</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Saisie utilisateur</h4>
+            <p>L'utilisateur tape dans l'éditeur → <code>isDirty = true</code></p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot purple">②</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Debounce 2 secondes (<code>DEBOUNCE_MS</code>)</h4>
+            <p>Si l'utilisateur arrête de taper 2s → <code>runSave()</code></p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot amber">③</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Periodic check toutes les 30 secondes (<code>PERIODIC_MS</code>)</h4>
+            <p>Si <code>isDirty</code> → <code>runSave()</code> (filet de sécurité)</p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot green">④</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>runSave()</code> — logique de sauvegarde</h4>
+            <p>Si post nouveau → <code>onCreate()</code> → reçoit l'ID créé<br>
+            Si post existant → <code>onUpdate()</code><br>
+            <code>setSaveState("saving" → "saved" | "error")</code></p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot rose">⑤</div></div>
+          <div class="flow-body">
+            <h4>Protection contre la concurrence</h4>
+            <p><code>savingRef.current</code> empêche deux saves simultanés.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 9 ── -->
+    <section class="section" id="s9">
+      <div class="section-header">
+        <div class="section-num rose">9</div>
+        <h2>L'Assistant IA Widget</h2>
+      </div>
+
+      <p><code>AssistantWidget.tsx</code> — <code>frontend/src/app-v2/features/assistant/AssistantWidget.tsx</code></p>
+      <p>Widget flottant présent sur toutes les pages. Fonctionnalités :</p>
+
+      <ul>
+        <li>Conversation persistée dans <code>localStorage</code> (<code>loadConversationMemory</code>)</li>
+        <li>Sélection de langue (fr, en, ar avec support RTL)</li>
+        <li>Affichage de screenshots retournés par l'Assistant Agent Python</li>
+        <li>Quick replies (suggestions d'actions)</li>
+        <li>Contexte page : transmet <code>campaign_id</code>, <code>strategy_id</code>, <code>planning_id</code> à l'agent pour des réponses contextuelles</li>
+      </ul>
+    </section>
+
+    <!-- ── SECTION 10 ── -->
+    <section class="section" id="s10">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h2>Résumé du flux de données complet frontend → backend</h2>
+      </div>
+
+      <div class="flow">
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot sky">1</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Déclenchement utilisateur</h4>
+            <p>Utilisateur clique "Generate strategy" dans <code>CampaignAiPlanPage</code></p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot purple">2</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>useCampaignAiPipeline.runStrategy()</code> <span style="font-weight:400;color:var(--ink-muted)">[hook custom]</span></h4>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot purple">3</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>generateCampaignStrategy(config)</code> <span style="font-weight:400;color:var(--ink-muted)">[ai.api.ts]</span></h4>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot amber">4</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>apiRequest("/teams/{id}/ai/campaigns/strategy", { POST })</code> <span style="font-weight:400;color:var(--ink-muted)">[http.ts]</span></h4>
+            <p>→ Axios intercepteur : ajoute <code>"Authorization: Bearer &lt;JWT&gt;"</code><br>
+            → Axios intercepteur : si 401 → refresh token automatique</p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot amber">5</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>POST https://api.backend/api/teams/{teamId}/ai/campaigns/strategy</code></h4>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot green">6</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>AiController.GenerateCampaignStrategy()</code> <span style="font-weight:400;color:var(--ink-muted)">[.NET — couche API]</span></h4>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot green">7</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>AiContentService.GenerateCampaignStrategyStepAsync()</code> <span style="font-weight:400;color:var(--ink-muted)">[.NET — couche Application]</span></h4>
+            <p>→ RBAC : Admin ou Editor uniquement<br>
+            → budget quotidien check<br>
+            → <code>EnsureAiBrandForCampaignAsync()</code> → vérifie orgId</p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot green">8</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4><code>LocalAiBackendClient.GenerateStrategyAsync()</code> <span style="font-weight:400;color:var(--ink-muted)">[.NET — couche Infrastructure]</span></h4>
+            <p><code>POST http://127.0.0.1:8000/api/strategy/generate</code><br>
+            Timeout : 75 secondes — Circuit breaker actif</p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot rose">9</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Backend Python — Strategy Agent</h4>
+            <p>LLM (Groq/OpenAI/Gemini) → génère <code>{ strategy_id, summary, content_direction[] }</code></p>
+          </div>
+        </div>
+        <div class="flow-item">
+          <div class="flow-connector"><div class="flow-dot sky">↩</div></div>
+          <div class="flow-body">
+            <h4>Retour vers le frontend</h4>
+            <p>← <code>JsonElement</code> retourné → <code>CampaignStrategyStepResponseDto</code><br>
+            ← JSON HTTP 200<br>
+            → <code>strategyProfile</code> stocké dans <code>useCampaignAiPipeline</code><br>
+            → <code>CampaignStrategyReviewEditor</code> affiche le résultat éditable<br>
+            → <code>CampaignContentDirectionPicker</code> affiche les directions de contenu<br>
+            → Utilisateur choisit une direction → clique "Continue"</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <p>Document de documentation technique — Architecture Frontend AiContentFlow — Rapport PFE</p>
+</footer>
+
+<script>
+  const bar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.body.scrollHeight - window.innerHeight;
+    bar.style.transform = `scaleX(${window.scrollY / total})`;
+  });
+
+  const allIds = [...document.querySelectorAll('[id]')];
+  const links = document.querySelectorAll('#sidebar nav a');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+      }
+    });
+  }, { rootMargin: '-15% 0px -72% 0px' });
+  allIds.forEach(el => obs.observe(el));
+</script>
+</body>
+</html>

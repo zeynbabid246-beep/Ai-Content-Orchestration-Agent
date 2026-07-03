@@ -87,26 +87,29 @@ export function buildVariantContentJson(
   variant: QuickVariantDraft,
   imageUrl?: string | null
 ): string {
+  const definition = getVariantDefinition(variant.key);
+
+  // If contentJson is already in normalized form (has 'text' directly), use it and
+  // inject imageUrl if needed. Raw AI responses have 'preview'/'generated' wrappers
+  // that the publishers cannot read — those fall through to rebuild from body/slides.
   if (variant.contentJson?.trim()) {
-    if (imageUrl) {
-      try {
-        const parsed = JSON.parse(variant.contentJson) as Record<string, unknown>;
-        return JSON.stringify({ ...parsed, imageUrl });
-      } catch {
-        return variant.contentJson;
+    try {
+      const parsed = JSON.parse(variant.contentJson) as Record<string, unknown>;
+      if (typeof parsed.text === "string") {
+        return JSON.stringify({ ...parsed, ...(imageUrl != null ? { imageUrl } : {}) });
       }
+    } catch {
+      // fall through to rebuild
     }
-    return variant.contentJson;
   }
 
-  const definition = getVariantDefinition(variant.key);
   if (definition.format === "carousel") {
     return JSON.stringify({
       text: variant.body,
       slides: variant.slides.filter(Boolean),
       format: "carousel",
       platform: definition.platform,
-      imageUrl: imageUrl ?? undefined,
+      ...(imageUrl != null ? { imageUrl } : {}),
     });
   }
 
@@ -114,7 +117,7 @@ export function buildVariantContentJson(
     text: variant.body,
     format: "post",
     platform: definition.platform,
-    imageUrl: imageUrl ?? undefined,
+    ...(imageUrl != null ? { imageUrl } : {}),
   });
 }
 

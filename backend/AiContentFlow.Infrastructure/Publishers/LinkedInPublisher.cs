@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AiContentFlow.Domain.Models;
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Publishing;
 using Microsoft.Extensions.Logging;
 using Application.DTOs;
 using Application.Interfaces;
@@ -35,18 +36,9 @@ public class LinkedInPublisher : IPublisher
             if (string.IsNullOrEmpty(variant.ContentJson))
                 return PublishResult.Failure("PostVariant has no ContentJson");
 
-            var content = JsonSerializer.Deserialize<JsonElement>(variant.ContentJson);
-
-            if (!content.TryGetProperty("text", out var textProp))
-                return PublishResult.Failure("Invalid ContentJson: missing 'text' field");
-
-            var text = textProp.GetString() ?? "";
+            var (text, imageUrl) = ContentJsonParser.Extract(variant.ContentJson);
             if (string.IsNullOrWhiteSpace(text))
-                return PublishResult.Failure("Invalid ContentJson: 'text' is empty");
-
-            string? imageUrl = null;
-            if (content.TryGetProperty("imageUrl", out var imgProp))
-                imageUrl = imgProp.GetString();
+                return PublishResult.Failure("Invalid ContentJson: 'text' is empty or missing");
 
             var accessToken = await _credentialStore.GetAccessTokenAsync(account);
             _httpClient.DefaultRequestHeaders.Authorization =

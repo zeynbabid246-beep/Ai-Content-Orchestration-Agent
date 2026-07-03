@@ -321,7 +321,10 @@ public class TeamService : ITeamService
         {
             invitation = await ResolveValidInvitationAsync(inviteToken);
         }
-        else
+
+        // If token lookup failed (stale/revoked token from an old email), fall back
+        // to the most recent valid pending invitation for this email address.
+        if (invitation == null)
         {
             invitation = await _invitationRepo.GetPendingByEmailAsync(NormalizeEmail(email));
         }

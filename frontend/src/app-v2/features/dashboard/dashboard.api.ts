@@ -21,7 +21,10 @@ export async function getDashboardPosts(): Promise<DashboardPost[]> {
 
   return posts.slice(0, 5).map(p => {
     let platformName = "Unknown";
-    if (p.contentType === "TwitterThread") platformName = "X";
+    const firstVariantPlatform = p.postVariants?.[0]?.platform;
+    if (firstVariantPlatform) {
+      platformName = firstVariantPlatform;
+    } else if (p.contentType === "TwitterThread") platformName = "X";
     else if (p.contentType === "LinkedInPost") platformName = "LinkedIn";
     else if (p.contentType === "InstagramPost") platformName = "Instagram";
     else if (p.contentType === "FacebookPost") platformName = "Facebook";
@@ -31,6 +34,8 @@ export async function getDashboardPosts(): Promise<DashboardPost[]> {
 
     return {
       id: p.id,
+      channelId: p.channelId ?? null,
+      campaignId: p.campaignId ?? null,
       title: p.title || "Untitled",
       subtitle: p.prompt?.substring(0, 30) || "Generated via AI",
       platform: platformName as any,

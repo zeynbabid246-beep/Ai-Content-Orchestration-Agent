@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Publishing;
 using AiContentFlow.Domain.Models;
 using Application.DTOs;
 using Application.Interfaces;
@@ -43,17 +44,9 @@ public class ThreadsPublisher : IPublisher
             if (string.IsNullOrEmpty(post.ContentJson))
                 return PublishResult.Failure("PostVariant has no ContentJson");
 
-            var content = JsonSerializer.Deserialize<JsonElement>(post.ContentJson);
-            if (!content.TryGetProperty("text", out var textProp))
-                return PublishResult.Failure("Invalid ContentJson: missing 'text' field");
-
-            var text = textProp.GetString() ?? string.Empty;
+            var (text, imageUrl) = ContentJsonParser.Extract(post.ContentJson);
             if (string.IsNullOrWhiteSpace(text))
-                return PublishResult.Failure("Invalid ContentJson: 'text' is empty");
-
-            string? imageUrl = null;
-            if (content.TryGetProperty("imageUrl", out var imageProp))
-                imageUrl = imageProp.GetString();
+                return PublishResult.Failure("Invalid ContentJson: 'text' is empty or missing");
 
             var accessToken = await _credentialStore.GetAccessTokenAsync(account);
             var creationId = string.IsNullOrWhiteSpace(imageUrl)

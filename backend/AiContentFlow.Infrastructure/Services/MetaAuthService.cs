@@ -36,8 +36,9 @@ namespace Infrastructure.Services
             var credentials = ResolveCredentials(oauthPlatform);
 
             var scope =
-                "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata," +
-                "instagram_basic,instagram_content_publish,business_management,public_profile";
+                "public_profile,email," +
+                "pages_show_list,pages_manage_posts,pages_read_engagement," +
+                "instagram_basic,instagram_content_publish";
 
             return $"{_oAuthUrl}?" +
                    $"client_id={credentials.AppId}" +

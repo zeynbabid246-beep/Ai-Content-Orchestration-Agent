@@ -102,7 +102,7 @@ export async function waitForPublication(
 export function formatPublicationError(message: string | null | undefined): string {
   if (!message) return "Publishing failed.";
   if (message.includes("localhost") || message.includes("imageUrl")) {
-    return "Instagram could not use the image. Add an image and try again.";
+    return "The image URL is not publicly accessible. Configure App__PublicMediaBaseUrl in the backend .env (e.g. using ngrok) so social platforms can download the image.";
   }
   if (message.includes("Instagram") && message.includes("image")) {
     return message;

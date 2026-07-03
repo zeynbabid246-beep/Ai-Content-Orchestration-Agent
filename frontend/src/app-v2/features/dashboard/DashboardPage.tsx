@@ -17,19 +17,22 @@ import {
   Typography,
   Grid,
   Alert,
+  Tooltip,
 } from "@mui/material";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authStorage } from "../../shared/lib/storage";
-import { ROUTES } from "../../shared/lib/routes";
+import { ROUTES, postEditorPath } from "../../shared/lib/routes";
 import {
   useDashboardPostsQuery,
   useDashboardStatsQuery,
   useDashboardAnalyticsQuery,
 } from "./dashboard.queries";
-import { usePublishContentPost } from "../content-posts/content-posts.queries";
 import { useSocialAccounts } from "../social-media/social-accounts.queries";
+import { SocialAccountStatus } from "../social-media/social-accounts.types";
+import { publishPublication } from "../content-posts/publications.api";
 import { MembersHistoryPage } from "../team/membreHistory";
 import { AnalyticsSummaryView } from "../analytics/components/AnalyticsSummaryView";
-import type { PostStatus } from "./dashboard.types";
+import type { DashboardPost, PostStatus } from "./dashboard.types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -118,34 +121,57 @@ function OverviewTab() {
   const { data: posts = [] } = useDashboardPostsQuery();
   const { data: stats = [] } = useDashboardStatsQuery();
   const { data: socialAccounts = [] } = useSocialAccounts();
-  const publishMutation = usePublishContentPost();
+  const queryClient = useQueryClient();
 
-  const handlePublish = (id: number) => {
-    const activeAccount = socialAccounts.find((account) => account.status === "Active");
-    if (!activeAccount) {
-      return;
-    }
-
-    publishMutation.mutate({
-      id,
-      data: {
-        socialAccountId: activeAccount.id,
+  const publishMutation = useMutation({
+    mutationFn: ({ postId, socialAccountId }: { postId: number; socialAccountId: number }) =>
+      publishPublication(postId, {
+        socialAccountId,
         postVariantId: null,
-        idempotencyKey: `publish-${id}-${Date.now()}`,
-      },
-    });
+        idempotencyKey: `dashboard-${postId}-${Date.now()}`,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["contentPosts"] });
+    },
+  });
+
+  const findAccountForPost = (post: DashboardPost) => {
+    // Prefer account linked to the post's channel
+    if (post.channelId != null) {
+      const linked = socialAccounts.find(
+        (a) => a.status === SocialAccountStatus.Active && a.linkedChannelIds.includes(post.channelId!)
+      );
+      if (linked) return linked;
+    }
+    // Fallback: any active account
+    return socialAccounts.find((a) => a.status === SocialAccountStatus.Active) ?? null;
+  };
+
+  const handlePublish = (post: DashboardPost) => {
+    const account = findAccountForPost(post);
+    if (!account) return;
+    publishMutation.mutate({ postId: post.id, socialAccountId: account.id });
+  };
+
+  const handleEdit = (post: DashboardPost) => {
+    if (post.channelId != null) {
+      navigate(postEditorPath(post.channelId, post.id, post.campaignId ?? null));
+    }
   };
 
   return (
     <Stack spacing={3}>
       {publishMutation.isSuccess && (
         <Alert severity="success" onClose={() => publishMutation.reset()}>
-          Post published successfully!
+          Post queued for publishing successfully!
         </Alert>
       )}
       {publishMutation.isError && (
         <Alert severity="error" onClose={() => publishMutation.reset()}>
-          Failed to publish post. Make sure you have an active social account and the post is publishable.
+          {publishMutation.error instanceof Error
+            ? publishMutation.error.message
+            : "Failed to publish. Make sure a social account is linked to this post's channel."}
         </Alert>
       )}
       <Grid container spacing={2}>
@@ -225,16 +251,45 @@ function OverviewTab() {
                   <Typography variant="body2">{post.date}</Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton aria-label="Edit post" size="small">✎</IconButton>
-                  <IconButton
-                    aria-label="Publish post"
-                    size="small"
-                    onClick={() => handlePublish(post.id)}
-                    disabled={post.status !== "Scheduled" || publishMutation.isPending || !socialAccounts.some((account) => account.status === "Active")}
-                    title={post.status === "Scheduled" ? "Publish now" : "Only scheduled posts can be published"}
+                  <Tooltip title={post.channelId != null ? "Edit post" : "Open post"}>
+                    <IconButton
+                      aria-label="Edit post"
+                      size="small"
+                      onClick={() => handleEdit(post)}
+                      disabled={post.channelId == null}
+                    >
+                      ✎
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip
+                    title={
+                      post.status === "Published"
+                        ? "Already published"
+                        : post.status === "Deleted"
+                          ? "Post is deleted"
+                          : !socialAccounts.some((a) => a.status === SocialAccountStatus.Active)
+                            ? "No active social account. Connect one in Integrations."
+                            : findAccountForPost(post) == null
+                              ? "No account linked to this post's channel. Link one in Channel → Publishing."
+                              : "Publish now"
+                    }
                   >
-                    ➤
-                  </IconButton>
+                    <span>
+                      <IconButton
+                        aria-label="Publish post"
+                        size="small"
+                        onClick={() => handlePublish(post)}
+                        disabled={
+                          post.status === "Published" ||
+                          post.status === "Deleted" ||
+                          publishMutation.isPending ||
+                          findAccountForPost(post) == null
+                        }
+                      >
+                        ➤
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
             ))}

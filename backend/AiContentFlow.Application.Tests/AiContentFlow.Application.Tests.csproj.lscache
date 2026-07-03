@@ -57,11 +57,15 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 
 [sourceFiles]
 <NUGET>/microsoft.net.test.sdk/17.14.1/build/net8.0/Microsoft.NET.Test.Sdk.Program.cs
+Common/Publishing/VariantContentMergeTests.cs
 Features/
+ Ai/AiContentServiceMaterializeTests.cs
  Auth/AuthServiceTests.cs
  Campaigns/CampaignServiceTests.cs
  Channels/ChannelServiceTests.cs
  ContentPosts/ContentPostServiceTests.cs
+ Profile/UserProfileServiceTests.cs
+ Publications/PublicationServiceScopeTests.cs
  SocialAccounts/SocialAccountServiceTests.cs
  Teams/TeamServiceTests.cs
 obj/Debug/net10.0/
@@ -70,7 +74,7 @@ obj/Debug/net10.0/
  AiContentFlow.Application.Tests.GlobalUsings.g.cs
 
 [metadataReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.AspNetCore.Antiforgery.dll
  Microsoft.AspNetCore.Authentication.Abstractions.dll
  Microsoft.AspNetCore.Authentication.BearerToken.dll
@@ -209,7 +213,7 @@ obj/Debug/net10.0/
  System.Formats.Cbor.dll
  System.Security.Cryptography.Xml.dll
  System.Threading.RateLimiting.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll
  Microsoft.VisualBasic.dll
@@ -412,7 +416,7 @@ obj/Debug/net10.0/
  xunit.extensibility.execution/2.9.0/lib/netstandard1.1/xunit.execution.dotnet.dll
 
 [analyzerReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.AspNetCore.App.Analyzers.dll
  Microsoft.AspNetCore.App.CodeFixes.dll
  Microsoft.AspNetCore.App.SourceGenerators.dll
@@ -420,14 +424,14 @@ obj/Debug/net10.0/
  Microsoft.Extensions.Logging.Generators.dll
  Microsoft.Extensions.Options.SourceGeneration.dll
  Microsoft.Extensions.Validation.ValidationsGenerator.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.Interop.ComInterfaceGenerator.dll
  Microsoft.Interop.JavaScript.JSImportGenerator.dll
  Microsoft.Interop.LibraryImportGenerator.dll
  Microsoft.Interop.SourceGeneration.dll
  System.Text.Json.SourceGeneration.dll
  System.Text.RegularExpressions.Generator.dll
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
 <NUGET>/xunit.analyzers/1.15.0/analyzers/dotnet/cs/
@@ -435,5 +439,5 @@ obj/Debug/net10.0/
  xunit.analyzers.fixes.dll
 
 [analyzerConfigFiles]
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
 obj/Debug/net10.0/AiContentFlow.Application.Tests.GeneratedMSBuildEditorConfig.editorconfig

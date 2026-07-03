@@ -1,0 +1,265 @@
+\appendix
+\cleardoublepage
+
+\chapter*{Annexes}
+\addcontentsline{toc}{chapter}{Annexes}
+\markboth{Annexes}{Annexes}
+
+\section*{Annexe A : Commandes techniques de la plateforme}
+\addcontentsline{toc}{section}{Annexe A : Commandes techniques de la plateforme}
+\label{annexe:commandes-techniques}
+
+Cette annexe regroupe les commandes essentielles utilisées pour le développement, la gestion du code source, la conteneurisation et le déploiement de la plateforme \textit{AiContentFlow}. Elle sert de référence technique pour reproduire les principales opérations réalisées durant le projet et faciliter l'onboarding de nouveaux développeurs.
+
+\vspace{0.5cm}
+
+\textbf{Vérification de l'environnement .NET}
+
+\begin{verbatim}
+dotnet --version
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Initialisation du dépôt Git}
+
+\begin{verbatim}
+git init
+git clone https://github.com/AYGTX/aicontentflow.git
+git status
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Configuration des variables d'environnement}
+
+\begin{verbatim}
+VITE_API_URL=http://localhost:5000
+VITE_ENVIRONMENT=development
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Fichier .gitignore}
+
+\begin{verbatim}
+node_modules/
+dist/
+build/
+.env
+.env.local
+bin/
+obj/
+.vscode/
+.idea/
+*.log
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Création et structure de la solution backend ASP.NET Core}
+
+\begin{verbatim}
+dotnet new sln -n AiContentFlow
+dotnet new classlib -n AiContentFlow.Domain
+dotnet new classlib -n AiContentFlow.Application
+dotnet new classlib -n AiContentFlow.Infrastructure
+dotnet new webapi -n AiContentFlow.API
+dotnet sln add AiContentFlow.Domain/AiContentFlow.Domain.csproj
+dotnet sln add AiContentFlow.Application/AiContentFlow.Application.csproj
+dotnet sln add AiContentFlow.Infrastructure/AiContentFlow.Infrastructure.csproj
+dotnet sln add AiContentFlow.API/AiContentFlow.API.csproj
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Restauration des dépendances backend}
+
+\begin{verbatim}
+dotnet restore
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Développement et exécution du backend}
+
+\begin{verbatim}
+dotnet run
+dotnet watch run
+dotnet build
+dotnet build -c Release
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Gestion de la base de données avec Entity Framework Core}
+
+\begin{verbatim}
+dotnet tool install --global dotnet-ef
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+dotnet ef migrations list
+dotnet ef migrations remove
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Création du projet frontend React avec Vite}
+
+\begin{verbatim}
+npm create vite@latest aicontentflow-web -- --template react-ts
+cd aicontentflow-web
+npm install
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Exécution et compilation du frontend}
+
+\begin{verbatim}
+npm run dev
+npm run build
+npm run preview
+npm run lint
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Installation des dépendances du frontend}
+
+\begin{verbatim}
+npm install react-router-dom
+npm install axios
+npm install @tanstack/react-query
+npm install zustand
+npm install react-hook-form
+npm install zod
+npm install @mui/material
+npm install framer-motion
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Opérations Git de base}
+
+\begin{verbatim}
+git status
+git add .
+git commit -m "Description des modifications"
+git push origin main
+git pull origin main
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Gestion des branches Git}
+
+\begin{verbatim}
+git branch
+git checkout -b feature/nouvelle-fonctionnalite
+git merge feature/nouvelle-fonctionnalite
+git branch -d feature/nouvelle-fonctionnalite
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Administration PostgreSQL}
+
+\begin{verbatim}
+psql -U postgres
+CREATE DATABASE aicontentflow_db;
+\c aicontentflow_db
+\dt
+pg_dump -U postgres aicontentflow_db > backup.sql
+psql -U postgres aicontentflow_db < backup.sql
+\q
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Construction des images Docker}
+
+\begin{verbatim}
+docker build -t aicontentflow-api .
+docker build -f Dockerfile.frontend -t aicontentflow-web .
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Gestion des conteneurs Docker}
+
+\begin{verbatim}
+docker run -d -p 5000:5000 aicontentflow-api
+docker ps
+docker ps -a
+docker stop <container_id>
+docker restart <container_id>
+docker logs <container_id>
+docker logs -f <container_id>
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Docker Compose}
+
+\begin{verbatim}
+docker-compose up -d
+docker-compose down
+docker-compose up -d --build
+docker-compose logs -f
+\end{verbatim}
+
+\vspace{0.5cm}
+
+\textbf{Cycle de développement du backend}
+
+\begin{verbatim}
+dotnet restore
+dotnet watch run
+git add .
+git commit -m "feat: description de la feature"
+git push origin feature-branch
+dotnet build -c Release
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Cycle de développement du frontend}
+
+\begin{verbatim}
+npm install
+npm run dev
+npm run lint
+npm run build
+git add .
+git commit -m "feat: description de la feature"
+git push origin feature-branch
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Déploiement complet}
+
+\begin{verbatim}
+docker-compose down
+docker-compose up -d --build
+docker-compose ps
+docker-compose logs -f
+pg_dump -U postgres aicontentflow_db > backup_$(date +%Y%m%d_%H%M%S).sql
+\end{verbatim}
+
+\vspace{0.3cm}
+
+\textbf{Résolution de problèmes courants}
+
+\begin{verbatim}
+dotnet clean
+dotnet restore
+dotnet build
+rm -r node_modules package-lock.json
+npm install
+docker-compose down -v
+docker-compose up -d --build
+dotnet run 2>&1 | grep -i error
+psql -U postgres -h localhost -d aicontentflow_db -c "SELECT VERSION();"
+\end{verbatim}

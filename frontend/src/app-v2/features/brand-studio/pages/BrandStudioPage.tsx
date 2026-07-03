@@ -1,18 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   Grid,
+  IconButton,
   Paper,
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
+import { CloudUpload, Plus, X } from "lucide-react";
 import { BrandStudioEmptyState } from "../components/BrandStudioEmptyState";
 import { ImportStatus } from "../components/ImportStatus";
 import {
@@ -24,6 +28,7 @@ import {
 import { updateBrandStudio } from "../services/brandStudio.service";
 import { formatAiError, syncBrandToAi } from "../../ai/ai.api";
 import { useTeamPermissions } from "../../../shared/hooks/useTeamPermissions";
+import { uploadGenerateImage } from "../../generate/media.api";
 import type {
   BrandEnrichedProfile,
   BrandParsedProfile,
@@ -83,6 +88,309 @@ function SectionTitle({ children }: { children: string }) {
   );
 }
 
+function ColorPaletteField({
+  label,
+  colors,
+  onChange,
+  readOnly,
+}: {
+  label: string;
+  colors: string[];
+  onChange: (colors: string[]) => void;
+  readOnly?: boolean;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const theme = useTheme();
+
+  const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const hex = e.target.value;
+    if (!colors.includes(hex)) onChange([...colors, hex]);
+  };
+
+  const handleRemove = (index: number) => {
+    onChange(colors.filter((_, i) => i !== index));
+  };
+
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ display: "block", mb: 1 }}>
+        {label}
+      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 1,
+          p: 1.5,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
+          minHeight: 58,
+          alignItems: "center",
+          bgcolor: "background.default",
+        }}
+      >
+        {colors.map((color, i) => (
+          <Tooltip key={i} title={color} placement="top">
+            <Box sx={{ position: "relative", display: "inline-flex" }}>
+              <Box
+                sx={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: "50%",
+                  bgcolor: color,
+                  border: "2px solid",
+                  borderColor: "divider",
+                  boxShadow: `0 2px 6px ${alpha(color || "#000", 0.4)}`,
+                  flexShrink: 0,
+                }}
+              />
+              {!readOnly && (
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemove(i)}
+                  sx={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    width: 16,
+                    height: 16,
+                    minWidth: 16,
+                    bgcolor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    p: 0,
+                    "&:hover": {
+                      bgcolor: "error.main",
+                      color: "white",
+                      borderColor: "error.main",
+                    },
+                  }}
+                >
+                  <X size={8} />
+                </IconButton>
+              )}
+            </Box>
+          </Tooltip>
+        ))}
+
+        {!readOnly && (
+          <Tooltip title="Add color">
+            <Box
+              onClick={() => pickerRef.current?.click()}
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                border: "2px dashed",
+                borderColor: alpha(theme.palette.primary.main, 0.4),
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "primary.main",
+                transition: "all 0.15s",
+                "&:hover": {
+                  borderColor: "primary.main",
+                  bgcolor: alpha(theme.palette.primary.main, 0.06),
+                },
+              }}
+            >
+              <Plus size={16} />
+              <input
+                ref={pickerRef}
+                type="color"
+                defaultValue="#2563eb"
+                style={{
+                  position: "absolute",
+                  opacity: 0,
+                  width: 0,
+                  height: 0,
+                  pointerEvents: "none",
+                }}
+                onChange={handlePickerChange}
+              />
+            </Box>
+          </Tooltip>
+        )}
+
+        {colors.length === 0 && (
+          <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>
+            {readOnly ? "No colors defined" : "Click + to pick colors"}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+function LogoDropZone({
+  label,
+  hint,
+  value,
+  onChange,
+  readOnly,
+}: {
+  label: string;
+  hint?: string;
+  value: string | null;
+  onChange: (url: string) => void;
+  readOnly?: boolean;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const theme = useTheme();
+
+  const handleFile = async (file: File) => {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const result = await uploadGenerateImage(file);
+      onChange(result.url);
+    } catch {
+      setUploadError("Upload failed. Try pasting a URL below.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (readOnly || uploading) return;
+    const file = e.dataTransfer.files[0];
+    if (file) void handleFile(file);
+  };
+
+  return (
+    <Stack spacing={1}>
+      <Typography variant="caption" color="text.secondary" fontWeight={500}>
+        {label}
+      </Typography>
+
+      {/* Drop zone */}
+      <Box
+        onClick={() => !readOnly && !uploading && fileInputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!readOnly) setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        sx={{
+          border: "2px dashed",
+          borderColor: isDragging ? "primary.main" : alpha(theme.palette.divider, 0.8),
+          borderRadius: 2,
+          p: 2,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 1,
+          cursor: readOnly ? "default" : "pointer",
+          bgcolor: isDragging
+            ? alpha(theme.palette.primary.main, 0.04)
+            : "background.default",
+          transition: "all 0.15s ease",
+          minHeight: 90,
+          "&:hover": readOnly
+            ? {}
+            : {
+                borderColor: "primary.main",
+                bgcolor: alpha(theme.palette.primary.main, 0.04),
+              },
+        }}
+      >
+        {uploading ? (
+          <CircularProgress size={24} />
+        ) : value ? (
+          <Box
+            component="img"
+            src={value}
+            alt={label}
+            sx={{
+              maxHeight: 56,
+              maxWidth: "100%",
+              objectFit: "contain",
+              borderRadius: 1,
+            }}
+          />
+        ) : (
+          <>
+            <CloudUpload
+              size={28}
+              color={isDragging ? theme.palette.primary.main : theme.palette.text.disabled}
+            />
+            <Typography variant="body2" color="text.secondary" textAlign="center">
+              Drag and drop file here
+            </Typography>
+            <Typography variant="caption" color="text.disabled">
+              {hint ?? "Limit 10MB · PNG, JPG, JPEG, WEBP"}
+            </Typography>
+          </>
+        )}
+      </Box>
+
+      {/* Actions row */}
+      <Stack direction="row" spacing={1} alignItems="center">
+        {!readOnly && (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            sx={{ borderRadius: 1.5 }}
+          >
+            Browse files
+          </Button>
+        )}
+        {value && !readOnly && (
+          <Button
+            size="small"
+            color="error"
+            onClick={() => onChange("")}
+            disabled={uploading}
+            sx={{ borderRadius: 1.5 }}
+          >
+            Remove
+          </Button>
+        )}
+      </Stack>
+
+      {/* URL fallback */}
+      <TextField
+        size="small"
+        label="Or paste URL"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        fullWidth
+        InputProps={{ readOnly }}
+        placeholder="https://example.com/logo.png"
+      />
+
+      {uploadError && (
+        <Typography variant="caption" color="error.main">
+          {uploadError}
+        </Typography>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFile(file);
+          e.target.value = "";
+        }}
+      />
+    </Stack>
+  );
+}
+
 export function BrandStudioPage() {
   const theme = useTheme();
   const { canImportBrand } = useTeamPermissions();
@@ -132,12 +440,9 @@ export function BrandStudioPage() {
 
   const handleImport = (websiteUrl: string) => {
     if (!websiteUrl) return;
-
     importMutation.mutate(
       { websiteUrl },
-      {
-        onSuccess: (data) => setActiveJobId(data.job.id),
-      }
+      { onSuccess: (data) => setActiveJobId(data.job.id) }
     );
   };
 
@@ -170,6 +475,16 @@ export function BrandStudioPage() {
     setEnrichedProfile((prev) => ({ ...prev, [key]: value }));
   };
 
+  const updateVisual = <K extends keyof BrandParsedProfile["visualIdentity"]>(
+    key: K,
+    value: BrandParsedProfile["visualIdentity"][K]
+  ) => {
+    setParsedProfile((prev) => ({
+      ...prev,
+      visualIdentity: { ...prev.visualIdentity, [key]: value },
+    }));
+  };
+
   if (brandStudioQuery.isLoading) {
     return (
       <Stack spacing={3}>
@@ -195,11 +510,9 @@ export function BrandStudioPage() {
       {brandStudioQuery.isError ? (
         <Alert severity="error">Unable to load Brand Studio. Please try again.</Alert>
       ) : null}
-
       {importMutation.isError ? (
         <Alert severity="error">{importMutation.error.message}</Alert>
       ) : null}
-
       {manualCreateMutation.isError ? (
         <Alert severity="error">{manualCreateMutation.error.message}</Alert>
       ) : null}
@@ -217,6 +530,7 @@ export function BrandStudioPage() {
         <Stack spacing={3}>
           <Paper sx={{ p: { xs: 3, md: 4 }, borderColor: alpha(theme.palette.primary.main, 0.22) }}>
             <Stack spacing={3}>
+              {/* ── Step 1: Website URL ── */}
               <SectionTitle>Step 1 — Website URL</SectionTitle>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                 <TextField
@@ -242,6 +556,7 @@ export function BrandStudioPage() {
 
               <Divider />
 
+              {/* ── Step 2: Parsed profile ── */}
               <SectionTitle>Step 2 — Parsed profile</SectionTitle>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -344,46 +659,52 @@ export function BrandStudioPage() {
                 </Grid>
               </Grid>
 
+              {/* ── Visual Identity ── */}
               <SectionTitle>Visual identity</SectionTitle>
               <Grid container spacing={2}>
+                {/* Logo upload zones */}
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="Logo URL"
-                    value={parsedProfile.visualIdentity.logoUrl ?? ""}
-                    onChange={(e) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, logoUrl: e.target.value },
-                      }))
-                    }
-                    fullWidth
-                    InputProps={{ readOnly: !canImportBrand }}
+                  <LogoDropZone
+                    label="Primary logo"
+                    hint="Limit 10MB · PNG, JPG, JPEG, WEBP"
+                    value={parsedProfile.visualIdentity.logoUrl}
+                    onChange={(url) => updateVisual("logoUrl", url || null)}
+                    readOnly={!canImportBrand}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="Favicon URL"
-                    value={parsedProfile.visualIdentity.faviconUrl ?? ""}
-                    onChange={(e) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, faviconUrl: e.target.value },
-                      }))
-                    }
-                    fullWidth
-                    InputProps={{ readOnly: !canImportBrand }}
+                  <LogoDropZone
+                    label="Favicon / secondary"
+                    hint="Limit 10MB · PNG, JPG, ICO, SVG, JPEG"
+                    value={parsedProfile.visualIdentity.faviconUrl}
+                    onChange={(url) => updateVisual("faviconUrl", url || null)}
+                    readOnly={!canImportBrand}
                   />
                 </Grid>
+
+                {/* Color palettes */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <ColorPaletteField
+                    label="Primary colors"
+                    colors={parsedProfile.visualIdentity.primaryColors}
+                    onChange={(c) => updateVisual("primaryColors", c)}
+                    readOnly={!canImportBrand}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <ColorPaletteField
+                    label="Secondary colors"
+                    colors={parsedProfile.visualIdentity.secondaryColors}
+                    onChange={(c) => updateVisual("secondaryColors", c)}
+                    readOnly={!canImportBrand}
+                  />
+                </Grid>
+
                 <Grid size={{ xs: 12 }}>
                   <TextField
                     label="Visual style"
                     value={parsedProfile.visualIdentity.visualStyle ?? ""}
-                    onChange={(e) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, visualStyle: e.target.value },
-                      }))
-                    }
+                    onChange={(e) => updateVisual("visualStyle", e.target.value)}
                     fullWidth
                     InputProps={{ readOnly: !canImportBrand }}
                   />
@@ -392,12 +713,7 @@ export function BrandStudioPage() {
                   <TextField
                     label="Hero text"
                     value={parsedProfile.visualIdentity.heroText ?? ""}
-                    onChange={(e) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, heroText: e.target.value },
-                      }))
-                    }
+                    onChange={(e) => updateVisual("heroText", e.target.value)}
                     fullWidth
                     InputProps={{ readOnly: !canImportBrand }}
                   />
@@ -410,80 +726,11 @@ export function BrandStudioPage() {
                     ) : null}
                   </Stack>
                 </Grid>
-                {parsedProfile.visualIdentity.logoUrl ? (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                      Logo preview
-                    </Typography>
-                    <Box
-                      component="img"
-                      src={parsedProfile.visualIdentity.logoUrl}
-                      alt="Brand logo"
-                      sx={{ maxWidth: 120, maxHeight: 64, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
-                    />
-                  </Grid>
-                ) : null}
-                {!parsedProfile.visualIdentity.logoUrl && parsedProfile.visualIdentity.faviconUrl ? (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                      Favicon preview (used when no logo is found)
-                    </Typography>
-                    <Box
-                      component="img"
-                      src={parsedProfile.visualIdentity.faviconUrl}
-                      alt="Brand favicon"
-                      sx={{ maxWidth: 48, maxHeight: 48, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
-                    />
-                  </Grid>
-                ) : parsedProfile.visualIdentity.faviconUrl ? (
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                      Favicon preview
-                    </Typography>
-                    <Box
-                      component="img"
-                      src={parsedProfile.visualIdentity.faviconUrl}
-                      alt="Brand favicon"
-                      sx={{ maxWidth: 48, maxHeight: 48, objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider", p: 0.5 }}
-                    />
-                  </Grid>
-                ) : null}
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <ArrayField
-                    label="Primary colors"
-                    value={toCsv(parsedProfile.visualIdentity.primaryColors)}
-                    onChange={(value) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, primaryColors: fromCsv(value) },
-                      }))
-                    }
-                    readOnly={!canImportBrand}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <ArrayField
-                    label="Secondary colors"
-                    value={toCsv(parsedProfile.visualIdentity.secondaryColors)}
-                    onChange={(value) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, secondaryColors: fromCsv(value) },
-                      }))
-                    }
-                    readOnly={!canImportBrand}
-                  />
-                </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <ArrayField
                     label="Font families"
                     value={toCsv(parsedProfile.visualIdentity.fontFamilies)}
-                    onChange={(value) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, fontFamilies: fromCsv(value) },
-                      }))
-                    }
+                    onChange={(value) => updateVisual("fontFamilies", fromCsv(value))}
                     readOnly={!canImportBrand}
                   />
                 </Grid>
@@ -491,12 +738,7 @@ export function BrandStudioPage() {
                   <ArrayField
                     label="CTA texts"
                     value={toCsv(parsedProfile.visualIdentity.ctaTexts)}
-                    onChange={(value) =>
-                      setParsedProfile((prev) => ({
-                        ...prev,
-                        visualIdentity: { ...prev.visualIdentity, ctaTexts: fromCsv(value) },
-                      }))
-                    }
+                    onChange={(value) => updateVisual("ctaTexts", fromCsv(value))}
                     readOnly={!canImportBrand}
                   />
                 </Grid>
@@ -504,6 +746,7 @@ export function BrandStudioPage() {
 
               <Divider />
 
+              {/* ── Enriched profile ── */}
               <SectionTitle>Enriched profile</SectionTitle>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -620,10 +863,7 @@ export function BrandStudioPage() {
                     void (async () => {
                       setSaving(true);
                       try {
-                        await updateBrandStudio({
-                          parsedProfile,
-                          enrichedProfile,
-                        });
+                        await updateBrandStudio({ parsedProfile, enrichedProfile });
                         await refetchBrandStudio();
                         try {
                           await syncBrandToAi();

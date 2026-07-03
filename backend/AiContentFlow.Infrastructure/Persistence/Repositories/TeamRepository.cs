@@ -62,7 +62,7 @@ public class TeamRepository : ITeamRepository
         var membership = await _context.UserTeams
             .Include(x => x.Team)
             .Where(x => x.UserId == userId)
-            .OrderBy(x => x.JoinedAt)
+            .OrderByDescending(x => x.JoinedAt)
             .FirstOrDefaultAsync();
 
         if (membership is null || membership.Team is null)

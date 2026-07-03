@@ -48,7 +48,7 @@ export function useAssistantContext(): AssistantContext {
   const channelId = useChannelParam();
   const campaignId = useCampaignParam();
   const brandStudioQuery = useBrandStudio();
-  const orgId = brandStudioQuery.data?.brandStudio?.orgId ?? null;
+  const orgId = brandStudioQuery.data?.brandStudio?.parsedProfile?.orgId ?? null;
 
   return useMemo(() => {
     const page = resolvePage(location.pathname);

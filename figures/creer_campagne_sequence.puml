@@ -1,0 +1,91 @@
+@startuml creer_campagne
+
+title Créer campagne
+
+actor "Éditeur" as E
+participant "Système" as S
+
+ref over E, S
+  S'authentifier
+end ref
+
+E -> S : 1: Initier la création d'une campagne
+S --> E : 2: Afficher le formulaire de saisie de la campagne
+E -> S : 3: Saisir les informations (Nom, Description, ...) & Valider
+S -> S : 4: Enregistrer la campagne
+S --> E : 5: Ouvrir la modale de routage de contenu
+
+alt [Skip]
+  E -> S : 6: Sélectionner "Skip"
+  S --> E : 7: Fermer la modale et afficher la campagne vide
+
+else [Create posts yourself]
+  E -> S : 5: Sélectionner "Create posts yourself"
+  E -> S : 6: Créer le premier post (Brief → Content → Publish)
+  S -> S : 7: Lier le post créé à la campagne
+  S --> E : 8: Afficher la campagne avec le post associé
+
+else [Plan with AI]
+  E -> S : 5: Sélectionner "Plan with AI"
+  E -> S : 6: Renseigner le brief stratégique global
+
+  == Étape 1 : Stratégie ==
+
+  S -> S : 7: Générer la stratégie via Agent IA
+  S --> E : 8: Afficher la stratégie proposée
+
+  loop Jusqu'à validation
+    alt [Accepter la stratégie]
+      E -> S : 9a: Valider la stratégie
+    else [Rejeter la stratégie]
+      E -> S : 9b: Rejeter la stratégie
+      S -> S : Régénérer la stratégie via Agent IA
+      S --> E : Afficher la nouvelle stratégie proposée
+    else [Modifier la stratégie]
+      E -> S : 9c: Modifier manuellement la stratégie & Valider
+      S -> S : Enregistrer la stratégie modifiée
+    end
+  end
+
+  == Étape 2 : Planning ==
+
+  S -> S : 10: Générer le planning des posts via Agent IA
+  S --> E : 11: Afficher le planning proposé (dates, canaux, fréquences)
+
+  loop Jusqu'à validation
+    alt [Accepter le planning]
+      E -> S : 12a: Valider le planning
+    else [Rejeter le planning]
+      E -> S : 12b: Rejeter le planning
+      S -> S : Régénérer le planning via Agent IA
+      S --> E : Afficher le nouveau planning proposé
+    else [Modifier le planning]
+      E -> S : 12c: Modifier manuellement le planning & Valider
+      S -> S : Enregistrer le planning modifié
+    end
+  end
+
+  == Étape 3 : Génération de contenu ==
+
+  S -> S : 13: Rédiger les posts via Agent IA\n(en accord avec la stratégie et le planning)
+  S --> E : 14: Afficher les posts générés
+
+  loop Pour chaque post (ou lot de posts)
+    alt [Accepter le contenu]
+      E -> S : 15a: Valider le(s) post(s)
+    else [Rejeter le contenu]
+      E -> S : 15b: Rejeter le(s) post(s)
+      S -> S : Régénérer le contenu via Agent IA
+      S --> E : Afficher le nouveau contenu proposé
+    else [Modifier le contenu]
+      E -> S : 15c: Modifier manuellement le(s) post(s) & Valider
+      S -> S : Enregistrer le contenu modifié
+    end
+  end
+
+  S -> S : 16: Injecter les posts validés dans le calendrier
+  S --> E : 17: Afficher la campagne avec son planning de posts générés
+
+end
+
+@enduml

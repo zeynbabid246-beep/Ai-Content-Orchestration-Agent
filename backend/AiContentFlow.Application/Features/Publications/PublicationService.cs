@@ -293,8 +293,8 @@ public class PublicationService : IPublicationService
 
     private static void EnsurePublishable(ContentPost contentPost)
     {
-        if (contentPost.Status is not ContentStatus.Ready and not ContentStatus.Scheduled)
-            throw new InvalidOperationException("Content post must be ready before it can be published or scheduled");
+        if (contentPost.Status is ContentStatus.Deleted)
+            throw new InvalidOperationException("Cannot publish a deleted post");
     }
 
     private static void EnsureInstagramHasImageIfNeeded(

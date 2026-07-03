@@ -56,72 +56,149 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
-Common/Interfaces/
- IApplicationTransaction.cs
- IAuthServiceFactory.cs
- ICampaignContentPostRepository.cs
- ICampaignRepository.cs
- IChannelRepository.cs
- IContentPostRepository.cs
- IEmailService.cs
- IIdentityService.cs
- IImageGenerationService.cs
- IJwtTokenGenerator.cs
- ILinkedInAuthService.cs
- IPostVariantRepository.cs
- IPublisher.cs
- IPublisherFactory.cs
- IRefreshTokenRepository.cs
- ISocialAccountRepository.cs
- ISocialAuthService.cs
- ITeamRepository.cs
- ITextGenerationService.cs
-Common/Models/EmailSettings.cs
+Common/
+ Authorization/TeamAuthorization.cs
+ Email/AuthEmailTemplates.cs
+ Interfaces/
+  IApplicationTransaction.cs
+  IAuthServiceFactory.cs
+  IBrandExtractionService.cs
+  IBrandImportJobScheduler.cs
+  IBrandImportProcessor.cs
+  IBrandStudioRepository.cs
+  ICampaignRepository.cs
+  IChannelRepository.cs
+  IChannelSocialAccountRepository.cs
+  IContentPostRepository.cs
+  IEmailService.cs
+  IIdentityService.cs
+  IImageGenerationService.cs
+  IJwtTokenGenerator.cs
+  ILinkedInAuthService.cs
+  ILocalAiBackendClient.cs
+  IPostPublicationRepository.cs
+  IPostVariantRepository.cs
+  IPublicationAnalyticsRepository.cs
+  IPublisher.cs
+  IPublisherFactory.cs
+  IPublishJobRepository.cs
+  IRefreshTokenRepository.cs
+  ISocialAccountRepository.cs
+  ISocialAuthService.cs
+  ISocialAuthStateService.cs
+  ISocialCredentialStore.cs
+  ITeamActivityRepository.cs
+  ITeamActivityService.cs
+  ITeamInvitationRepository.cs
+  ITeamRepository.cs
+  ITextGenerationService.cs
+  IWebsiteFetcher.cs
+  LocalAiBrandContext.cs
+ Models/
+  AppSettings.cs
+  EmailSettings.cs
+  SocialAuthResult.cs
+  SocialAuthState.cs
+ Publishing/VariantContentMerge.cs
+ Security/InvitationTokenHelper.cs
+ Services/JsonContentValidator.cs
+ TeamActivityActions.cs
 Dtos/PublishResult.cs
+Features/Ai/
+ AiContentService.cs
+ Dtos/AiDtos.cs
+ IAiContentService.cs
+ LocalAiManualBrandMapper.cs
+Features/Analytics/
+ AnalyticsService.cs
+ Dtos/AnalyticsDtos.cs
+ IAnalyticsService.cs
 Features/Auth/
  AuthService.cs
  Dtos/
   AuthResponseDto.cs
+  ChangePasswordRequestDto.cs
+  ForgotPasswordRequestDto.cs
   LoginRequestDto.cs
+  LogoutRequestDto.cs
+  MessageResponseDto.cs
   RefreshRequestDto.cs
   RefreshTokenDto.cs
   RegisterRequestDto.cs
+  ResetPasswordRequestDto.cs
  IAuthService.cs
-Features/
- Campaigns/CampaignService.cs
- Channels/
-  ChannelService.cs
-  Dtos/ChannelDtos.cs
-  IChannelService.cs
-  Validators/
-   CreateChannelDtoValidator.cs
-   UpdateChannelDtoValidator.cs
- ContentPosts/
-  ContentPostService.cs
-  Dtos/ContentPostDtos.cs
-  IContentPostService.cs
- SocialAccounts/
-  Dtos/SocialAccountDtos.cs
-  ISocialAccountService.cs
-  SocialAccountService.cs
-  Validators/
-   CreateSocialAccountDtoValidator.cs
-   UpdateSocialAccountDtoValidator.cs
- Teams/
-  Dtos/TeamDtos.cs
-  ITeamService.cs
-  TeamService.cs
+ Validators/
+  ChangePasswordRequestDtoValidator.cs
+  ForgotPasswordRequestDtoValidator.cs
+  LogoutRequestDtoValidator.cs
+  ResetPasswordRequestDtoValidator.cs
+Features/BrandStudio/
+ BrandImportProcessor.cs
+ BrandProfileMapper.cs
+ BrandStudioService.cs
+ Dtos/BrandStudioDtos.cs
+ IBrandStudioService.cs
+ Validators/CreateBrandImportDtoValidator.cs
+Features/Campaigns/
+ CampaignService.cs
+ Validators/
+  CreateCampaignDtoValidator.cs
+  UpdateCampaignDtoValidator.cs
+Features/Channels/
+ ChannelService.cs
+ ChannelSocialAccountService.cs
+ Dtos/
+  ChannelDtos.cs
+  ChannelSocialAccountDtos.cs
+ IChannelService.cs
+ IChannelSocialAccountService.cs
+ Validators/
+  CreateChannelDtoValidator.cs
+  UpdateChannelDtoValidator.cs
+Features/ContentPosts/
+ ContentPostService.cs
+ Dtos/
+  ContentPostDtos.cs
+  ContentPostQueryDto.cs
+ IContentPostService.cs
+ Validators/
+  CreateContentPostDtoValidator.cs
+  UpdateContentPostDtoValidator.cs
+Features/Profile/
+ Dtos/UserProfileDtos.cs
+ IUserProfileService.cs
+ UserProfileService.cs
+ Validators/UpdateUserProfileDtoValidator.cs
+Features/Publications/
+ Dtos/PublicationDtos.cs
+ IPublicationService.cs
+ PublicationService.cs
+Features/SocialAccounts/
+ Dtos/SocialAccountDtos.cs
+ ISocialAccountService.cs
+ SocialAccountService.cs
+ Validators/
+  CreateSocialAccountDtoValidator.cs
+  UpdateSocialAccountDtoValidator.cs
+Features/SocialAuth/
+ Dtos/SocialAuthDtos.cs
+ SocialAuthService.cs
+Features/Teams/Dtos/
+ TeamActivityEventDto.cs
+ TeamDtos.cs
+ TeamInvitationDtos.cs
+ UserTeamSummaryDto.cs
+Features/Teams/
+ ITeamService.cs
+ TeamActivityService.cs
+ TeamService.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  AiContentFlow.Application.AssemblyInfo.cs
  AiContentFlow.Application.GlobalUsings.g.cs
-UseCases/
- GenerateAndPublishUseCase.cs
- GeneratePostUseCase.cs
- PublishPostUseCase.cs
 
 [metadataReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.AspNetCore.Antiforgery.dll
  Microsoft.AspNetCore.Authentication.Abstractions.dll
  Microsoft.AspNetCore.Authentication.BearerToken.dll
@@ -260,7 +337,7 @@ UseCases/
  System.Formats.Cbor.dll
  System.Security.Cryptography.Xml.dll
  System.Threading.RateLimiting.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll
  Microsoft.VisualBasic.dll
@@ -444,7 +521,7 @@ UseCases/
  system.identitymodel.tokens.jwt/8.17.0/lib/net10.0/System.IdentityModel.Tokens.Jwt.dll
 
 [analyzerReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.AspNetCore.App.Analyzers.dll
  Microsoft.AspNetCore.App.CodeFixes.dll
  Microsoft.AspNetCore.App.SourceGenerators.dll
@@ -452,17 +529,17 @@ UseCases/
  Microsoft.Extensions.Logging.Generators.dll
  Microsoft.Extensions.Options.SourceGeneration.dll
  Microsoft.Extensions.Validation.ValidationsGenerator.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.Interop.ComInterfaceGenerator.dll
  Microsoft.Interop.JavaScript.JSImportGenerator.dll
  Microsoft.Interop.LibraryImportGenerator.dll
  Microsoft.Interop.SourceGeneration.dll
  System.Text.Json.SourceGeneration.dll
  System.Text.RegularExpressions.Generator.dll
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
 
 [analyzerConfigFiles]
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
 obj/Debug/net10.0/AiContentFlow.Application.GeneratedMSBuildEditorConfig.editorconfig

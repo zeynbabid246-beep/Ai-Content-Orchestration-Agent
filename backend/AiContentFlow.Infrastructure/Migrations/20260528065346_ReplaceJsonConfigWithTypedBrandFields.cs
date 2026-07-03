@@ -203,74 +203,73 @@ namespace AiContentFlow.Infrastructure.Migrations
                 nullable: true);
 
             migrationBuilder.Sql("""
-                UPDATE "TeamBrandStudios"
-                SET
-                    "KeywordsCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("KeywordsJson", '[]'::jsonb)) AS value
-                    ), ''),
-                    "ProductsCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("ProductsJson"::jsonb, '[]'::jsonb)) AS value
-                    ), ''),
-                    "ServicesCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("ServicesJson"::jsonb, '[]'::jsonb)) AS value
-                    ), ''),
-                    "DefaultToneOfVoice" = COALESCE(NULLIF("DefaultConfigJson"->>'toneOfVoice', ''), "ToneOfVoice"),
-                    "DefaultTargetAudience" = COALESCE(NULLIF("DefaultConfigJson"->>'targetAudience', ''), "TargetAudience"),
-                    "DefaultKeywordsCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("DefaultConfigJson"->'keywords', '[]'::jsonb)) AS value
-                    ), ''),
-                    "DefaultContentPillarsCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("DefaultConfigJson"->'contentPillars', '[]'::jsonb)) AS value
-                    ), ''),
-                    "DefaultMission" = COALESCE(NULLIF("DefaultConfigJson"->>'mission', ''), "Mission"),
-                    "DefaultBrandSummary" = COALESCE(NULLIF("DefaultConfigJson"->>'brandSummary', ''), "Description"),
-                    "DefaultCampaignObjective" = COALESCE(NULLIF("DefaultConfigJson"->>'preferredCampaignObjective', ''), 'awareness'),
-                    "AudienceSignalsCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("RawAnalysisJson"->'audience_signals', '[]'::jsonb)) AS value
-                    ), ''),
-                    "ToneOfVoiceExamplesCsv" = COALESCE((
-                        SELECT string_agg(value, ', ')
-                        FROM jsonb_array_elements_text(COALESCE("RawAnalysisJson"->'tone_of_voice', '[]'::jsonb)) AS value
-                    ), '');
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'TeamBrandStudios' AND column_name = 'DefaultConfigJson'
+                    ) THEN
+                        UPDATE "TeamBrandStudios"
+                        SET
+                            "KeywordsCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("KeywordsJson", '[]'::jsonb)) AS value
+                            ), ''),
+                            "ProductsCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("ProductsJson"::jsonb, '[]'::jsonb)) AS value
+                            ), ''),
+                            "ServicesCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("ServicesJson"::jsonb, '[]'::jsonb)) AS value
+                            ), ''),
+                            "DefaultToneOfVoice" = COALESCE(NULLIF("DefaultConfigJson"->>'toneOfVoice', ''), "ToneOfVoice"),
+                            "DefaultTargetAudience" = COALESCE(NULLIF("DefaultConfigJson"->>'targetAudience', ''), "TargetAudience"),
+                            "DefaultKeywordsCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("DefaultConfigJson"->'keywords', '[]'::jsonb)) AS value
+                            ), ''),
+                            "DefaultContentPillarsCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("DefaultConfigJson"->'contentPillars', '[]'::jsonb)) AS value
+                            ), ''),
+                            "DefaultMission" = COALESCE(NULLIF("DefaultConfigJson"->>'mission', ''), "Mission"),
+                            "DefaultBrandSummary" = COALESCE(NULLIF("DefaultConfigJson"->>'brandSummary', ''), "Description"),
+                            "DefaultCampaignObjective" = COALESCE(NULLIF("DefaultConfigJson"->>'preferredCampaignObjective', ''), 'awareness'),
+                            "AudienceSignalsCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("RawAnalysisJson"->'audience_signals', '[]'::jsonb)) AS value
+                            ), ''),
+                            "ToneOfVoiceExamplesCsv" = COALESCE((
+                                SELECT string_agg(value, ', ')
+                                FROM jsonb_array_elements_text(COALESCE("RawAnalysisJson"->'tone_of_voice', '[]'::jsonb)) AS value
+                            ), '');
+                    END IF;
+                END $$;
                 """);
 
             migrationBuilder.Sql("""
-                UPDATE "Campaigns"
-                SET
-                    "Objective" = NULLIF("ConfigJson"->>'objective', ''),
-                    "ToneOfVoiceOverride" = NULLIF("ConfigJson"->>'toneOfVoice', ''),
-                    "TargetAudienceOverride" = NULLIF("ConfigJson"->>'targetAudience', '');
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'Campaigns' AND column_name = 'ConfigJson'
+                    ) THEN
+                        UPDATE "Campaigns"
+                        SET
+                            "Objective" = NULLIF("ConfigJson"->>'objective', ''),
+                            "ToneOfVoiceOverride" = NULLIF("ConfigJson"->>'toneOfVoice', ''),
+                            "TargetAudienceOverride" = NULLIF("ConfigJson"->>'targetAudience', '');
+                    END IF;
+                END $$;
                 """);
 
-            migrationBuilder.DropColumn(
-                name: "DefaultConfigJson",
-                table: "TeamBrandStudios");
-
-            migrationBuilder.DropColumn(
-                name: "KeywordsJson",
-                table: "TeamBrandStudios");
-
-            migrationBuilder.DropColumn(
-                name: "ProductsJson",
-                table: "TeamBrandStudios");
-
-            migrationBuilder.DropColumn(
-                name: "RawAnalysisJson",
-                table: "TeamBrandStudios");
-
-            migrationBuilder.DropColumn(
-                name: "ServicesJson",
-                table: "TeamBrandStudios");
-
-            migrationBuilder.DropColumn(
-                name: "ConfigJson",
-                table: "Campaigns");
+            migrationBuilder.Sql("""ALTER TABLE "TeamBrandStudios" DROP COLUMN IF EXISTS "DefaultConfigJson";""");
+            migrationBuilder.Sql("""ALTER TABLE "TeamBrandStudios" DROP COLUMN IF EXISTS "KeywordsJson";""");
+            migrationBuilder.Sql("""ALTER TABLE "TeamBrandStudios" DROP COLUMN IF EXISTS "ProductsJson";""");
+            migrationBuilder.Sql("""ALTER TABLE "TeamBrandStudios" DROP COLUMN IF EXISTS "RawAnalysisJson";""");
+            migrationBuilder.Sql("""ALTER TABLE "TeamBrandStudios" DROP COLUMN IF EXISTS "ServicesJson";""");
+            migrationBuilder.Sql("""ALTER TABLE "Campaigns" DROP COLUMN IF EXISTS "ConfigJson";""");
         }
 
         /// <inheritdoc />

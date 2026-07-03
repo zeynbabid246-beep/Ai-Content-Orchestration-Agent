@@ -3,6 +3,7 @@ import {
   getCampaignAnalyticsSummary,
   getChannelAnalyticsSummary,
   getTeamAnalyticsSummary,
+  getPlatformAnalyticsPosts,
 } from "./analytics.api";
 
 export const analyticsKeys = {
@@ -12,6 +13,8 @@ export const analyticsKeys = {
     [...analyticsKeys.all, "channel", channelId, days] as const,
   campaign: (channelId: number, campaignId: number, days: number) =>
     [...analyticsKeys.all, "campaign", channelId, campaignId, days] as const,
+  platformPosts: (platform: string, days: number) =>
+    [...analyticsKeys.all, "platform-posts", platform, days] as const,
 };
 
 export function useTeamAnalyticsSummary(days = 30) {
@@ -26,6 +29,14 @@ export function useChannelAnalyticsSummary(channelId: number | null, days = 30) 
     queryKey: analyticsKeys.channel(channelId ?? 0, days),
     queryFn: () => getChannelAnalyticsSummary(channelId!, days),
     enabled: channelId != null && channelId > 0,
+  });
+}
+
+export function usePlatformAnalyticsPosts(platform: string | null, days = 30) {
+  return useQuery({
+    queryKey: analyticsKeys.platformPosts(platform ?? "", days),
+    queryFn: () => getPlatformAnalyticsPosts(platform!, days),
+    enabled: platform != null && platform.length > 0,
   });
 }
 

@@ -1,0 +1,279 @@
+@startuml cas_utilisation_aicontentflow
+
+title Diagramme de cas d'utilisation — AiContentFlow
+
+skinparam usecase {
+  BackgroundColor #FFD7CC
+  BorderColor #AA3333
+  FontName Arial
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 12
+}
+skinparam rectangle {
+  BorderColor #999999
+  BackgroundColor #FAFAFA
+  FontSize 12
+  FontStyle bold
+}
+skinparam arrow {
+  Color #333333
+}
+
+left to right direction
+
+' ==================== ACTEURS ====================
+
+actor "Éditeur" as E
+actor "Admin" as A
+
+A --|> E
+
+' ==================== AUTHENTIFICATION & PROFIL ====================
+
+rectangle "Authentification & Profil" {
+  usecase "Se connecter" as UC_Login
+  usecase "S'inscrire" as UC_Register
+  usecase "Se déconnecter" as UC_Logout
+  usecase "Se connecter\nvia OAuth social" as UC_OAuthLogin
+  usecase "Réinitialiser\nmot de passe" as UC_ForgotPwd
+  usecase "Changer\nmot de passe" as UC_ChangePwd
+  usecase "Gérer son profil" as UC_Profile
+  usecase "Modifier ses\ninformations" as UC_EditProfile
+  usecase "Gérer son avatar\n(upload / supprimer)" as UC_Avatar
+}
+
+' ==================== GESTION D'ÉQUIPE ====================
+
+rectangle "Gestion d'équipe" {
+  usecase "Gérer l'équipe" as UC_Team
+  usecase "Créer une équipe" as UC_CreateTeam
+  usecase "Changer d'équipe\nactive" as UC_SwitchTeam
+  usecase "Renommer l'équipe" as UC_RenameTeam
+  usecase "Inviter un membre" as UC_InviteMember
+  usecase "Gérer les invitations\n(voir / annuler)" as UC_ManageInvit
+  usecase "Accepter une invitation" as UC_AcceptInvit
+  usecase "Retirer un membre" as UC_RemoveMember
+  usecase "Modifier le rôle\nd'un membre" as UC_ChangeRole
+  usecase "Consulter l'activité\nde l'équipe" as UC_TeamActivity
+}
+
+' ==================== BRAND STUDIO ====================
+
+rectangle "Brand Studio" {
+  usecase "Consulter le\nBrand Studio" as UC_Brand
+  usecase "Créer Brand Studio\nmanuellement" as UC_BrandManual
+  usecase "Importer Brand Studio\n(depuis URL/site)" as UC_BrandImport
+  usecase "Modifier\nBrand Studio" as UC_BrandEdit
+  usecase "Synchroniser\navec l'IA" as UC_BrandSync
+  usecase "Suivre les jobs\nd'import" as UC_BrandJobs
+}
+
+' ==================== CANAUX ====================
+
+rectangle "Canaux" {
+  usecase "Lister canaux" as UC_ListChannels
+  usecase "Créer canal" as UC_CreateChannel
+  usecase "Modifier canal" as UC_EditChannel
+  usecase "Supprimer canal" as UC_DeleteChannel
+  usecase "Lier compte social\nau canal" as UC_LinkSocial
+  usecase "Délier compte social\ndu canal" as UC_UnlinkSocial
+}
+
+' ==================== COMPTES SOCIAUX ====================
+
+rectangle "Comptes sociaux" {
+  usecase "Gérer comptes\nsociaux" as UC_SocialAccounts
+  usecase "Connecter compte\nsocial (OAuth)" as UC_ConnectSocial
+  usecase "Modifier compte\nsocial" as UC_EditSocial
+  usecase "Supprimer compte\nsocial" as UC_DeleteSocial
+}
+
+' ==================== CAMPAGNES ====================
+
+rectangle "Campagnes" {
+  usecase "Lister campagnes" as UC_ListCampaigns
+  usecase "Créer campagne" as UC_CreateCampaign
+  usecase "Créer campagne\nmanuellement" as UC_CreateCampaignManual
+  usecase "Créer campagne\ncomplète par agents IA" as UC_CreateCampaignAI
+  usecase "Suggérer campagne\nvia IA" as UC_SuggestCampaign
+  usecase "Modifier campagne" as UC_EditCampaign
+  usecase "Archiver campagne" as UC_ArchiveCampaign
+  usecase "Restaurer campagne" as UC_RestoreCampaign
+  usecase "Supprimer campagne" as UC_DeleteCampaign
+  usecase "Lier / Délier post\nà la campagne" as UC_LinkPost
+}
+
+' ==================== PIPELINE IA CAMPAGNE ====================
+
+rectangle "Pipeline IA Campagne" {
+  usecase "Générer stratégie\nvia Agent IA" as UC_Strategy
+  usecase "Générer planning\nvia Agent IA" as UC_Planning
+  usecase "Générer contenu\nvia Agent IA" as UC_ContentAI
+  usecase "Matérialiser\nla campagne" as UC_Materialize
+}
+
+' ==================== POSTS ====================
+
+rectangle "Posts (Contenu)" {
+  usecase "Lister posts" as UC_ListPosts
+  usecase "Créer post" as UC_CreatePost
+  usecase "Rédiger\nmanuellement" as UC_WriteManual
+  usecase "Générer via IA" as UC_GenAI
+  usecase "Générer prévisualisation\ncréative" as UC_GenPreview
+  usecase "Sélectionner variante" as UC_SelectVariant
+  usecase "Uploader image" as UC_UploadImg
+  usecase "Appliquer contexte\nde marque" as UC_BrandCtx
+  usecase "Modifier post" as UC_EditPost
+  usecase "Supprimer post" as UC_DeletePost
+  usecase "Gérer workflow post" as UC_Workflow
+  usecase "Enregistrer brouillon" as UC_Draft
+  usecase "Marquer comme prêt" as UC_Ready
+  usecase "Planifier post" as UC_SchedulePost
+  usecase "Annuler planification" as UC_CancelSched
+  usecase "Publier post" as UC_PublishPost
+}
+
+' ==================== PUBLICATIONS ====================
+
+rectangle "Publications & Diffusion" {
+  usecase "Publier maintenant\nsur réseau social" as UC_PublishNow
+  usecase "Planifier publication\nsociale" as UC_ScheduleSocial
+  usecase "Consulter analytics\nd'une publication" as UC_PubAnalytics
+  usecase "Voir jobs de\npublication" as UC_PublishJobs
+}
+
+' ==================== ANALYTICS ====================
+
+rectangle "Analytics" {
+  usecase "Consulter dashboard\nanalytics" as UC_Analytics
+  usecase "Voir analytics\nglobales (équipe)" as UC_AnalyticsGlobal
+  usecase "Voir analytics\npar canal" as UC_AnalyticsChannel
+  usecase "Voir analytics\npar campagne" as UC_AnalyticsCampaign
+}
+
+' ==================== ASSISTANT IA ====================
+
+rectangle "Assistant IA" {
+  usecase "Discuter avec\nl'assistant IA" as UC_AIChat
+}
+
+' ==================== CONNEXIONS ACTEUR -> UC PRINCIPAUX ====================
+
+E --> UC_Login
+E --> UC_Register
+E --> UC_Profile
+E --> UC_Brand
+E --> UC_ListChannels
+E --> UC_SocialAccounts
+E --> UC_ListCampaigns
+E --> UC_ListPosts
+E --> UC_Analytics
+E --> UC_AIChat
+A --> UC_Team
+
+' ==================== AUTHENTIFICATION & PROFIL ====================
+' note: <<extend>> va du UC ÉTENDANT vers le UC DE BASE
+
+(UC_OAuthLogin) ..> (UC_Login) : <<extend>>
+(UC_ForgotPwd)  ..> (UC_Login) : <<extend>>
+(UC_ChangePwd)  ..> (UC_Login) : <<extend>>
+(UC_Logout)     ..> (UC_Login) : <<extend>>
+
+(UC_EditProfile) ..> (UC_Profile) : <<extend>>
+(UC_Avatar)      ..> (UC_Profile) : <<extend>>
+
+' ==================== GESTION D'ÉQUIPE ====================
+
+(UC_CreateTeam)    ..> (UC_Team) : <<extend>>
+(UC_SwitchTeam)    ..> (UC_Team) : <<extend>>
+(UC_RenameTeam)    ..> (UC_Team) : <<extend>>
+(UC_InviteMember)  ..> (UC_Team) : <<extend>>
+(UC_ManageInvit)   ..> (UC_Team) : <<extend>>
+(UC_AcceptInvit)   ..> (UC_Team) : <<extend>>
+(UC_RemoveMember)  ..> (UC_Team) : <<extend>>
+(UC_ChangeRole)    ..> (UC_Team) : <<extend>>
+(UC_TeamActivity)  ..> (UC_Team) : <<extend>>
+
+' ==================== BRAND STUDIO ====================
+
+(UC_BrandManual) ..> (UC_Brand) : <<extend>>
+(UC_BrandImport) ..> (UC_Brand) : <<extend>>
+(UC_BrandEdit)   ..> (UC_Brand) : <<extend>>
+(UC_BrandSync)   ..> (UC_Brand) : <<extend>>
+(UC_BrandJobs)   ..> (UC_BrandImport) : <<extend>>
+
+' ==================== CANAUX ====================
+
+(UC_CreateChannel) ..> (UC_ListChannels) : <<extend>>
+(UC_EditChannel)   ..> (UC_ListChannels) : <<extend>>
+(UC_DeleteChannel) ..> (UC_ListChannels) : <<extend>>
+(UC_LinkSocial)    ..> (UC_ListChannels) : <<extend>>
+(UC_UnlinkSocial)  ..> (UC_ListChannels) : <<extend>>
+
+' ==================== COMPTES SOCIAUX ====================
+
+(UC_ConnectSocial) ..> (UC_SocialAccounts) : <<extend>>
+(UC_EditSocial)    ..> (UC_SocialAccounts) : <<extend>>
+(UC_DeleteSocial)  ..> (UC_SocialAccounts) : <<extend>>
+
+' ==================== CAMPAGNES ====================
+
+(UC_CreateCampaign)  ..> (UC_ListCampaigns) : <<extend>>
+(UC_EditCampaign)    ..> (UC_ListCampaigns) : <<extend>>
+(UC_ArchiveCampaign) ..> (UC_ListCampaigns) : <<extend>>
+(UC_RestoreCampaign) ..> (UC_ListCampaigns) : <<extend>>
+(UC_DeleteCampaign)  ..> (UC_ListCampaigns) : <<extend>>
+(UC_LinkPost)        ..> (UC_ListCampaigns) : <<extend>>
+
+(UC_CreateCampaignManual) ..> (UC_CreateCampaign) : <<extend>>
+(UC_CreateCampaignAI)     ..> (UC_CreateCampaign) : <<extend>>
+(UC_SuggestCampaign)      ..> (UC_CreateCampaign) : <<extend>>
+
+' ==================== PIPELINE IA (INCLUDE = étapes obligatoires) ====================
+' <<include>> va du UC INCLUANT vers le UC INCLUS
+
+(UC_CreateCampaignAI) ..> (UC_Strategy)   : <<include>>
+(UC_CreateCampaignAI) ..> (UC_Planning)   : <<include>>
+(UC_CreateCampaignAI) ..> (UC_ContentAI)  : <<include>>
+(UC_CreateCampaignAI) ..> (UC_Materialize): <<include>>
+
+' ==================== POSTS ====================
+
+(UC_CreatePost) ..> (UC_ListPosts) : <<extend>>
+(UC_EditPost)   ..> (UC_ListPosts) : <<extend>>
+(UC_DeletePost) ..> (UC_ListPosts) : <<extend>>
+(UC_Workflow)   ..> (UC_ListPosts) : <<extend>>
+
+' <<include>> : le contexte de marque est TOUJOURS appliqué à la création
+(UC_CreatePost) ..> (UC_BrandCtx) : <<include>>
+
+(UC_WriteManual)   ..> (UC_CreatePost) : <<extend>>
+(UC_GenAI)         ..> (UC_CreatePost) : <<extend>>
+(UC_GenPreview)    ..> (UC_GenAI)      : <<extend>>
+(UC_SelectVariant) ..> (UC_CreatePost) : <<extend>>
+(UC_UploadImg)     ..> (UC_CreatePost) : <<extend>>
+
+(UC_Draft)       ..> (UC_Workflow) : <<extend>>
+(UC_Ready)       ..> (UC_Workflow) : <<extend>>
+(UC_SchedulePost)..> (UC_Workflow) : <<extend>>
+(UC_CancelSched) ..> (UC_Workflow) : <<extend>>
+(UC_PublishPost) ..> (UC_Workflow) : <<extend>>
+
+' ==================== PUBLICATIONS ====================
+
+(UC_PublishNow)      ..> (UC_PublishPost)   : <<extend>>
+(UC_ScheduleSocial)  ..> (UC_SchedulePost)  : <<extend>>
+(UC_PubAnalytics)    ..> (UC_PublishNow)    : <<extend>>
+(UC_PublishJobs)     ..> (UC_PublishNow)    : <<extend>>
+
+' ==================== ANALYTICS ====================
+
+(UC_AnalyticsGlobal)    ..> (UC_Analytics) : <<extend>>
+(UC_AnalyticsChannel)   ..> (UC_Analytics) : <<extend>>
+(UC_AnalyticsCampaign)  ..> (UC_Analytics) : <<extend>>
+
+@enduml

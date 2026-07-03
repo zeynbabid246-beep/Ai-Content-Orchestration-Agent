@@ -23,8 +23,27 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center" }}>
-      <Paper sx={{ width: "100%", maxWidth: 450, p: 4 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(145deg, #eff6ff 0%, #dbeafe 30%, #e0f2fe 60%, #f0f9ff 100%)",
+        p: 2,
+      }}
+    >
+      <Paper
+        sx={{
+          width: "100%",
+          maxWidth: 450,
+          p: { xs: 3, sm: 4 },
+          borderRadius: 3,
+          boxShadow: "0 20px 60px rgba(37,99,235,0.10), 0 4px 20px rgba(0,0,0,0.06)",
+          border: "1px solid",
+          borderColor: "rgba(37,99,235,0.10)",
+        }}
+      >
         <Stack spacing={2}>
           <Typography variant="h4">Forgot password</Typography>
           <Typography variant="body2" color="text.secondary">

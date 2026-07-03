@@ -19,4 +19,10 @@ public interface IAnalyticsAggregationService
         int campaignId,
         string requestingUserId,
         int days = 30);
+
+    Task<IReadOnlyList<TopPostMetricsDto>> GetPlatformPostsAsync(
+        Guid teamId,
+        string requestingUserId,
+        string platform,
+        int days = 30);
 }

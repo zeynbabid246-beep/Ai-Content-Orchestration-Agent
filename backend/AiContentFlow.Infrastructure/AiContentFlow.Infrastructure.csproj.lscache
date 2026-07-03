@@ -58,8 +58,11 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 [sourceFiles]
 AI/
  GeminiImageService.cs
- OpenAIMultiService.cs
+ LocalAiBackendClient.cs
  TextGenerationService.cs
+BrandStudio/
+ BrandExtractionService.cs
+ SafeWebsiteFetcher.cs
 Extensions/
  AddSwaggerDocumentation.cs
  DependencyInjection.cs
@@ -99,6 +102,28 @@ Migrations/
  20260416102043_SimplifyTeamRolesToAdminEditorViewer.Designer.cs
  20260422112345_SyncModelChanges.cs
  20260422112345_SyncModelChanges.Designer.cs
+ 20260506104946_AddPublishingLifecycleAndAnalytics.cs
+ 20260506104946_AddPublishingLifecycleAndAnalytics.Designer.cs
+ 20260512181844_AddBrandStudioFoundation.cs
+ 20260512181844_AddBrandStudioFoundation.Designer.cs
+ 20260518174240_AddBrandStudioProductsServices.cs
+ 20260518174240_AddBrandStudioProductsServices.Designer.cs
+ 20260528065346_ReplaceJsonConfigWithTypedBrandFields.cs
+ 20260528065346_ReplaceJsonConfigWithTypedBrandFields.Designer.cs
+ 20260531084925_AlignBrandStudioWithAiProfile.cs
+ 20260531084925_AlignBrandStudioWithAiProfile.Designer.cs
+ 20260603141421_AddTeamInvitations.cs
+ 20260603141421_AddTeamInvitations.Designer.cs
+ 20260603141603_AddTeamActivityEvents.cs
+ 20260603141603_AddTeamActivityEvents.Designer.cs
+ 20260604224518_TeamScopedSocialAccountsAndChannelLinks.cs
+ 20260604224518_TeamScopedSocialAccountsAndChannelLinks.Designer.cs
+ 20260604224701_SyncSocialAccountUniqueIndexFilter.cs
+ 20260604224701_SyncSocialAccountUniqueIndexFilter.Designer.cs
+ 20260605002440_AddUserProfileFields.cs
+ 20260605002440_AddUserProfileFields.Designer.cs
+ 20260605161749_EnsureUserProfileColumns.cs
+ 20260605161749_EnsureUserProfileColumns.Designer.cs
  AppDbContextModelSnapshot.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
@@ -107,30 +132,48 @@ obj/Debug/net10.0/
 Persistence/
  AppDbContext.cs
  AppDbContextFactory.cs
- Configurations/ContentPostConfiguration.cs
+ Configurations/
+  ChannelSocialAccountConfiguration.cs
+  ContentPostConfiguration.cs
+  TeamActivityEventConfiguration.cs
+  TeamInvitationConfiguration.cs
  EfCoreApplicationTransaction.cs
  Repositories/
-  CampaignContentPostRepository.cs
+  BrandStudioRepository.cs
   CampaignRepository.cs
   ChannelRepository.cs
+  ChannelSocialAccountRepository.cs
   ContentPostRepository.cs
+  PostPublicationRepository.cs
   PostVariantRepository.cs
+  PublicationAnalyticsRepository.cs
+  PublishJobRepository.cs
   RefreshTokenRepository.cs
   SocialAccountRepository.cs
+  TeamActivityRepository.cs
+  TeamInvitationRepository.cs
   TeamRepository.cs
 Publishers/
  FacebookPublisher.cs
  InstagramPublisher.cs
  LinkedInPublisher.cs
+ PublishLocalImageHelper.cs
 Services/
  JwtTokenGenerator.cs
  LinkedInAuthService.cs
  MetaAuthService.cs
+ ProtectedSocialCredentialStore.cs
+ SignedSocialAuthStateService.cs
  SmtpEmailService.cs
-Workers/PublishWorker.cs
+Workers/
+ BrandImportWorker.cs
+ HangfireBrandImportJobScheduler.cs
+ PublishScheduledVariantsJob.cs
+ SocialTokenRefreshJob.cs
+ SyncPublicationAnalyticsJob.cs
 
 [metadataReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.AspNetCore.Antiforgery.dll
  Microsoft.AspNetCore.Authentication.Abstractions.dll
  Microsoft.AspNetCore.Authentication.BearerToken.dll
@@ -253,7 +296,7 @@ Workers/PublishWorker.cs
  System.Formats.Cbor.dll
  System.Security.Cryptography.Xml.dll
  System.Threading.RateLimiting.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll
  Microsoft.VisualBasic.dll
@@ -427,6 +470,7 @@ Workers/PublishWorker.cs
 <NUGET>/
  fluentvalidation.dependencyinjectionextensions/11.11.0/lib/netstandard2.1/FluentValidation.DependencyInjectionExtensions.dll
  fluentvalidation/11.11.0/lib/net8.0/FluentValidation.dll
+ hangfire.core/1.8.23/lib/netstandard2.0/Hangfire.Core.dll
  humanizer.core/2.14.1/lib/net6.0/Humanizer.dll
  microsoft.aspnetcore.authentication.jwtbearer/10.0.5/lib/net10.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
  microsoft.aspnetcore.cryptography.internal/10.0.7/lib/net10.0/Microsoft.AspNetCore.Cryptography.Internal.dll
@@ -485,20 +529,20 @@ Workers/PublishWorker.cs
  system.identitymodel.tokens.jwt/8.17.0/lib/net10.0/System.IdentityModel.Tokens.Jwt.dll
 
 [analyzerReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.AspNetCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.AspNetCore.App.Analyzers.dll
  Microsoft.AspNetCore.App.CodeFixes.dll
  Microsoft.AspNetCore.App.SourceGenerators.dll
  Microsoft.AspNetCore.Components.Analyzers.dll
  Microsoft.Extensions.Validation.ValidationsGenerator.dll
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.Interop.ComInterfaceGenerator.dll
  Microsoft.Interop.JavaScript.JSImportGenerator.dll
  Microsoft.Interop.LibraryImportGenerator.dll
  Microsoft.Interop.SourceGeneration.dll
  System.Text.Json.SourceGeneration.dll
  System.Text.RegularExpressions.Generator.dll
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
 <NUGET>/microsoft.codeanalysis.analyzers/3.11.0/analyzers/dotnet/cs/
@@ -510,5 +554,5 @@ Workers/PublishWorker.cs
  microsoft.extensions.options/10.0.7/analyzers/dotnet/roslyn4.4/cs/Microsoft.Extensions.Options.SourceGeneration.dll
 
 [analyzerConfigFiles]
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
 obj/Debug/net10.0/AiContentFlow.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig

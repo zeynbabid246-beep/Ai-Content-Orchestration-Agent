@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture Logique — AiContentFlow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.4rem;
+    color: #1a1a2e;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 36px;
+  }
+
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    max-width: 860px;
+  }
+
+  /* Generic layer box */
+  .layer {
+    width: 100%;
+    border-radius: 12px;
+    padding: 16px 22px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  }
+  .layer-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+    opacity: 0.75;
+  }
+  .layer-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .layer-desc {
+    font-size: 0.8rem;
+    opacity: 0.85;
+  }
+
+  /* Arrow connector */
+  .arrow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 36px;
+    position: relative;
+  }
+  .arrow::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 24px;
+    background: #9ca3af;
+    top: 0;
+  }
+  .arrow::after {
+    content: '▼';
+    font-size: 14px;
+    color: #9ca3af;
+    position: absolute;
+    bottom: 0;
+  }
+
+  /* USER */
+  .layer-user {
+    background: #dbeafe;
+    border: 2px solid #3b82f6;
+    color: #1e40af;
+    max-width: 280px;
+    text-align: center;
+    align-self: center;
+  }
+
+  /* FRONTEND */
+  .layer-frontend {
+    background: #e0f2fe;
+    border: 2px solid #0284c7;
+    color: #0c4a6e;
+  }
+  .features-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .feature-chip {
+    background: #bae6fd;
+    color: #075985;
+    border-radius: 6px;
+    padding: 4px 11px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid #7dd3fc;
+  }
+
+  /* API */
+  .layer-api {
+    background: #dcfce7;
+    border: 2px solid #16a34a;
+    color: #14532d;
+  }
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 8px;
+  }
+  .badge {
+    border-radius: 20px;
+    padding: 3px 11px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .badge-api { background: #bbf7d0; color: #166534; border: 1px solid #86efac; }
+
+  /* CORE = Application + Domain */
+  .core-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+  }
+  .layer-application {
+    flex: 1;
+    background: #fff7ed;
+    border: 2px solid #ea580c;
+    color: #7c2d12;
+  }
+  .layer-domain {
+    flex: 1;
+    background: #fefce8;
+    border: 2px solid #ca8a04;
+    color: #713f12;
+  }
+  .item-list {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .item {
+    font-size: 0.73rem;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 5px;
+  }
+  .item-app { background: #fed7aa; color: #9a3412; }
+  .item-dom { background: #fef08a; color: #854d0e; }
+
+  /* INFRA */
+  .layer-infra {
+    background: #f3e8ff;
+    border: 2px solid #9333ea;
+    color: #3b0764;
+  }
+  .item-infra { background: #e9d5ff; color: #6b21a8; }
+
+  /* EXTERNAL */
+  .ext-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+  }
+  .ext-arrows {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    height: 36px;
+    align-items: flex-end;
+    position: relative;
+  }
+  .ext-arrows::before {
+    content: '';
+    position: absolute;
+    left: 16%;
+    width: 2px;
+    height: 24px;
+    background: #9ca3af;
+    top: 0;
+  }
+  .ext-arrows::after {
+    display: none;
+  }
+  .ext-arrow-line {
+    position: absolute;
+    width: 2px;
+    height: 24px;
+    background: #9ca3af;
+    top: 0;
+  }
+  .ext-arrow-tip {
+    position: absolute;
+    bottom: 0;
+    font-size: 13px;
+    color: #9ca3af;
+    transform: translateX(-50%);
+  }
+
+  .layer-ext {
+    flex: 1;
+    background: #f9fafb;
+    border: 2px solid #9ca3af;
+    color: #374151;
+    text-align: center;
+    border-radius: 12px;
+    padding: 14px 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+  }
+  .ext-icon { font-size: 1.5rem; margin-bottom: 4px; }
+  .ext-name { font-size: 0.85rem; font-weight: 700; }
+  .ext-tech { font-size: 0.72rem; color: #6b7280; margin-top: 3px; }
+
+  /* Legend */
+  .legend {
+    margin-top: 32px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.77rem;
+    color: #374151;
+  }
+  .legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+  }
+
+  .double-arrow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 36px;
+    position: relative;
+  }
+  .da-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: 24px;
+    background: #9ca3af;
+    transform: translateX(-50%);
+  }
+  .da-tip {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    font-size: 14px;
+    color: #9ca3af;
+    transform: translateX(-50%);
+  }
+</style>
+</head>
+<body>
+
+<h1>Architecture Logique — AiContentFlow</h1>
+<p class="subtitle">Clean Architecture · ASP.NET Core · React + Vite (FSD)</p>
+
+<div class="diagram">
+
+  <!-- USER -->
+  <div class="layer layer-user">
+    <div class="layer-title">Acteur</div>
+    <div class="layer-name">👤 Utilisateur</div>
+    <div class="layer-desc">Navigateur Web</div>
+  </div>
+
+  <div class="double-arrow"><div class="da-line"></div><div class="da-tip">▼</div></div>
+
+  <!-- FRONTEND -->
+  <div class="layer layer-frontend">
+    <div class="layer-title">Couche Présentation</div>
+    <div class="layer-name">React + Vite &nbsp;·&nbsp; Architecture FSD</div>
+    <div class="layer-desc">TypeScript · React Query · Zustand · MUI · React Hook Form · Zod</div>
+    <div class="features-grid">
+      <span class="feature-chip">Auth</span>
+      <span class="feature-chip">Dashboard</span>
+      <span class="feature-chip">Campaigns</span>
+      <span class="feature-chip">Channels</span>
+      <span class="feature-chip">Brand Studio</span>
+      <span class="feature-chip">Content Posts</span>
+      <span class="feature-chip">Social Media</span>
+      <span class="feature-chip">Analytics</span>
+      <span class="feature-chip">Calendar</span>
+      <span class="feature-chip">Team</span>
+      <span class="feature-chip">Assistant IA</span>
+    </div>
+  </div>
+
+  <div class="double-arrow"><div class="da-line"></div><div class="da-tip">▼</div></div>
+
+  <!-- API -->
+  <div class="layer layer-api">
+    <div class="layer-title">Couche API</div>
+    <div class="layer-name">AiContentFlow.API &nbsp;·&nbsp; ASP.NET Core</div>
+    <div class="badges">
+      <span class="badge badge-api">Controllers REST</span>
+      <span class="badge badge-api">JWT Auth</span>
+      <span class="badge badge-api">RBAC</span>
+      <span class="badge badge-api">CORS</span>
+      <span class="badge badge-api">Middleware</span>
+      <span class="badge badge-api">Rate Limiting</span>
+      <span class="badge badge-api">OAuth Callback</span>
+    </div>
+  </div>
+
+  <div class="double-arrow"><div class="da-line"></div><div class="da-tip">▼</div></div>
+
+  <!-- APPLICATION + DOMAIN -->
+  <div class="core-row">
+    <div class="layer layer-application">
+      <div class="layer-title">Couche Application</div>
+      <div class="layer-name">AiContentFlow.Application</div>
+      <div class="item-list">
+        <span class="item item-app">Use Cases</span>
+        <span class="item item-app">DTOs</span>
+        <span class="item item-app">Interfaces</span>
+        <span class="item item-app">Validation</span>
+        <span class="item item-app">MediatR</span>
+      </div>
+    </div>
+    <div class="layer layer-domain">
+      <div class="layer-title">Couche Domaine</div>
+      <div class="layer-name">AiContentFlow.Domain</div>
+      <div class="item-list">
+        <span class="item item-dom">Entités</span>
+        <span class="item item-dom">Value Objects</span>
+        <span class="item item-dom">Règles Métier</span>
+        <span class="item item-dom">Domain Events</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="double-arrow"><div class="da-line"></div><div class="da-tip">▼</div></div>
+
+  <!-- INFRASTRUCTURE -->
+  <div class="layer layer-infra">
+    <div class="layer-title">Couche Infrastructure</div>
+    <div class="layer-name">AiContentFlow.Infrastructure</div>
+    <div class="item-list">
+      <span class="item item-infra">EF Core (ORM)</span>
+      <span class="item item-infra">Repositories</span>
+      <span class="item item-infra">Migrations</span>
+      <span class="item item-infra">Adapters</span>
+      <span class="item item-infra">Email Service</span>
+      <span class="item item-infra">AI Client</span>
+      <span class="item item-infra">OAuth Adapter</span>
+    </div>
+  </div>
+
+  <!-- 3-way arrows -->
+  <div style="position:relative; width:100%; height:36px;">
+    <div style="position:absolute;left:16.5%;top:0;width:2px;height:24px;background:#9ca3af;"></div>
+    <div style="position:absolute;left:16.5%;bottom:0;font-size:13px;color:#9ca3af;transform:translateX(-50%);">▼</div>
+    <div style="position:absolute;left:50%;top:0;width:2px;height:24px;background:#9ca3af;transform:translateX(-50%);"></div>
+    <div style="position:absolute;left:50%;bottom:0;font-size:13px;color:#9ca3af;transform:translateX(-50%);">▼</div>
+    <div style="position:absolute;left:83.5%;top:0;width:2px;height:24px;background:#9ca3af;"></div>
+    <div style="position:absolute;left:83.5%;bottom:0;font-size:13px;color:#9ca3af;transform:translateX(-50%);">▼</div>
+  </div>
+
+  <!-- EXTERNAL SERVICES -->
+  <div class="ext-row">
+    <div class="layer-ext">
+      <div class="ext-icon">🗄️</div>
+      <div class="ext-name">PostgreSQL</div>
+      <div class="ext-tech">Base de données relationnelle</div>
+    </div>
+    <div class="layer-ext">
+      <div class="ext-icon">🤖</div>
+      <div class="ext-name">IA API</div>
+      <div class="ext-tech">OpenAI · Claude AI</div>
+    </div>
+    <div class="layer-ext">
+      <div class="ext-icon">📱</div>
+      <div class="ext-name">Réseaux Sociaux</div>
+      <div class="ext-tech">Facebook · Instagram · X · LinkedIn</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#bae6fd;border:1.5px solid #0284c7;"></div> Présentation</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bbf7d0;border:1.5px solid #16a34a;"></div> API</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fed7aa;border:1.5px solid #ea580c;"></div> Application</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fef08a;border:1.5px solid #ca8a04;"></div> Domaine</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e9d5ff;border:1.5px solid #9333ea;"></div> Infrastructure</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e5e7eb;border:1.5px solid #9ca3af;"></div> Services Externes</div>
+</div>
+
+</body>
+</html>

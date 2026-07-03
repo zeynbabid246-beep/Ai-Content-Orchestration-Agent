@@ -58,15 +58,13 @@ public class LinkedInInsightsProvider : ISocialInsightsProvider
         var payload = await response.Content.ReadFromJsonAsync<LinkedInSocialActionsResponse>(cancellationToken);
         var likes = payload?.LikesSummary?.TotalLikes ?? 0;
         var comments = payload?.CommentsSummary?.TotalFirstLevelComments ?? 0;
-        var shares = 0;
-        var impressions = Math.Max(likes + comments, 0);
-        var clicks = 0;
-
+        // socialActions endpoint provides engagement counts, not impressions/views.
+        // Store likes in Clicks and comments in Shares so the UI shows real numbers.
         return new PostInsightsResult(
-            impressions,
-            clicks,
-            shares,
-            InsightsMetricsHelper.CalculateEngagementRate(impressions, clicks, shares, likes, comments));
+            Impressions: likes + comments,
+            Clicks: likes,
+            Shares: comments,
+            EngagementRate: 0m);
     }
 
     private sealed class LinkedInSocialActionsResponse

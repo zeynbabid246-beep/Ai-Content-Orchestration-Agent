@@ -97,6 +97,31 @@ public class AnalyticsController : ControllerBase
         }
     }
 
+    [HttpGet("platforms/{platform}/posts")]
+    public async Task<ActionResult<IReadOnlyList<AnalyticsSummaryDto>>> GetPlatformPosts(
+        Guid teamId,
+        string platform,
+        [FromQuery] int days = 30)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token");
+
+        try
+        {
+            var posts = await _aggregationService.GetPlatformPostsAsync(teamId, userId, platform, days);
+            return Ok(posts);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
+
     private string? GetCurrentUserId()
     {
         return User.FindFirst("sub")?.Value

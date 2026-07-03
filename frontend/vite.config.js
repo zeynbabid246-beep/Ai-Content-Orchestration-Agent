@@ -14,6 +14,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
+    port: 5173,
     watch: {
       // Use polling to avoid missing or duplicate file events when
       // working inside cloud-synced folders (OneDrive, Dropbox, etc.).

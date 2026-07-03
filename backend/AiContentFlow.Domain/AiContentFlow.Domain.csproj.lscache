@@ -56,19 +56,29 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
-Campaigns/
- Dtos/CampaignDtos.cs
- Interfaces/ICampaignService.cs
+Campaigns/Dtos/
+ BulkCampaignPostsDto.cs
+ CampaignDtos.cs
+Campaigns/Interfaces/ICampaignService.cs
 Models/
+ BrandImportJob.cs
+ BrandImportJobStatus.cs
  Campaign.cs
- CampaignContentPost.cs
  Channel.cs
+ ChannelBranding.cs
+ ChannelConfig.cs
+ ChannelSocialAccount.cs
  ContentEnums.cs
  ContentPost.cs
+ PostPublication.cs
  PostVariant.cs
+ PublicationAnalytics.cs
  PublishJob.cs
  SocialAccount.cs
  Team.cs
+ TeamActivityEvent.cs
+ TeamBrandStudio.cs
+ TeamInvitation.cs
  UserTeam.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
@@ -76,7 +86,7 @@ obj/Debug/net10.0/
  AiContentFlow.Domain.GlobalUsings.g.cs
 
 [metadataReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/
  Microsoft.CSharp.dll
  Microsoft.VisualBasic.Core.dll
  Microsoft.VisualBasic.dll
@@ -246,17 +256,17 @@ obj/Debug/net10.0/
  WindowsBase.dll
 
 [analyzerReferences]
-../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
+../../../../../../../Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.3/analyzers/dotnet/cs/
  Microsoft.Interop.ComInterfaceGenerator.dll
  Microsoft.Interop.JavaScript.JSImportGenerator.dll
  Microsoft.Interop.LibraryImportGenerator.dll
  Microsoft.Interop.SourceGeneration.dll
  System.Text.Json.SourceGeneration.dll
  System.Text.RegularExpressions.Generator.dll
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
 
 [analyzerConfigFiles]
-../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
+../../../../../../../Program Files/dotnet/sdk/10.0.103/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig
 obj/Debug/net10.0/AiContentFlow.Domain.GeneratedMSBuildEditorConfig.editorconfig

@@ -3,7 +3,13 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   MenuItem,
+  Snackbar,
   Stack,
   TextField,
   ToggleButton,
@@ -12,9 +18,14 @@ import {
 } from "@mui/material";
 import { FileText, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContentPosts } from "../content-posts/content-posts.queries";
+import { deleteContentPost } from "../content-posts/content-posts.api";
 import { useChannels } from "../channels/channels.queries";
 import { useCampaigns } from "../campaigns/campaigns.queries";
+import { useSocialAccounts } from "../social-media/social-accounts.queries";
+import { SocialAccountStatus } from "../social-media/social-accounts.types";
+import { publishPublication } from "../content-posts/publications.api";
 import {
   CONTENT_DISPLAY_FILTERS,
   matchesPostDisplayFilter,
@@ -24,6 +35,7 @@ import {
   ContentPostRow,
   ContentPostRowSkeleton,
 } from "../content-posts/components/ContentPostRow";
+import type { ContentPost } from "../content-posts/content-posts.types";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { WorkspaceEmptyState } from "../../shared/ui/WorkspaceEmptyState";
 import { useTeamPermissions } from "../../shared/hooks/useTeamPermissions";
@@ -38,14 +50,22 @@ const STATUS_SEGMENTS: { value: StatusFilter; label: string }[] = [
 
 export function ContentFeedPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { canMutateContent } = useTeamPermissions();
   const { data: posts = [], isLoading, error } = useContentPosts();
   const { data: channels = [] } = useChannels();
   const { data: campaigns = [] } = useCampaigns();
+  const { data: socialAccounts = [] } = useSocialAccounts();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [channelFilter, setChannelFilter] = useState<number | "all">("all");
+
+  // Delete confirmation state
+  const [pendingDelete, setPendingDelete] = useState<ContentPost | null>(null);
+
+  // Feedback snackbar
+  const [snack, setSnack] = useState<{ msg: string; severity: "success" | "error" } | null>(null);
 
   const channelNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -79,6 +99,63 @@ export function ContentFeedPage() {
 
   const hasFilters =
     search.trim().length > 0 || statusFilter !== "all" || channelFilter !== "all";
+
+  // ── Delete mutation ──────────────────────────────────────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteContentPost(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["contentPosts"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setSnack({ msg: "Post deleted.", severity: "success" });
+    },
+    onError: () => setSnack({ msg: "Failed to delete post.", severity: "error" }),
+  });
+
+  // ── Publish mutation ─────────────────────────────────────────────────────────
+  const publishMutation = useMutation({
+    mutationFn: ({ postId, socialAccountId }: { postId: number; socialAccountId: number }) =>
+      publishPublication(postId, {
+        socialAccountId,
+        postVariantId: null,
+        idempotencyKey: `feed-${postId}-${Date.now()}`,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["contentPosts"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setSnack({ msg: "Post queued for publishing!", severity: "success" });
+    },
+    onError: (err) =>
+      setSnack({
+        msg: err instanceof Error ? err.message : "Failed to publish post.",
+        severity: "error",
+      }),
+  });
+
+  const findActiveAccount = (post: ContentPost) => {
+    // Prefer account linked to the post's channel
+    if (post.channelId != null) {
+      const linked = socialAccounts.find(
+        (a) => a.status === SocialAccountStatus.Active && a.linkedChannelIds.includes(post.channelId!)
+      );
+      if (linked) return linked;
+    }
+    return socialAccounts.find((a) => a.status === SocialAccountStatus.Active) ?? null;
+  };
+
+  const handlePublish = (post: ContentPost) => {
+    const account = findActiveAccount(post);
+    if (!account) {
+      setSnack({ msg: "No active social account linked. Connect one in Integrations.", severity: "error" });
+      return;
+    }
+    publishMutation.mutate({ postId: post.id, socialAccountId: account.id });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!pendingDelete) return;
+    deleteMutation.mutate(pendingDelete.id);
+    setPendingDelete(null);
+  };
 
   const subtitle =
     statusFilter === "all" && channelFilter === "all"
@@ -175,6 +252,8 @@ export function ContentFeedPage() {
               }
               showChannel
               showCampaign
+              onDelete={canMutateContent ? (p) => setPendingDelete(p) : undefined}
+              onPublish={canMutateContent ? handlePublish : undefined}
             />
           ))}
         </Stack>
@@ -202,6 +281,42 @@ export function ContentFeedPage() {
           }
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={pendingDelete != null} onClose={() => setPendingDelete(null)} maxWidth="xs">
+        <DialogTitle>Delete post?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            <strong>{pendingDelete?.title?.trim() || "This post"}</strong> will be permanently deleted.
+            This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingDelete(null)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDeleteConfirm}
+            disabled={deleteMutation.isPending}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Feedback snackbar */}
+      <Snackbar
+        open={snack != null}
+        autoHideDuration={4000}
+        onClose={() => setSnack(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {snack ? (
+          <Alert severity={snack.severity} onClose={() => setSnack(null)}>
+            {snack.msg}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Stack>
   );
 }

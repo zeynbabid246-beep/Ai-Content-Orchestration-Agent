@@ -4,6 +4,7 @@ export enum ContentType {
   LinkedInPost = "LinkedInPost",
   InstagramPost = "InstagramPost",
   FacebookPost = "FacebookPost",
+  Threads = "Threads",
 }
 
 export enum ContentStatus {

@@ -61,25 +61,39 @@ public class SyncPublicationAnalyticsJob
                 var publishedAt = publication.PublishedAt ?? DateTime.UtcNow;
                 var source = account.Platform.ToString();
                 var dedupeKey = BuildDedupeKey(publication.TeamId, publication.Id, source, publishedAt, DateTime.UtcNow.Date);
-                if (await _analyticsRepository.ExistsByDedupeKeyAsync(publication.TeamId, dedupeKey))
-                    continue;
+                var now = DateTime.UtcNow;
 
-                await _analyticsRepository.AddAsync(new PublicationAnalytics
+                var existing = await _analyticsRepository.GetByDedupeKeyAsync(publication.TeamId, dedupeKey);
+                if (existing != null)
                 {
-                    TeamId = publication.TeamId,
-                    PostPublicationId = publication.Id,
-                    Source = source,
-                    DedupeKey = dedupeKey,
-                    WindowStart = publishedAt,
-                    WindowEnd = DateTime.UtcNow,
-                    PlatformCollectedAt = DateTime.UtcNow,
-                    MetricVersion = "platform-v1",
-                    Impressions = insights.Impressions,
-                    Clicks = insights.Clicks,
-                    Shares = insights.Shares,
-                    EngagementRate = insights.EngagementRate,
-                    CollectedAt = DateTime.UtcNow
-                });
+                    // Update the existing daily record with fresh metrics
+                    existing.Impressions = insights.Impressions;
+                    existing.Clicks = insights.Clicks;
+                    existing.Shares = insights.Shares;
+                    existing.EngagementRate = insights.EngagementRate;
+                    existing.WindowEnd = now;
+                    existing.PlatformCollectedAt = now;
+                    existing.CollectedAt = now;
+                }
+                else
+                {
+                    await _analyticsRepository.AddAsync(new PublicationAnalytics
+                    {
+                        TeamId = publication.TeamId,
+                        PostPublicationId = publication.Id,
+                        Source = source,
+                        DedupeKey = dedupeKey,
+                        WindowStart = publishedAt,
+                        WindowEnd = now,
+                        PlatformCollectedAt = now,
+                        MetricVersion = "platform-v1",
+                        Impressions = insights.Impressions,
+                        Clicks = insights.Clicks,
+                        Shares = insights.Shares,
+                        EngagementRate = insights.EngagementRate,
+                        CollectedAt = now
+                    });
+                }
                 await _analyticsRepository.SaveChangesAsync();
             }
             catch (Exception ex)

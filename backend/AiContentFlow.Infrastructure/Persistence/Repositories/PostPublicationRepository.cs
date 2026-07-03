@@ -71,15 +71,15 @@ public class PostPublicationRepository : IPostPublicationRepository
 
     public async Task<List<PostPublication>> GetPublishedNeedingAnalyticsAsync(DateTime utcNow, int batchSize)
     {
-        var cutoff = utcNow.AddMinutes(-15);
-        var todayBucket = utcNow.Date;
+        var publishCutoff = utcNow.AddMinutes(-15);
+        var recentSyncCutoff = utcNow.AddMinutes(-50);
         return await _context.PostPublications
             .Include(p => p.SocialAccount)
             .Where(p => p.Status == PublicationStatus.Published
                         && p.PublishedAt != null
-                        && p.PublishedAt <= cutoff
+                        && p.PublishedAt <= publishCutoff
                         && !string.IsNullOrEmpty(p.ExternalPostId))
-            .Where(p => !p.Analytics.Any(a => a.CollectedAt.Date == todayBucket))
+            .Where(p => !p.Analytics.Any(a => a.CollectedAt >= recentSyncCutoff))
             .OrderBy(p => p.PublishedAt)
             .Take(batchSize)
             .ToListAsync();

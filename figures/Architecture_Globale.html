@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture complète d'AiContentFlow</title>
+<style>
+  :root {
+    --ink: #1a1d23;
+    --ink-soft: #3d4350;
+    --ink-muted: #6b7280;
+    --rule: #e2e5ea;
+    --rule-strong: #c8cdd6;
+    --accent: #2563eb;
+    --accent-light: #eff4ff;
+    --accent-muted: #93b4f5;
+    --surface: #ffffff;
+    --surface-alt: #f8f9fb;
+    --surface-code: #f1f3f7;
+    --tag-bg: #e8edf6;
+    --tag-text: #2563eb;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --amber: #b45309;
+    --amber-bg: #fffbeb;
+    --serif: 'Georgia', 'Times New Roman', serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+    --page-width: 960px;
+    --gutter: 48px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--ink);
+    background: var(--surface);
+  }
+
+  /* ── SIDEBAR NAV ── */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 260px;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--surface-alt);
+    border-right: 1px solid var(--rule);
+    padding: 32px 0;
+    z-index: 100;
+  }
+
+  #sidebar .nav-brand {
+    padding: 0 24px 24px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 16px;
+  }
+
+  #sidebar .nav-brand .logo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  #sidebar .nav-brand .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+
+  #sidebar nav ul { list-style: none; }
+
+  #sidebar nav li a {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 24px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    line-height: 1.4;
+    transition: color .15s, background .15s;
+    border-left: 2px solid transparent;
+  }
+
+  #sidebar nav li a:hover,
+  #sidebar nav li a.active {
+    color: var(--accent);
+    background: var(--accent-light);
+    border-left-color: var(--accent);
+  }
+
+  #sidebar nav li a .num {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-muted);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* ── MAIN ── */
+  #main {
+    margin-left: 260px;
+    min-height: 100vh;
+  }
+
+  /* ── COVER ── */
+  #cover {
+    background: linear-gradient(135deg, #1a1d23 0%, #1e3a6e 60%, #2563eb 100%);
+    color: #fff;
+    padding: 72px var(--gutter) 64px;
+  }
+
+  #cover .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-muted);
+    margin-bottom: 16px;
+  }
+
+  #cover h1 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: normal;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    max-width: 680px;
+  }
+
+  #cover h1 em {
+    font-style: italic;
+    color: #93b4f5;
+  }
+
+  #cover .subtitle {
+    font-size: 15px;
+    color: rgba(255,255,255,0.65);
+    max-width: 560px;
+    line-height: 1.6;
+  }
+
+  #cover .meta {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  #cover .meta-item { font-size: 12px; color: rgba(255,255,255,0.5); }
+  #cover .meta-item strong { display: block; color: rgba(255,255,255,0.85); font-size: 13px; margin-bottom: 2px; }
+
+  /* ── CONTENT ── */
+  #content {
+    max-width: var(--page-width);
+    padding: 0 var(--gutter) 80px;
+    margin: 0 auto;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    padding-top: 64px;
+    border-top: 1px solid var(--rule);
+    margin-top: 0;
+  }
+
+  .section:first-child { border-top: none; }
+
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  .section-num {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    margin-top: 4px;
+  }
+
+  .section-header h2 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: normal;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 36px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    margin: 24px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--sans);
+  }
+
+  p { margin-bottom: 14px; color: var(--ink-soft); }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  ul, ol { padding-left: 22px; margin-bottom: 14px; color: var(--ink-soft); }
+  li { margin-bottom: 4px; }
+
+  /* ── CODE BLOCKS ── */
+  pre {
+    background: #1a1d23;
+    color: #d4daf0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    margin: 16px 0;
+    border: 1px solid #2d3140;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-code);
+    color: #be185d;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+
+  /* ── DIAGRAM BLOCK ── */
+  .diagram {
+    background: #0f111a;
+    border: 1px solid #2d3140;
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+
+  .diagram pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: #a8b4d0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  /* ── TABLES ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 16px 0;
+    border-radius: 10px;
+    border: 1px solid var(--rule);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead {
+    background: var(--ink);
+    color: #fff;
+  }
+
+  thead th {
+    padding: 11px 16px;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  tbody tr:nth-child(even) { background: var(--surface-alt); }
+  tbody tr:hover { background: var(--accent-light); }
+
+  tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-soft);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody td:first-child { color: var(--ink); font-weight: 500; }
+
+  tbody td code {
+    font-size: 11.5px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    padding: 1px 5px;
+  }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-light);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 20px 0;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .callout.green {
+    border-left-color: var(--green);
+    background: var(--green-bg);
+  }
+
+  .callout.amber {
+    border-left-color: var(--amber);
+    background: var(--amber-bg);
+  }
+
+  .callout strong { color: inherit; }
+
+  /* ── TAG ── */
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    margin-right: 4px;
+  }
+
+  /* ── STEP PIPELINE ── */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 20px 0;
+  }
+
+  .pipeline-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .pipeline-step .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .pipeline-step .dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+
+  .pipeline-step .line {
+    width: 2px;
+    flex: 1;
+    min-height: 24px;
+    background: var(--rule-strong);
+    margin: 0 auto;
+  }
+
+  .pipeline-step .body {
+    padding-bottom: 24px;
+    flex: 1;
+  }
+
+  .pipeline-step .body h4 {
+    margin: 4px 0 6px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .pipeline-step .body p {
+    margin: 0;
+    font-size: 13.5px;
+  }
+
+  .pipeline-step:last-child .line { display: none; }
+
+  /* ── LAYER CARDS ── */
+  .layers {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .layer-card {
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 16px 20px;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .layer-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 10px 0 0 10px;
+    background: var(--accent);
+  }
+
+  .layer-card.green::before { background: var(--green); }
+  .layer-card.amber::before { background: #d97706; }
+  .layer-card.purple::before { background: #7c3aed; }
+
+  .layer-card .layer-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .layer-card.green .layer-label { color: var(--green); }
+  .layer-card.amber .layer-label { color: #d97706; }
+  .layer-card.purple .layer-label { color: #7c3aed; }
+
+  .layer-card h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 6px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .layer-card ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+  }
+
+  /* ── SUMMARY BOX ── */
+  .summary-box {
+    background: var(--ink);
+    color: #d4daf0;
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin: 24px 0;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .summary-box strong { color: #fff; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 32px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    border-top: 1px solid var(--rule);
+    background: var(--surface-alt);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+    #content { padding: 0 24px 60px; }
+    #cover { padding: 48px 24px 40px; }
+  }
+
+  /* ── SCROLL HINT ── */
+  #scroll-progress {
+    position: fixed;
+    top: 0; left: 260px; right: 0;
+    height: 3px;
+    background: var(--accent);
+    transform-origin: left;
+    transform: scaleX(0);
+    z-index: 200;
+    transition: transform .1s;
+  }
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="nav-brand">
+    <span class="logo">PFE — Documentation technique</span>
+    <span class="title">Architecture AiContentFlow</span>
+  </div>
+  <nav>
+    <ul>
+      <li><a href="#s1"><span class="num">1</span> Vue d'ensemble</a></li>
+      <li><a href="#s2"><span class="num">2</span> Couche Domain</a></li>
+      <li><a href="#s3"><span class="num">3</span> Couche Application</a></li>
+      <li><a href="#s4"><span class="num">4</span> Intégration des agents IA</a></li>
+      <li><a href="#s4-1"><span class="num">4.1</span> Interface Application</a></li>
+      <li><a href="#s4-2"><span class="num">4.2</span> Implémentation Infrastructure</a></li>
+      <li><a href="#s4-3"><span class="num">4.3</span> Pipeline 3 étapes</a></li>
+      <li><a href="#s4-4"><span class="num">4.4</span> Mode External vs LocalBackend</a></li>
+      <li><a href="#s5"><span class="num">5</span> Couche Infrastructure</a></li>
+      <li><a href="#s6"><span class="num">6</span> Couche API</a></li>
+      <li><a href="#s7"><span class="num">7</span> Injection de dépendances</a></li>
+      <li><a href="#s8"><span class="num">8</span> Cycle de vie d'une publication</a></li>
+      <li><a href="#s9"><span class="num">9</span> Résumé par fonctionnalité</a></li>
+      <li><a href="#s-orchestrateur"><span class="num">→</span> Orchestrator Agent (détail)</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- COVER -->
+  <header id="cover">
+    <p class="eyebrow">Rapport de Projet de Fin d'Études</p>
+    <h1>Architecture complète d'<em>AiContentFlow</em><br>— Explication du code</h1>
+    <p class="subtitle">Documentation technique détaillée de l'architecture Clean Architecture .NET, de l'intégration des agents IA, et du cycle de vie complet d'une publication.</p>
+    <div class="meta">
+      <div class="meta-item"><strong>Backend</strong>ASP.NET Core 10 — Clean Architecture</div>
+      <div class="meta-item"><strong>Frontend</strong>React 19 + TypeScript (FSD)</div>
+      <div class="meta-item"><strong>Agents IA</strong>Backend Python local + OpenAI / Gemini / Groq</div>
+      <div class="meta-item"><strong>Base de données</strong>PostgreSQL 16 + Hangfire</div>
+    </div>
+  </header>
+
+  <!-- CONTENT -->
+  <main id="content">
+
+    <!-- ── SECTION 1 ── -->
+    <section class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h2>Vue d'ensemble : deux systèmes qui collaborent</h2>
+      </div>
+
+      <div class="diagram">
+<pre>
+┌─────────────────────────────────────────────────────────┐
+│              NAVIGATEUR (React 19 + TypeScript)          │
+│         Feature-Sliced Design — appels HTTP/JSON         │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTPS REST (JWT dans Authorization header)
+┌──────────────────────▼──────────────────────────────────┐
+│         ASP.NET Core 10  — Backend .NET                  │
+│  Clean Architecture : 4 projets + 1 projet de tests      │
+│                                                          │
+│  ┌──────────┐  ┌───────────┐  ┌────────────────────┐   │
+│  │  Domain  │◄─│Application│◄─│  Infrastructure    │   │
+│  └──────────┘  └───────────┘  └────────────────────┘   │
+│                                        │                  │
+│                      ┌─────────────────┴──────────┐      │
+│                      │   PostgreSQL 16             │      │
+│                      │   Hangfire (jobs récurrents)│      │
+│                      └────────────────────────────┘      │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP interne (http://127.0.0.1:8000)
+┌──────────────────────▼──────────────────────────────────┐
+│         Backend Python local — Serveur d'agents IA        │
+│  /api/orchestrator/run      → génération de post          │
+│  /api/strategy/generate     → Strategy Agent             │
+│  /api/planning/generate     → Planning Agent             │
+│  /api/campaign-content/generate → Campaign Agent         │
+│  /assistant/chat            → Assistant Agent            │
+│  /api/brand/analyze         → Brand Agent                │
+│  /api/creative/generate-poster → Creative Agent          │
+└─────────────────────────────────────────────────────────┘
+                       │ API externe (HTTPS)
+          ┌────────────┼────────────┐
+      OpenAI       Gemini         Groq (fallback chain)
+</pre>
+      </div>
+    </section>
+
+    <!-- ── SECTION 2 ── -->
+    <section class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <h2>La couche Domain — <code>backend/AiContentFlow.Domain/</code></h2>
+      </div>
+
+      <p><strong>Rôle :</strong> contient les entités métier pures. Aucune dépendance externe. Pas de EF Core, pas de HTTP, pas de JSON ici.</p>
+
+      <h3>Les entités principales</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Entité</th><th>Rôle</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ContentPost</td><td>Un post créé par un utilisateur ou l'IA</td></tr>
+            <tr><td>PostVariant</td><td>Version adaptée par plateforme (LinkedIn, Instagram…)</td></tr>
+            <tr><td>PostPublication</td><td>Acte de publication d'un variant sur un compte social</td></tr>
+            <tr><td>PublishJob</td><td>Job de publication planifiée (déclenché par Hangfire)</td></tr>
+            <tr><td>PublicationAnalytics</td><td>Métriques collectées après publication (impressions, clics…)</td></tr>
+            <tr><td>Channel</td><td>Canal thématique (ex: "Product", "RH")</td></tr>
+            <tr><td>Campaign</td><td>Campagne regroupant plusieurs posts</td></tr>
+            <tr><td>SocialAccount</td><td>Compte social connecté (LinkedIn, Facebook…)</td></tr>
+            <tr><td>Team / UserTeam</td><td>Multi-tenant : chaque utilisateur appartient à une équipe</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>Point clé :</strong> la couche Domain définit aussi les enums (<code>SocialPlatform</code>, <code>TeamRole</code>, <code>ContentType</code>) et les règles de cycle de vie (ex : <code>publication.MarkPublished(...)</code>, <code>publication.MarkFailed(...)</code>). Les entités gèrent leur propre état.
+      </div>
+    </section>
+
+    <!-- ── SECTION 3 ── -->
+    <section class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <h2>La couche Application — <code>backend/AiContentFlow.Application/</code></h2>
+      </div>
+
+      <p><strong>Rôle :</strong> orchestre la logique métier. Définit les interfaces que l'Infrastructure doit implémenter. Ne connaît ni EF Core, ni HTTP, ni PostgreSQL.</p>
+
+      <h3>Structure interne</h3>
+
+      <div class="diagram">
+<pre>
+Application/
+├── Common/
+│   ├── Interfaces/          ← contrats que l'Infrastructure respecte
+│   │   ├── ILocalAiBackendClient.cs   ← interface vers les agents IA
+│   │   ├── IPublisher.cs              ← interface vers LinkedIn/Facebook...
+│   │   ├── ITeamRepository.cs         ← interface vers la base de données
+│   │   ├── LocalAiBrandContext.cs     ← DTO de contexte de marque pour l'IA
+│   │   └── LocalAiOrchestratorMetadata.cs  ← métadonnées de type de post
+│   └── Publishing/
+│       └── VariantContentMerge.cs     ← logique de fusion image+texte
+├── Features/
+│   ├── Ai/
+│   │   ├── AiContentService.cs        ← orchestrateur principal des agents IA
+│   │   ├── AiCreativeService.cs       ← génération créative (poster, carousel)
+│   │   └── IAiContentService.cs       ← interface exposée au contrôleur
+│   ├── Analytics/
+│   │   └── AnalyticsService.cs
+│   ├── Channels/
+│   │   └── ChannelService.cs
+│   ├── ContentPosts/
+│   │   └── ContentPostService.cs
+│   ├── Campaigns/
+│   │   └── CampaignService.cs
+│   └── Publications/
+│       └── PublicationService.cs
+</pre>
+      </div>
+
+      <h3>Le service central : AiContentService</h3>
+      <p>C'est ici que toute la logique IA est concentrée. Il implémente :</p>
+      <ul>
+        <li><code>GeneratePostAsync</code> — génère un post unique</li>
+        <li><code>SuggestCampaignAsync</code> — pipeline 3 étapes (strategy → planning → campaign)</li>
+        <li><code>GenerateCampaignStrategyStepAsync</code> / <code>GenerateCampaignPlanningStepAsync</code> / <code>GenerateCampaignContentStepAsync</code> — les 3 étapes exposées séparément pour le stepper interactif</li>
+        <li><code>MaterializeCampaignAsync</code> — transforme une suggestion IA en vrais objets en base</li>
+        <li><code>ChatWithAssistantAsync</code> — conversation avec l'assistant</li>
+      </ul>
+    </section>
+
+    <!-- ── SECTION 4 ── -->
+    <section class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <h2>Comment les agents IA sont intégrés — le chemin complet</h2>
+      </div>
+
+      <!-- 4.1 -->
+      <h3 id="s4-1">4.1 L'interface dans Application</h3>
+      <p><code>backend/AiContentFlow.Application/Common/Interfaces/ILocalAiBackendClient.cs</code> — ligne 1</p>
+
+      <pre><code>public interface ILocalAiBackendClient
+{
+    Task&lt;JsonElement&gt; GenerateContentAsync(...)     // → Orchestrator Agent
+    Task&lt;JsonElement&gt; GenerateStrategyAsync(...)    // → Strategy Agent
+    Task&lt;JsonElement&gt; GeneratePlanningAsync(...)    // → Planning Agent
+    Task&lt;JsonElement&gt; GenerateCampaignContentAsync(...) // → Campaign Agent
+    Task&lt;JsonElement&gt; AssistantChatAsync(...)       // → Assistant Agent
+    Task&lt;JsonElement&gt; AnalyzeBrandAsync(...)        // → Brand Agent
+    Task&lt;JsonElement&gt; GeneratePosterAsync(...)      // → Creative Agent (poster)
+    Task&lt;JsonElement&gt; GenerateCarouselAsync(...)    // → Creative Agent (carousel)
+}</code></pre>
+
+      <div class="callout">Cette interface est dans la couche Application. Elle ne sait pas comment les agents sont implémentés.</div>
+
+      <!-- 4.2 -->
+      <h3 id="s4-2">4.2 L'implémentation dans Infrastructure</h3>
+      <p><code>backend/AiContentFlow.Infrastructure/AI/LocalAiBackendClient.cs</code> — ligne 250</p>
+      <p><code>LocalAiBackendClient</code> est un client HTTP qui appelle le backend Python. Chaque méthode de l'interface correspond à un endpoint Python :</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Méthode C#</th><th>Endpoint Python</th><th>Agent</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>GenerateContentAsync</code></td><td><code>POST /api/orchestrator/run</code></td><td>Orchestrator Agent</td></tr>
+            <tr><td><code>GenerateStrategyAsync</code></td><td><code>POST /api/strategy/generate</code></td><td>Strategy Agent</td></tr>
+            <tr><td><code>GeneratePlanningAsync</code></td><td><code>POST /api/planning/generate</code></td><td>Planning Agent</td></tr>
+            <tr><td><code>GenerateCampaignContentAsync</code></td><td><code>POST /api/campaign-content/generate</code></td><td>Campaign Agent</td></tr>
+            <tr><td><code>AssistantChatAsync</code></td><td><code>POST /assistant/chat</code></td><td>Assistant Agent</td></tr>
+            <tr><td><code>AnalyzeBrandAsync</code></td><td><code>POST /api/brand/analyze</code></td><td>Brand Agent</td></tr>
+            <tr><td><code>GeneratePosterAsync</code></td><td><code>POST /api/creative/generate-poster</code></td><td>Creative Agent</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>La méthode <code>SendAsync</code> interne (ligne 250) gère :</p>
+      <ul>
+        <li><strong>Circuit breaker :</strong> si 4 échecs consécutifs → circuit ouvert 45 secondes</li>
+        <li><strong>Retry :</strong> 2 tentatives avec délai exponentiel</li>
+        <li><strong>Timeouts différenciés :</strong> 75s par défaut, 95s pour brand analyze, 900s pour campaign content (génération de posts multiples avec images)</li>
+        <li><strong>X-Correlation-ID :</strong> chaque appel transporte un ID de corrélation pour le tracing</li>
+      </ul>
+
+      <!-- 4.3 -->
+      <h3 id="s4-3">4.3 Le pipeline 3 étapes pour les campagnes</h3>
+      <p>Dans <code>AiContentService.SuggestCampaignAsync</code> (ligne 206) :</p>
+
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">1</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Strategy Agent</h4>
+            <p><code>GenerateStrategyAsync(goal, theme, platforms)</code><br>
+            → retourne <code>{ strategy_id, summary, content_direction[] }</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">2</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Planning Agent</h4>
+            <p><code>GeneratePlanningAsync(strategy, strategyId, postsPerWeek)</code><br>
+            → retourne <code>{ planning_id, summary, weeks[{ days[] }] }</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">3</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Campaign Agent</h4>
+            <p><code>GenerateCampaignContentAsync(strategy, planning, planningId, brandContext)</code><br>
+            → retourne <code>{ campaign_name, weeks[{ days[{ generated_content }] }] }</code></p>
+          </div>
+        </div>
+      </div>
+
+      <p>Chaque étape reçoit le résultat de la précédente en entrée. En cas d'échec à n'importe quelle étape, un fallback avec 3 posts génériques est créé (<code>BuildFallbackCampaign</code>).</p>
+
+      <!-- 4.4 -->
+      <h3 id="s4-4">4.4 Le mode External vs LocalBackend</h3>
+      <p>Le service supporte deux modes configurables par <code>AI:ProviderMode</code> :</p>
+
+      <div class="layers">
+        <div class="layer-card green">
+          <div class="layer-label">Mode LocalBackend (défaut)</div>
+          <h4>Appels via le backend Python</h4>
+          <p>Appelle le backend Python local via <code>LocalAiBackendClient</code>.</p>
+        </div>
+        <div class="layer-card amber">
+          <div class="layer-label">Mode ExternalProviders</div>
+          <h4>Appels directs aux APIs IA</h4>
+          <p>Court-circuite le backend Python et appelle directement <code>TextGenerationService</code>, qui lui-même gère la chaîne de fallback.</p>
+        </div>
+      </div>
+
+      <pre><code>// TextGenerationService.cs ligne 117
+// Plan de fallback des providers :
+AiUseCase.GeneratePost    → Groq → OpenAI → Gemini
+AiUseCase.BrandExtraction → Gemini → Groq → OpenAI
+AiUseCase.SuggestCampaign → Groq → OpenAI → Gemini</code></pre>
+
+      <p><code>TextGenerationService</code> appelle directement les APIs externes :</p>
+      <ul>
+        <li><code>CallGroq()</code> → <code>api.groq.com/openai/v1/chat/completions</code> avec <code>llama-3.3-70b-versatile</code></li>
+        <li><code>CallOpenAI()</code> → <code>api.openai.com/v1/chat/completions</code> avec <code>gpt-4o-mini</code></li>
+        <li><code>CallGemini()</code> → <code>generativelanguage.googleapis.com</code> avec <code>gemini-2.0-flash</code></li>
+        <li><code>CallDeepSeek()</code> → <code>api.deepseek.com/v1/chat/completions</code></li>
+      </ul>
+    </section>
+
+    <!-- ── SECTION 5 ── -->
+    <section class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <h2>La couche Infrastructure — <code>backend/AiContentFlow.Infrastructure/</code></h2>
+      </div>
+
+      <p><strong>Rôle :</strong> implémente toutes les interfaces définies dans Application. C'est la seule couche qui parle au monde extérieur.</p>
+
+      <h3>Organisation</h3>
+
+      <div class="diagram">
+<pre>
+Infrastructure/
+├── AI/
+│   ├── LocalAiBackendClient.cs   ← appels HTTP vers le backend Python
+│   ├── TextGenerationService.cs  ← appels directs OpenAI/Gemini/Groq
+│   ├── GeminiImageService.cs     ← génération d'image via Gemini Vision
+│   └── AiCreativeAssetImporter.cs ← import des assets créatifs générés
+├── BrandStudio/
+│   ├── BrandExtractionService.cs ← extraction de marque depuis un site web
+│   └── SafeWebsiteFetcher.cs     ← téléchargement sécurisé de pages web
+├── Insights/
+│   ├── LinkedInInsightsProvider.cs  ← métriques LinkedIn API
+│   ├── FacebookInsightsProvider.cs  ← métriques Meta Graph API
+│   ├── InstagramInsightsProvider.cs ← métriques Instagram API
+│   └── ThreadsInsightsProvider.cs   ← métriques Threads API
+├── Publishers/
+│   ├── LinkedInPublisher.cs      ← publication via LinkedIn UGC API v2
+│   ├── FacebookPublisher.cs      ← publication via Meta Graph API
+│   ├── InstagramPublisher.cs     ← publication via Instagram API
+│   └── ThreadsPublisher.cs       ← publication via Threads API
+├── Persistence/
+│   ├── AppDbContext.cs            ← EF Core DbContext
+│   └── Repositories/             ← implémentations des IRepository
+├── Identity/
+│   ├── ApplicationUser.cs        ← ASP.NET Core Identity user
+│   └── IdentityService.cs        ← gestion des comptes
+├── Workers/
+│   ├── PublishScheduledVariantsJob.cs   ← job Hangfire toutes les minutes
+│   ├── SyncPublicationAnalyticsJob.cs   ← job Hangfire toutes les heures
+│   ├── SocialTokenRefreshJob.cs         ← job Hangfire quotidien
+│   └── BrandImportWorker.cs             ← import asynchrone de marque
+├── Services/
+│   ├── JwtTokenGenerator.cs      ← génération de tokens JWT
+│   ├── ProtectedSocialCredentialStore.cs ← stockage chiffré des tokens OAuth
+│   ├── LinkedInAuthService.cs    ← OAuth 2.0 LinkedIn
+│   ├── MetaAuthService.cs        ← OAuth 2.0 Facebook/Instagram
+│   └── ThreadsAuthService.cs     ← OAuth 2.0 Threads
+└── Extensions/
+    └── DependencyInjection.cs    ← enregistrement de tous les services
+</pre>
+      </div>
+
+      <h3>Le LinkedInPublisher en détail</h3>
+      <p><code>backend/AiContentFlow.Infrastructure/Publishers/LinkedInPublisher.cs</code> — ligne 31</p>
+      <ol>
+        <li>Extrait le texte du <code>ContentJson</code> du <code>PostVariant</code></li>
+        <li>Si image présente → <code>UploadImageAsync</code> : register upload → upload binaire → récupère l'<code>assetUrn</code></li>
+        <li>Appelle <code>POST api.linkedin.com/v2/ugcPosts</code> avec l'UGC format</li>
+        <li>Fallback automatique : si <code>urn:li:member:{id}</code> échoue → retry avec <code>urn:li:person:{id}</code></li>
+        <li>Retourne <code>PublishResult.Success(postId, url)</code> ou <code>PublishResult.Failure(message)</code></li>
+      </ol>
+
+      <h3>Les jobs Hangfire</h3>
+      <p>Enregistrés dans <code>Program.cs</code> (ligne 119) :</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Job</th><th>Fréquence</th><th>Ce qu'il fait</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>PublishScheduledVariantsJob</td><td>chaque minute</td><td>Claim les jobs dus, publie sur les réseaux sociaux</td></tr>
+            <tr><td>SyncPublicationAnalyticsJob</td><td>chaque heure</td><td>Collecte les métriques des posts publiés</td></tr>
+            <tr><td>SocialTokenRefreshJob</td><td>chaque jour</td><td>Rafraîchit les tokens OAuth avant expiration</td></tr>
+            <tr><td>BrandImportWorker</td><td>à la demande (2s après trigger)</td><td>Scrape un site web et extrait la marque</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SECTION 6 ── -->
+    <section class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h2>La couche API (Présentation) — <code>backend/AiContentFlow.API/</code></h2>
+      </div>
+
+      <p><strong>Rôle :</strong> expose les endpoints REST. Ne contient aucune logique métier — uniquement la traduction HTTP ↔ Application.</p>
+
+      <h3>Les 14 contrôleurs</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Contrôleur</th><th>Route base</th><th>Responsabilité</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AuthController</td><td><code>/api/auth</code></td><td>Login, register, refresh token, reset password</td></tr>
+            <tr><td>SocialAuthController</td><td><code>/api/social-auth</code></td><td>OAuth callback LinkedIn/Facebook/Threads</td></tr>
+            <tr><td>AiController</td><td><code>/api/teams/{id}/ai</code></td><td>Génération de post, campagne, assistant</td></tr>
+            <tr><td>ChannelsController</td><td><code>/api/teams/{id}/channels</code></td><td>CRUD des canaux</td></tr>
+            <tr><td>CampaignsController</td><td><code>/api/teams/{id}/campaigns</code></td><td>CRUD des campagnes</td></tr>
+            <tr><td>ContentPostsController</td><td><code>/api/teams/{id}/posts</code></td><td>CRUD des posts</td></tr>
+            <tr><td>PublicationsController</td><td><code>/api/teams/{id}/publications</code></td><td>Gestion des publications</td></tr>
+            <tr><td>PublishJobsController</td><td><code>/api/teams/{id}/publish-jobs</code></td><td>Planification de publication</td></tr>
+            <tr><td>SocialAccountsController</td><td><code>/api/teams/{id}/social-accounts</code></td><td>Comptes sociaux connectés</td></tr>
+            <tr><td>AnalyticsController</td><td><code>/api/teams/{id}/analytics</code></td><td>Métriques de publications</td></tr>
+            <tr><td>BrandStudioController</td><td><code>/api/teams/{id}/brand-studio</code></td><td>Profil de marque</td></tr>
+            <tr><td>TeamsController</td><td><code>/api/teams</code></td><td>Gestion des équipes</td></tr>
+            <tr><td>ProfileController</td><td><code>/api/profile</code></td><td>Profil utilisateur</td></tr>
+            <tr><td>MediaController</td><td><code>/api/media</code></td><td>Upload d'images</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Sécurité appliquée dans Program.cs</h3>
+      <pre><code>// Rate limiting : 30 requêtes/min par user pour les routes IA
+[EnableRateLimiting("sensitive")]  // sur AiController
+
+// JWT Bearer sur tous les contrôleurs
+[Authorize]
+
+// CORS configuré pour le frontend React
+policy.WithOrigins(corsOrigins).AllowCredentials()</code></pre>
+    </section>
+
+    <!-- ── SECTION 7 ── -->
+    <section class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <h2>Le registre d'injection de dépendances — <code>DependencyInjection.cs</code></h2>
+      </div>
+
+      <p>C'est le fichier qui connecte tout. Il lie chaque interface à son implémentation :</p>
+
+      <pre><code>// Interface Application → Implémentation Infrastructure
+services.AddScoped&lt;ILocalAiBackendClient, LocalAiBackendClient&gt;();
+services.AddScoped&lt;IAiContentService, AiContentService&gt;();
+services.AddScoped&lt;IPublisher, LinkedInPublisher&gt;();
+services.AddScoped&lt;IPublisher, FacebookPublisher&gt;();
+services.AddScoped&lt;IPublisherFactory, PublisherFactory&gt;();
+services.AddScoped&lt;IInsightsProviderFactory, InsightsProviderFactory&gt;();</code></pre>
+
+      <p>Le <code>PublisherFactory</code> reçoit <code>IEnumerable&lt;IPublisher&gt;</code> (toutes les implémentations enregistrées) et sélectionne la bonne par <code>platform == publisher.Platform</code>.</p>
+    </section>
+
+    <!-- ── SECTION 8 ── -->
+    <section class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <h2>Le cycle de vie complet d'une publication</h2>
+      </div>
+
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">1</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Déclenchement utilisateur</h4>
+            <p>Utilisateur clique "Publish" dans React → <code>POST /api/teams/{id}/publish-jobs</code><br>→ <code>PublishJobsController</code> → <code>PublicationService.ScheduleAsync()</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">2</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Création du job en base</h4>
+            <p><code>PublishJob</code> créé en base (<code>status: Pending</code>, <code>ScheduledAt = now</code>)</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">3</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Hangfire — chaque minute</h4>
+            <p><code>PublishScheduledVariantsJob.ExecuteAsync()</code> → <code>ClaimDueAsync()</code> → lock optimiste sur les jobs à traiter</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">4</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Traitement de chaque job</h4>
+            <p>a. Récupère <code>SocialAccount</code> + vérifie token valide<br>b. Récupère <code>PostVariant</code> + merge image (<code>VariantContentMerge</code>)<br>c. <code>PublisherFactory.GetPublisher(platform)</code><br>d. <code>LinkedInPublisher.PublishAsync(variant, account)</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">5</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Appel LinkedIn</h4>
+            <p><code>POST api.linkedin.com/v2/ugcPosts</code> → retourne <code>postId</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">6</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Mise à jour des statuts</h4>
+            <p><code>publication.MarkPublished(postId, url, DateTime.UtcNow)</code><br>→ <code>SyncContentPostPublishedStatusAsync()</code> met à jour le <code>ContentPost</code></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="connector"><div class="dot">7</div><div class="line"></div></div>
+          <div class="body">
+            <h4>Collecte des analytics — chaque heure</h4>
+            <p><code>SyncPublicationAnalyticsJob.ExecuteAsync()</code> → <code>InsightsProviderFactory.GetProvider(platform)</code> → <code>LinkedInInsightsProvider.FetchPostInsightsAsync()</code><br>→ Sauvegarde <code>PublicationAnalytics</code> avec déduplication SHA256</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 9 ── -->
+    <section class="section" id="s9">
+      <div class="section-header">
+        <div class="section-num">9</div>
+        <h2>Résumé : quel code intervient pour chaque fonctionnalité</h2>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Fonctionnalité</th><th>Domain</th><th>Application</th><th>Infrastructure</th><th>API</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Générer un post IA</td><td>—</td><td>AiContentService</td><td>LocalAiBackendClient → Python</td><td>AiController</td></tr>
+            <tr><td>Générer une campagne IA</td><td>—</td><td>AiContentService (3 étapes)</td><td>LocalAiBackendClient</td><td>AiController</td></tr>
+            <tr><td>Publier sur LinkedIn</td><td>PostVariant, PostPublication</td><td>PublicationService</td><td>LinkedInPublisher</td><td>PublishJobsController</td></tr>
+            <tr><td>Analytics</td><td>PublicationAnalytics</td><td>AnalyticsService</td><td>LinkedInInsightsProvider</td><td>AnalyticsController</td></tr>
+            <tr><td>Authentification JWT</td><td>—</td><td>AuthService</td><td>JwtTokenGenerator, IdentityService</td><td>AuthController</td></tr>
+            <tr><td>OAuth social</td><td>SocialAccount</td><td>SocialAuthService</td><td>LinkedInAuthService, MetaAuthService</td><td>SocialAuthController</td></tr>
+            <tr><td>Brand Studio</td><td>TeamBrandStudio</td><td>BrandStudioService</td><td>BrandExtractionService, LocalAiBackendClient</td><td>BrandStudioController</td></tr>
+            <tr><td>RBAC</td><td>TeamRole</td><td>Service (EnsureCanMutate)</td><td>—</td><td>Tous les contrôleurs</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── ORCHESTRATEUR SECTION ── -->
+    <section class="section" id="s-orchestrateur">
+      <div class="section-header">
+        <div class="section-num" style="background:#7c3aed">→</div>
+        <h2>L'Orchestrator Agent coordonne séquentiellement un ensemble d'agents spécialisés, accessibles via une intégration API externe</h2>
+      </div>
+
+      <p>Pour les campagnes complexes, un Orchestrator Agent coordonne séquentiellement un ensemble d'agents spécialisés, accessibles via une intégration API externe. Le tableau 7 présente ces agents et leurs rôles.</p>
+
+      <p>Ce que cette phrase signifie concrètement dans le code — chaque élément ancré dans le code réel.</p>
+
+      <h3>Deux niveaux d'orchestration superposés</h3>
+      <p>Il y a deux niveaux d'orchestration superposés. C'est la clé pour tout comprendre.</p>
+
+      <div class="layers">
+        <div class="layer-card">
+          <div class="layer-label">Niveau 1 — Orchestrateur côté .NET</div>
+          <h4>AiContentService</h4>
+          <p>Fichier : <code>backend/AiContentFlow.Application/Features/Ai/AiContentService.cs</code><br>
+          <code>AiContentService</code> est l'orchestrateur .NET. Il décide de l'ordre d'appel des agents, transmet les résultats d'un agent au suivant, et gère les erreurs avec fallback. Il joue le rôle de chef d'orchestre côté backend .NET.</p>
+        </div>
+        <div class="layer-card purple">
+          <div class="layer-label">Niveau 2 — Backend Python</div>
+          <h4>http://127.0.0.1:8000</h4>
+          <p>C'est là que les agents spécialisés vivent réellement. Chaque endpoint Python est un agent autonome. Le "Orchestrator Agent" du rapport correspond à l'endpoint <code>/api/orchestrator/run</code> côté Python, pour la génération de post simple. Pour les campagnes, c'est <code>AiContentService</code> lui-même qui joue ce rôle d'orchestrateur.</p>
+        </div>
+      </div>
+
+      <h3>Tableau des agents — correspondance exacte dans le code</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Agent (rapport)</th><th>Endpoint Python appelé</th><th>Méthode C# dans ILocalAiBackendClient</th><th>Fichier implémentation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Orchestrator Agent</td><td><code>POST /api/orchestrator/run</code></td><td><code>GenerateContentAsync()</code></td><td><code>LocalAiBackendClient.cs:64</code></td></tr>
+            <tr><td>Brand Agent</td><td><code>POST /api/brand/analyze</code></td><td><code>AnalyzeBrandAsync()</code></td><td><code>LocalAiBackendClient.cs:57</code></td></tr>
+            <tr><td>Strategy Agent</td><td><code>POST /api/strategy/generate</code></td><td><code>GenerateStrategyAsync()</code></td><td><code>LocalAiBackendClient.cs:124</code></td></tr>
+            <tr><td>Planning Agent</td><td><code>POST /api/planning/generate</code></td><td><code>GeneratePlanningAsync()</code></td><td><code>LocalAiBackendClient.cs:152</code></td></tr>
+            <tr><td>Campaign Agent</td><td><code>POST /api/campaign-content/generate</code></td><td><code>GenerateCampaignContentAsync()</code></td><td><code>LocalAiBackendClient.cs:177</code></td></tr>
+            <tr><td>Assistant Agent</td><td><code>POST /assistant/chat</code></td><td><code>AssistantChatAsync()</code></td><td><code>LocalAiBackendClient.cs:210</code></td></tr>
+            <tr><td>Creative Agent</td><td><code>POST /api/creative/generate-poster</code></td><td><code>GeneratePosterAsync()</code></td><td><code>LocalAiBackendClient.cs:216</code></td></tr>
+            <tr><td>Creative Agent</td><td><code>POST /api/creative/generate-carousel</code></td><td><code>GenerateCarouselAsync()</code></td><td><code>LocalAiBackendClient.cs:222</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Comment la coordination séquentielle est implémentée</h3>
+      <p>Voici le flux exact dans <code>AiContentService.SuggestCampaignAsync</code>, lignes 205–308 :</p>
+
+      <div class="diagram">
+<pre>
+┌─────────────────────────────────────────────────────────────┐
+│             AiContentService (.NET — couche Application)     │
+│                                                             │
+│  ENTRÉE : { goal, theme, platforms, postsPerWeek, language } │
+│                      +                                      │
+│  correlationId = Guid.NewGuid()  ← traçabilité globale      │
+│  orgId = brandStudio.OrgId       ← identifiant de marque    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  ÉTAPE 1 — Strategy Agent                           │   │
+│  │                                                     │   │
+│  │  .GenerateStrategyAsync(orgId, goal, theme,         │   │
+│  │      language, postsPerWeek, platforms)             │   │
+│  │            │                                        │   │
+│  │            ▼  POST /api/strategy/generate           │   │
+│  │  ◄── { strategy_id, summary, content_direction[] } │   │
+│  │                                                     │   │
+│  │  strategyId = payload["strategy_id"]               │   │
+│  │  selectedDirection = payload["content_direction"][0]│   │
+│  └───────────────────────┬─────────────────────────────┘   │
+│                          │ (strategyPayload transmis)       │
+│  ┌───────────────────────▼─────────────────────────────┐   │
+│  │  ÉTAPE 2 — Planning Agent                           │   │
+│  │                                                     │   │
+│  │  .GeneratePlanningAsync(strategyPayload, strategyId,│   │
+│  │      postsPerWeek, platforms, language,             │   │
+│  │      selectedDirection)                             │   │
+│  │            │                                        │   │
+│  │            ▼  POST /api/planning/generate           │   │
+│  │  ◄── { planning_id, summary,                       │   │
+│  │          weeks: [{ days: [{ topic, description }] }]}   │
+│  │                                                     │   │
+│  │  planningId = payload["planning_id"]               │   │
+│  └───────────────────────┬─────────────────────────────┘   │
+│                          │ (strategyPayload + planningPayload│
+│  ┌───────────────────────▼─────────────────────────────┐   │
+│  │  ÉTAPE 3 — Campaign Agent                           │   │
+│  │                                                     │   │
+│  │  .GenerateCampaignContentAsync(strategyPayload,     │   │
+│  │      planningPayload, planningId, orgId,            │   │
+│  │      platforms, primaryPlatform, brandContext)      │   │
+│  │            │                                        │   │
+│  │            ▼  POST /api/campaign-content/generate   │   │
+│  │  ◄── { campaign_name, description,                 │   │
+│  │          weeks: [{ days: [{ generated_content }] }]}│   │
+│  └───────────────────────┬─────────────────────────────┘   │
+│                          │                                   │
+│  SORTIE : posts extraits → matérialisés en ContentPost       │
+└─────────────────────────────────────────────────────────────┘
+</pre>
+      </div>
+
+      <div class="callout">Chaque étape reçoit en entrée le résultat brut de l'étape précédente sous forme de <code>JsonElement</code>, passé directement au corps de la requête HTTP suivante. C'est le mécanisme de coordination séquentielle.</div>
+
+      <h3>Les couches qui interviennent — rôle précis de chacune</h3>
+
+      <div class="diagram">
+<pre>
+┌──────────────────────────────────────────────────────────┐
+│  COUCHE API (Présentation)                               │
+│  AiController.cs                                         │
+│                                                          │
+│  • Reçoit la requête HTTP du frontend React              │
+│  • Extrait teamId (URL) + userId (JWT claim "sub")       │
+│  • Délègue à IAiContentService (injection)               │
+│  • Rate limiting : 30 req/min par user                   │
+│  • Route : POST /api/teams/{teamId}/ai/campaigns/suggest │
+└──────────────────────────────┬───────────────────────────┘
+                               │ interface IAiContentService
+┌──────────────────────────────▼───────────────────────────┐
+│  COUCHE APPLICATION                                       │
+│  AiContentService.cs                                     │
+│                                                          │
+│  • Vérifie RBAC : Admin ou Editor uniquement             │
+│  • Vérifie budget quotidien : 150 req/team/jour          │
+│  • Vérifie que Brand Studio est configuré (orgId requis) │
+│  • Synchronise le profil de marque vers le backend Python│
+│  • ORCHESTRE les 3 appels séquentiels aux agents         │
+│  • Extrait et normalise les posts du JSON retourné       │
+│  • Gère les erreurs avec fallback (3 posts génériques)   │
+│  • Appelle ICampaignService pour matérialiser en base    │
+│  • Appelle ILocalAiBackendClient (interface)             │
+└──────────────────────────────┬───────────────────────────┘
+                               │ interface ILocalAiBackendClient
+┌──────────────────────────────▼───────────────────────────┐
+│  COUCHE INFRASTRUCTURE                                    │
+│  LocalAiBackendClient.cs                                 │
+│                                                          │
+│  • Sérialise les objets C# en JSON                       │
+│  • Ajoute l'en-tête X-Correlation-ID                     │
+│  • Gère les timeouts par type d'appel :                  │
+│      - Strategy/Planning : 75 secondes                   │
+│      - Campaign Content  : 900 secondes (15 minutes !)   │
+│      - Creative          : 180 secondes                  │
+│  • Retry : 2 tentatives (sauf les appels longs)          │
+│  • Circuit Breaker : ouvert 45s après 4 échecs           │
+│  • Désérialise la réponse JSON → JsonElement             │
+└──────────────────────────────┬───────────────────────────┘
+                               │ HTTP POST vers Python
+┌──────────────────────────────▼───────────────────────────┐
+│  BACKEND PYTHON (http://127.0.0.1:8000)                  │
+│                                                          │
+│  Chaque endpoint est un agent spécialisé                 │
+│  qui utilise un LLM (OpenAI/Gemini/Groq)                 │
+│  avec ses propres prompts système                        │
+└──────────────────────────────────────────────────────────┘
+</pre>
+      </div>
+
+      <h3>Le cas du Orchestrator Agent — génération de post simple</h3>
+      <p>Pour un post simple (Quick Generate), c'est l'endpoint <code>/api/orchestrator/run</code> qui est appelé directement. L'orchestrateur Python prend la décision interne de mobiliser ou non le Creative Agent selon le paramètre <code>needs_creative</code>.</p>
+      <p>Dans <code>LocalAiBackendClient.GenerateContentAsync</code> (ligne 105), le corps envoyé au Python est :</p>
+
+      <pre><code>{
+  "mode": "manual_brand",        ← "prompt_only" | "manual_brand" | "scraped_brand"
+  "org_id": "team_abc123",       ← identifiant de marque dans le Python
+  "prompt": "Écris un post LinkedIn sur...",
+  "platforms": ["linkedin"],
+  "language": "French",
+  "brand_context": {             ← contexte de marque complet
+    "brand_name": "Consultim-IT",
+    "tone_of_voice": ["professionnel", "inspirant"],
+    "content_pillars": ["digital", "cloud", "IA"],
+    ...
+  },
+  "content_type": "social_post",
+  "post_type": "text_post",
+  "type": "linkedin_standard",
+  "needs_creative": false        ← si true → Python mobilise Creative Agent
+}</code></pre>
+
+      <p>Le <code>mode</code> (<code>prompt_only</code>, <code>manual_brand</code>, <code>scraped_brand</code>) indique à l'Orchestrator Python quelle source de contexte de marque utiliser.</p>
+
+      <h3>La synchronisation de marque — Brand Agent avant les campagnes</h3>
+      <p>Avant tout appel de campagne, <code>AiContentService</code> appelle <code>SyncBrandToAiInternalAsync</code> qui envoie le profil complet de marque au backend Python via <code>POST /api/brand/manual</code>. C'est <code>LocalAiManualBrandMapper.ToApiBody()</code> (ligne 11) qui construit ce payload, avec les champs <code>parsed_profile</code> et <code>enriched_profile</code> — des dizaines de champs incluant archétype de marque, guidelines de voix, couleurs visuelles, etc.</p>
+      <p>Le Python stocke cette marque sous <code>orgId</code> et la réutilise dans tous les appels de stratégie et de contenu suivants.</p>
+
+      <div class="summary-box">
+        <strong>Résumé en une phrase pour le jury</strong><br><br>
+        <code>AiContentService</code> (.NET, couche Application) joue le rôle d'orchestrateur en appelant séquentiellement les endpoints REST du backend Python, chacun représentant un agent spécialisé. <code>LocalAiBackendClient</code> (.NET, couche Infrastructure) implémente l'intégration API externe avec circuit breaker, retry et timeouts différenciés. La couche Domain ne voit jamais l'IA — elle reçoit uniquement les entités <code>ContentPost</code> et <code>Campaign</code> créées par matérialisation.
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Document de documentation technique — Architecture AiContentFlow — Rapport PFE</p>
+  </footer>
+
+</div>
+
+<script>
+  // Scroll progress
+  const bar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.body.scrollHeight - window.innerHeight;
+    bar.style.transform = `scaleX(${window.scrollY / total})`;
+  });
+
+  // Active nav
+  const sections = document.querySelectorAll('[id]');
+  const links = document.querySelectorAll('#sidebar nav a');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => {
+          l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

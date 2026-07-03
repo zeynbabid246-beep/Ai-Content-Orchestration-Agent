@@ -1,8 +1,9 @@
 using AiContentFlow.Application.Common.Interfaces;
 using AiContentFlow.Application.Common.Models;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
-using System.Net;
-using System.Net.Mail;
+using MimeKit;
 
 namespace AiContentFlow.Infrastructure.Services;
 
@@ -17,24 +18,20 @@ public class SmtpEmailService : IEmailService
 
     public async Task SendEmailAsync(string toEmail, string subject, string htmlMessage)
     {
-        using var client = new SmtpClient(_emailSettings.SmtpServer, _emailSettings.SmtpPort)
-        {
-            Credentials = new NetworkCredential(_emailSettings.Username, _emailSettings.Password),
-            EnableSsl = true,
-            DeliveryMethod = SmtpDeliveryMethod.Network,
-            UseDefaultCredentials = false
-        };
+        // Gmail app passwords are displayed with spaces for readability but must be
+        // sent to the SMTP server without them.
+        var password = _emailSettings.Password.Replace(" ", "");
 
-        var mailMessage = new MailMessage
-        {
-            From = new MailAddress(_emailSettings.SenderEmail, _emailSettings.SenderName),
-            Subject = subject,
-            Body = htmlMessage,
-            IsBodyHtml = true,
-        };
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail));
+        message.To.Add(MailboxAddress.Parse(toEmail));
+        message.Subject = subject;
+        message.Body = new TextPart("html") { Text = htmlMessage };
 
-        mailMessage.To.Add(toEmail);
-
-        await client.SendMailAsync(mailMessage);
+        using var client = new SmtpClient();
+        await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
+        await client.AuthenticateAsync(_emailSettings.Username, password);
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
     }
 }

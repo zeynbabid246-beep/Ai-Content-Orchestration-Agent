@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Logique — AiContentFlow</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #ffffff;
+    color: #1a1a2e;
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+    line-height: 1.5;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .page-header h1 {
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: #1a1a2e;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+  }
+  .page-header p {
+    font-size: 0.8rem;
+    color: #868e96;
+  }
+
+  .diagram {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .layer {
+    border-radius: 14px;
+    border: 1px solid;
+    background: #ffffff;
+    padding: 18px 20px 16px;
+  }
+  .layer-eyebrow {
+    font-size: 0.67rem;
+    font-weight: 500;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .layer-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #1a1a2e;
+    margin-bottom: 3px;
+  }
+  .layer-sub {
+    font-size: 0.75rem;
+    color: #495057;
+    margin-bottom: 12px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 20px;
+    padding: 3px 11px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border: 1px solid;
+    line-height: 1.4;
+  }
+
+  /* ─── Couleurs ─── */
+
+  /* BLEU — Présentation */
+  .t-blue  { background: #EBF4FF; color: #1E40AF; border-color: #93C5FD; }
+  .t-blue  .layer-eyebrow { color: #2563EB; }
+  .t-blue  .chip { background: #DBEAFE; border-color: #93C5FD; color: #1E40AF; }
+
+  /* VERT — API */
+  .t-green { background: #ECFDF5; color: #065F46; border-color: #6EE7B7; }
+  .t-green .layer-eyebrow { color: #059669; }
+  .t-green .chip { background: #D1FAE5; border-color: #6EE7B7; color: #065F46; }
+
+  /* AMBER — Application */
+  .t-amber { background: #FFFBEB; color: #78350F; border-color: #FCD34D; }
+  .t-amber .layer-eyebrow { color: #B45309; }
+  .t-amber .chip { background: #FEF3C7; border-color: #FCD34D; color: #78350F; }
+
+  /* CORAIL — Domaine */
+  .t-coral { background: #FFF1F2; color: #881337; border-color: #FDA4AF; }
+  .t-coral .layer-eyebrow { color: #BE123C; }
+  .t-coral .chip { background: #FFE4E6; border-color: #FDA4AF; color: #881337; }
+
+  /* VIOLET — Infrastructure */
+  .t-purple{ background: #F5F3FF; color: #4C1D95; border-color: #C4B5FD; }
+  .t-purple .layer-eyebrow { color: #7C3AED; }
+  .t-purple .chip { background: #EDE9FE; border-color: #C4B5FD; color: #4C1D95; }
+
+  /* TEAL — Services externes */
+  .t-teal  { background: #F0FDFA; color: #115E59; border-color: #5EEAD4; }
+  .t-teal  .layer-eyebrow { color: #0D9488; }
+  .t-teal  .chip { background: #CCFBF1; border-color: #5EEAD4; color: #115E59; }
+
+  /* GRAY — neutre */
+  .t-gray  { background: #F8FAFC; color: #334155; border-color: #CBD5E1; }
+
+  /* ORANGE — Email externe */
+  .t-orange { background: #FFF7ED; color: #7C2D12; border-color: #FDBA74; }
+
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .connector-line {
+    width: 1px;
+    height: 18px;
+    background: #CBD5E1;
+  }
+  .connector-label {
+    font-size: 0.67rem;
+    color: #64748B;
+    letter-spacing: 0.3px;
+    padding: 2px 10px;
+    background: #F8FAFC;
+    border-radius: 20px;
+    border: 1px solid #E2E8F0;
+    white-space: nowrap;
+    margin: 2px 0;
+  }
+  .connector-arrow { color: #1a1a2e; font-size: 10px; line-height: 1; }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* grille 4 colonnes pour les services externes */
+  .ext-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .ext-card {
+    border-radius: 10px;
+    border: 1px solid #E2E8F0;
+    background: #ffffff;
+    padding: 14px 14px;
+    text-align: center;
+  }
+  .ext-card-title {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #1a1a2e;
+    margin-bottom: 4px;
+  }
+  .ext-card-sub {
+    font-size: 0.7rem;
+    color: #64748B;
+    line-height: 1.5;
+  }
+  .ext-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+  }
+
+  /* connecteur à 4 branches */
+  .four-way {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 32px;
+    position: relative;
+  }
+  .four-way::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: calc(12.5% + 1px);
+    right: calc(12.5% + 1px);
+    height: 1px;
+    background: #CBD5E1;
+  }
+  .fw-col { display:flex; flex-direction:column; align-items:center; }
+  .fw-stem { width:1px; background:#CBD5E1; flex:1; }
+  .fw-tip  { color:#1a1a2e; font-size:9px; line-height:1; }
+
+  .cycle-strip {
+    border-radius: 14px;
+    border: 1px solid #E2E8F0;
+    background: #F8FAFC;
+    padding: 14px 20px;
+    margin-top: 10px;
+  }
+  .cycle-label {
+    font-size: 0.67rem;
+    font-weight: 500;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+  .cycle-steps {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    row-gap: 8px;
+  }
+  .cycle-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: #475569;
+  }
+  .step-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .sn-blue   { background: #2563EB; }
+  .sn-green  { background: #059669; }
+  .sn-amber  { background: #B45309; }
+  .sn-coral  { background: #BE123C; }
+  .sn-purple { background: #7C3AED; }
+  .sn-teal   { background: #0D9488; }
+
+  .cycle-arrow { color: #CBD5E1; font-size: 11px; }
+
+  .user-node {
+    align-self: center;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    border: 1px solid #5EEAD4;
+    background: #F0FDFA;
+    padding: 10px 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #115E59;
+  }
+  .user-icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #5EEAD4;
+    display: flex; align-items: center; justify-content: center;
+    color: #115E59;
+    flex-shrink: 0;
+  }
+
+  .legend {
+    max-width: 860px;
+    margin: 20px auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.72rem;
+    color: #475569;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .solid-badge {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 0;
+  }
+  .solid-badge span {
+    font-size: 0.68rem;
+    color: #64748B;
+    border: 1px solid #E2E8F0;
+    border-radius: 20px;
+    padding: 3px 14px;
+    background: #ffffff;
+  }
+
+  /* séparateur visuel entre groupes de chips */
+  .chip-sep {
+    width: 100%;
+    height: 1px;
+    background: transparent;
+    margin: 4px 0 2px;
+  }
+  .chip-group-label {
+    width: 100%;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin: 6px 0 2px;
+  }
+
+  @media (max-width: 640px) {
+    .split, .ext-row { grid-template-columns: 1fr 1fr; }
+    .cycle-steps { flex-direction: column; align-items: flex-start; }
+    .cycle-arrow { display: none; }
+  }
+  @media (max-width: 400px) {
+    .ext-row { grid-template-columns: 1fr; }
+  }
+</style>
+<base target="_blank">
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Architecture logique — AiContentFlow</h1>
+  <p>Clean Architecture · ASP.NET Core 10 · React 19 + Vite · Feature-based Design</p>
+</header>
+
+<div class="diagram">
+
+  <!-- USER -->
+  <div style="display:flex;justify-content:center;margin-bottom:0;">
+    <div class="user-node">
+      <div class="user-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      Utilisateur — navigateur web
+    </div>
+  </div>
+
+  <div class="connector">
+    <div class="connector-line"></div>
+    <span class="connector-label">HTTP / HTTPS</span>
+    <div class="connector-line" style="height:10px;"></div>
+    <div class="connector-arrow">▼</div>
+  </div>
+
+  <!-- FRONTEND -->
+  <div class="layer t-blue">
+    <div class="layer-eyebrow">Couche présentation</div>
+    <div class="layer-title">React 19 + Vite 8 — Feature-based (app-v2/)</div>
+    <div class="layer-sub">TypeScript · React Query v5 · MUI v7 · Framer Motion · React Router v7 · Tailwind CSS · Axios · Vitest</div>
+    <div class="chips">
+      <div class="chip-group-label">Structure</div>
+      <span class="chip t-blue">App — routing / providers / theme</span>
+      <span class="chip t-blue">Shared — UI Kit / hooks / utils / types</span>
+      <div class="chip-group-label">Features</div>
+      <span class="chip t-blue">auth</span>
+      <span class="chip t-blue">brand-studio</span>
+      <span class="chip t-blue">campaigns</span>
+      <span class="chip t-blue">channels</span>
+      <span class="chip t-blue">posts / generate</span>
+      <span class="chip t-blue">social-media</span>
+      <span class="chip t-blue">team</span>
+      <span class="chip t-blue">ai / assistant</span>
+      <span class="chip t-blue">analytics</span>
+      <span class="chip t-blue">profile</span>
+      <span class="chip t-blue">dashboard</span>
+    </div>
+  </div>
+
+  <div class="connector">
+    <div class="connector-line"></div>
+    <span class="connector-label">REST JSON · Authorization: Bearer &lt;JWT&gt;</span>
+    <div class="connector-line" style="height:10px;"></div>
+    <div class="connector-arrow">▼</div>
+  </div>
+
+  <!-- API -->
+  <div class="layer t-green">
+    <div class="layer-eyebrow">Couche API</div>
+    <div class="layer-title">AiContentFlow.API — ASP.NET Core 10</div>
+    <div class="layer-sub">Kestrel (dev) · Nginx reverse-proxy (prod) · Rate limiting · FluentValidation · Swagger</div>
+    <div class="chips">
+      <div class="chip-group-label">Contrôleurs</div>
+      <span class="chip t-green">AuthController</span>
+      <span class="chip t-green">SocialAuthController</span>
+      <span class="chip t-green">ContentPostsController</span>
+      <span class="chip t-green">PublicationsController</span>
+      <span class="chip t-green">PublishJobsController</span>
+      <span class="chip t-green">CampaignsController</span>
+      <span class="chip t-green">ChannelsController</span>
+      <span class="chip t-green">SocialAccountsController</span>
+      <span class="chip t-green">TeamsController</span>
+      <span class="chip t-green">AiController</span>
+      <span class="chip t-green">AnalyticsController</span>
+      <span class="chip t-green">BrandStudioController</span>
+      <span class="chip t-green">MediaController</span>
+      <span class="chip t-green">ProfileController</span>
+      <div class="chip-group-label">Middleware / Sécurité</div>
+      <span class="chip t-green">JWT auth middleware</span>
+      <span class="chip t-green">RBAC · CORS</span>
+      <span class="chip t-green">ExceptionMiddleware</span>
+      <span class="chip t-green">ImageFileValidator</span>
+    </div>
+  </div>
+
+  <div class="connector">
+    <div class="connector-line"></div>
+    <span class="connector-label">Injection de dépendances</span>
+    <div class="connector-line" style="height:10px;"></div>
+    <div class="connector-arrow">▼</div>
+  </div>
+
+  <!-- APPLICATION + DOMAIN -->
+  <div class="split">
+    <div class="layer t-amber">
+      <div class="layer-eyebrow">Couche application</div>
+      <div class="layer-title">AiContentFlow.Application</div>
+      <div class="layer-sub">Cas d'utilisation · Services · DTOs · Interfaces</div>
+      <div class="chips">
+        <div class="chip-group-label">Services</div>
+        <span class="chip t-amber">AuthService</span>
+        <span class="chip t-amber">ContentPostService</span>
+        <span class="chip t-amber">CampaignService</span>
+        <span class="chip t-amber">AnalyticsService</span>
+        <span class="chip t-amber">AnalyticsAggregationService</span>
+        <span class="chip t-amber">AiContentService</span>
+        <span class="chip t-amber">AiCreativeService</span>
+        <span class="chip t-amber">BrandStudioService</span>
+        <span class="chip t-amber">BrandImportProcessor</span>
+        <span class="chip t-amber">TeamActivityService</span>
+        <div class="chip-group-label">Abstractions (Interfaces)</div>
+        <span class="chip t-amber">ITextGenerationService</span>
+        <span class="chip t-amber">IImageGenerationService</span>
+        <span class="chip t-amber">IPublisher · IPublisherFactory</span>
+        <span class="chip t-amber">ISocialAuthService · ISocialInsightsProvider</span>
+        <span class="chip t-amber">IEmailService · IJwtTokenGenerator</span>
+        <span class="chip t-amber">IBrandExtractionService</span>
+        <span class="chip t-amber">ISocialCredentialStore</span>
+        <span class="chip t-amber">DTOs · Validators · Mappings</span>
+      </div>
+    </div>
+    <div class="layer t-coral">
+      <div class="layer-eyebrow">Couche domaine</div>
+      <div class="layer-title">AiContentFlow.Domain</div>
+      <div class="layer-sub">Entités pures · Règles métier · Aucune dépendance externe</div>
+      <div class="chips">
+        <div class="chip-group-label">Agrégats principaux</div>
+        <span class="chip t-coral">Team</span>
+        <span class="chip t-coral">Channel</span>
+        <span class="chip t-coral">Campaign</span>
+        <span class="chip t-coral">ContentPost</span>
+        <span class="chip t-coral">PostVariant</span>
+        <span class="chip t-coral">PostPublication</span>
+        <span class="chip t-coral">SocialAccount</span>
+        <span class="chip t-coral">TeamBrandStudio</span>
+        <div class="chip-group-label">Entités de support</div>
+        <span class="chip t-coral">ChannelBranding</span>
+        <span class="chip t-coral">ChannelSocialAccount</span>
+        <span class="chip t-coral">PublicationAnalytics</span>
+        <span class="chip t-coral">PublishJob</span>
+        <span class="chip t-coral">TeamActivityEvent</span>
+        <span class="chip t-coral">TeamInvitation</span>
+        <span class="chip t-coral">BrandImportJob</span>
+        <span class="chip t-coral">UserTeam</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="solid-badge">
+    <span>Principes SOLID · Clean Architecture · Dependency Inversion · ACID · Repository Pattern</span>
+  </div>
+
+  <div class="connector">
+    <div class="connector-line"></div>
+    <span class="connector-label">Implémente les abstractions</span>
+    <div class="connector-line" style="height:10px;"></div>
+    <div class="connector-arrow">▼</div>
+  </div>
+
+  <!-- INFRASTRUCTURE -->
+  <div class="layer t-purple">
+    <div class="layer-eyebrow">Couche infrastructure</div>
+    <div class="layer-title">AiContentFlow.Infrastructure</div>
+    <div class="layer-sub">Adaptateurs · Repositories · Clients externes · Persistance · Workers</div>
+    <div class="chips">
+      <div class="chip-group-label">Persistance</div>
+      <span class="chip t-purple">EF Core — Code First</span>
+      <span class="chip t-purple">Npgsql connector</span>
+      <span class="chip t-purple">AppDbContext · Migrations</span>
+      <span class="chip t-purple">13 Repositories</span>
+      <span class="chip t-purple">EfCoreApplicationTransaction</span>
+      <div class="chip-group-label">Authentification &amp; Identité</div>
+      <span class="chip t-purple">ASP.NET Core Identity</span>
+      <span class="chip t-purple">JwtTokenGenerator</span>
+      <span class="chip t-purple">LinkedInAuthService</span>
+      <span class="chip t-purple">MetaAuthService (FB / IG)</span>
+      <span class="chip t-purple">ThreadsAuthService</span>
+      <span class="chip t-purple">ProtectedSocialCredentialStore</span>
+      <span class="chip t-purple">SignedSocialAuthStateService</span>
+      <div class="chip-group-label">Publishers sociaux</div>
+      <span class="chip t-purple">LinkedInPublisher</span>
+      <span class="chip t-purple">FacebookPublisher</span>
+      <span class="chip t-purple">InstagramPublisher</span>
+      <span class="chip t-purple">ThreadsPublisher</span>
+      <span class="chip t-purple">PublisherFactory</span>
+      <div class="chip-group-label">Analytics (Insights)</div>
+      <span class="chip t-purple">LinkedInInsightsProvider</span>
+      <span class="chip t-purple">FacebookInsightsProvider</span>
+      <span class="chip t-purple">InstagramInsightsProvider</span>
+      <span class="chip t-purple">ThreadsInsightsProvider</span>
+      <span class="chip t-purple">InsightsProviderFactory</span>
+      <div class="chip-group-label">Intelligence artificielle</div>
+      <span class="chip t-purple">TextGenerationService (OpenAI)</span>
+      <span class="chip t-purple">GeminiImageService</span>
+      <span class="chip t-purple">LocalAiBackendClient</span>
+      <span class="chip t-purple">AiCreativeAssetImporter</span>
+      <div class="chip-group-label">Brand Studio</div>
+      <span class="chip t-purple">BrandExtractionService</span>
+      <span class="chip t-purple">SafeWebsiteFetcher</span>
+      <div class="chip-group-label">Workers Hangfire</div>
+      <span class="chip t-purple">PublishScheduledVariantsJob</span>
+      <span class="chip t-purple">SyncPublicationAnalyticsJob</span>
+      <span class="chip t-purple">HangfireBrandImportJobScheduler</span>
+      <span class="chip t-purple">SocialTokenRefreshJob</span>
+      <div class="chip-group-label">Communication</div>
+      <span class="chip t-purple">SmtpEmailService</span>
+    </div>
+  </div>
+
+  <!-- FOUR-WAY CONNECTOR -->
+  <div class="four-way">
+    <div class="fw-col"><div class="fw-stem"></div><div class="fw-tip">▼</div></div>
+    <div class="fw-col"><div class="fw-stem"></div><div class="fw-tip">▼</div></div>
+    <div class="fw-col"><div class="fw-stem"></div><div class="fw-tip">▼</div></div>
+    <div class="fw-col"><div class="fw-stem"></div><div class="fw-tip">▼</div></div>
+  </div>
+
+  <!-- EXTERNAL SERVICES -->
+  <div class="ext-row">
+    <div class="ext-card">
+      <div class="ext-icon t-teal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#115E59" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      </div>
+      <div class="ext-card-title">PostgreSQL 16</div>
+      <div class="ext-card-sub">Port 5432 · TCP<br>JSONB · Transactions ACID<br><span style="font-size:0.65rem;opacity:.75;">EF Core Migrations</span></div>
+    </div>
+    <div class="ext-card">
+      <div class="ext-icon t-coral">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#881337" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2H3v16h5v4l4-4h5l4-4V2z"/></svg>
+      </div>
+      <div class="ext-card-title">Réseaux sociaux</div>
+      <div class="ext-card-sub">LinkedIn · Facebook<br>Instagram · Threads<br><span style="font-size:0.65rem;opacity:.75;">OAuth 2.0 · Publish · Insights</span></div>
+    </div>
+    <div class="ext-card">
+      <div class="ext-icon t-purple">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4C1D95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>
+      <div class="ext-card-title">APIs IA</div>
+      <div class="ext-card-sub">OpenAI GPT-4o<br>Google Gemini Pro<br><span style="font-size:0.65rem;opacity:.75;">Local AI Backend · Texte + Image</span></div>
+    </div>
+    <div class="ext-card" style="border-color:#FDBA74;">
+      <div class="ext-icon" style="background:#FFF7ED;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      </div>
+      <div class="ext-card-title">Email · SMTP</div>
+      <div class="ext-card-sub">Invitation équipe<br>Réinitialisation MDP<br><span style="font-size:0.65rem;opacity:.75;">SmtpEmailService · TLS</span></div>
+    </div>
+  </div>
+
+  <!-- EDITORIAL CYCLE -->
+  <div class="cycle-strip">
+    <div class="cycle-label">Cycle éditorial complet</div>
+    <div class="cycle-steps">
+      <div class="cycle-step">
+        <span class="step-num sn-teal">1</span>
+        SPA React — action utilisateur
+      </div>
+      <span class="cycle-arrow">→</span>
+      <div class="cycle-step">
+        <span class="step-num sn-green">2</span>
+        Requête REST sécurisée (JWT)
+      </div>
+      <span class="cycle-arrow">→</span>
+      <div class="cycle-step">
+        <span class="step-num sn-amber">3</span>
+        Service App orchestre &amp; valide
+      </div>
+      <span class="cycle-arrow">→</span>
+      <div class="cycle-step">
+        <span class="step-num sn-purple">4</span>
+        IA génère contenu / images
+      </div>
+      <span class="cycle-arrow">→</span>
+      <div class="cycle-step">
+        <span class="step-num sn-coral">5</span>
+        Contenu persisté en PostgreSQL
+      </div>
+      <span class="cycle-arrow">→</span>
+      <div class="cycle-step">
+        <span class="step-num sn-blue">6</span>
+        Hangfire publie &amp; collecte analytics
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#EBF4FF;border:1px solid #93C5FD;"></div>Présentation</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ECFDF5;border:1px solid #6EE7B7;"></div>API</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FFFBEB;border:1px solid #FCD34D;"></div>Application</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FFF1F2;border:1px solid #FDA4AF;"></div>Domaine</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F5F3FF;border:1px solid #C4B5FD;"></div>Infrastructure</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F0FDFA;border:1px solid #5EEAD4;"></div>Services externes</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FFF7ED;border:1px solid #FDBA74;"></div>Email / SMTP</div>
+</div>
+
+</body>
+</html>

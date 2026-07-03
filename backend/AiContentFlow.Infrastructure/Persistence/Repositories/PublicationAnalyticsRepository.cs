@@ -19,6 +19,12 @@ public class PublicationAnalyticsRepository : IPublicationAnalyticsRepository
         await _context.PublicationAnalytics.AddAsync(analytics);
     }
 
+    public async Task<PublicationAnalytics?> GetByDedupeKeyAsync(Guid teamId, string dedupeKey)
+    {
+        return await _context.PublicationAnalytics
+            .FirstOrDefaultAsync(a => a.TeamId == teamId && a.DedupeKey == dedupeKey);
+    }
+
     public async Task<bool> ExistsByDedupeKeyAsync(Guid teamId, string dedupeKey)
     {
         return await _context.PublicationAnalytics

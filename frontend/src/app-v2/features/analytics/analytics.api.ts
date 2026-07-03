@@ -41,6 +41,18 @@ export async function getChannelAnalyticsSummary(
   return mapSummary(response);
 }
 
+export async function getPlatformAnalyticsPosts(
+  platform: string,
+  days = 30
+): Promise<import("./analytics.types").TopPostMetrics[]> {
+  const teamId = getTeamId();
+  const response = await apiRequest<import("./analytics.types").TopPostMetrics[]>(
+    `/teams/${teamId}/analytics/platforms/${encodeURIComponent(platform)}/posts?days=${days}`,
+    { requiresAuth: true }
+  );
+  return response ?? [];
+}
+
 export async function getCampaignAnalyticsSummary(
   channelId: number,
   campaignId: number,

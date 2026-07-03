@@ -323,7 +323,39 @@ public class AiContentService : IAiContentService
 
         var correlationId = Guid.NewGuid().ToString("N");
         var platforms = dto.Platforms.Select(p => p.ToString()).ToList();
-        var strategy = await _localAiBackendClient.GenerateStrategyAsync(
+
+        if (IsExternalProviderMode())
+        {
+            var brandContext = await BuildBrandContextAsync(teamId, dto.ChannelId);
+            var prompt = $$"""
+                Generate a social media marketing strategy as a JSON object.
+                Goal: {{dto.Goal}}
+                Theme: {{dto.Theme ?? dto.Goal}}
+                Platforms: {{string.Join(", ", platforms)}}
+                Brand context: {{brandContext}}
+                Return ONLY valid JSON with these exact keys:
+                {
+                  "strategy_id": 1,
+                  "strategy_summary": "2-3 sentence overview of the strategy",
+                  "positioning": "how the brand is positioned in this campaign",
+                  "target_audience": "description of target audience",
+                  "pillars": ["pillar 1", "pillar 2", "pillar 3"],
+                  "angles": ["angle 1", "angle 2"],
+                  "content_guidelines": {
+                    "tone": "tone description",
+                    "style": "style description",
+                    "cta_style": "CTA style description"
+                  },
+                  "content_direction": ["direction 1", "direction 2"]
+                }
+                """;
+            var json = await _textGenerationService.GenerateTextAsync(prompt, "groq", AiUseCase.SuggestCampaign);
+            var strategy = JsonDocument.Parse(ExtractJson(json)).RootElement.Clone();
+            var strategyId = GetInt(strategy, "strategy_id") ?? 1;
+            return new CampaignStrategyStepResponseDto(strategyId, strategy, orgId, correlationId);
+        }
+
+        var strategy2 = await _localAiBackendClient.GenerateStrategyAsync(
             orgId,
             dto.Goal,
             dto.Theme,
@@ -333,11 +365,11 @@ public class AiContentService : IAiContentService
             dto.CustomPrompt,
             correlationId);
 
-        var strategyId = GetInt(strategy, "strategy_id") ?? GetInt(strategy, "id");
-        if (!strategyId.HasValue)
+        var strategyId2 = GetInt(strategy2, "strategy_id") ?? GetInt(strategy2, "id");
+        if (!strategyId2.HasValue)
             throw new InvalidOperationException("Strategy step did not return strategy_id.");
 
-        return new CampaignStrategyStepResponseDto(strategyId, strategy, orgId, correlationId);
+        return new CampaignStrategyStepResponseDto(strategyId2, strategy2, orgId, correlationId);
     }
 
     public async Task<CampaignPlanningStepResponseDto> GenerateCampaignPlanningStepAsync(
@@ -352,8 +384,44 @@ public class AiContentService : IAiContentService
 
         var correlationId = Guid.NewGuid().ToString("N");
         var platforms = dto.Config.Platforms.Select(p => p.ToString()).ToList();
+
+        if (IsExternalProviderMode())
+        {
+            var postsPerWeek = dto.Config.PostsPerWeek;
+            var prompt = $$"""
+                Generate a social media content planning calendar as a JSON object.
+                Goal: {{dto.Config.Goal}}
+                Platforms: {{string.Join(", ", platforms)}}
+                Posts per week: {{postsPerWeek}}
+                Number of weeks: 2
+                Return ONLY valid JSON with these exact keys:
+                {
+                  "planning_id": 1,
+                  "weeks": [
+                    {
+                      "week": 1,
+                      "focus": "theme for week 1",
+                      "days": [
+                        {
+                          "day": "Monday",
+                          "topic": "topic title",
+                          "content_type": "linkedin-post",
+                          "description": "brief description"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                Generate {{postsPerWeek}} days per week across 2 weeks. Use platforms: {{string.Join(", ", platforms)}}.
+                """;
+            var json = await _textGenerationService.GenerateTextAsync(prompt, "groq", AiUseCase.SuggestCampaign);
+            var planning = JsonDocument.Parse(ExtractJson(json)).RootElement.Clone();
+            var planningId = GetInt(planning, "planning_id") ?? 1;
+            return new CampaignPlanningStepResponseDto(planningId, planning, correlationId);
+        }
+
         var selectedDirection = dto.SelectedContentDirection ?? ResolveFirstContentDirection(dto.Strategy);
-        var planning = await _localAiBackendClient.GeneratePlanningAsync(
+        var planning2 = await _localAiBackendClient.GeneratePlanningAsync(
             dto.Strategy,
             dto.StrategyId,
             dto.Config.PostsPerWeek,
@@ -363,11 +431,11 @@ public class AiContentService : IAiContentService
             selectedDirection,
             dto.DirectionMode);
 
-        var planningId = GetInt(planning, "planning_id") ?? GetInt(planning, "id");
-        if (!planningId.HasValue)
+        var planningId2 = GetInt(planning2, "planning_id") ?? GetInt(planning2, "id");
+        if (!planningId2.HasValue)
             throw new InvalidOperationException("Planning step did not return planning_id.");
 
-        return new CampaignPlanningStepResponseDto(planningId, planning, correlationId);
+        return new CampaignPlanningStepResponseDto(planningId2, planning2, correlationId);
     }
 
     public async Task<CampaignContentStepResponseDto> GenerateCampaignContentStepAsync(
@@ -387,6 +455,41 @@ public class AiContentService : IAiContentService
         var primaryPlatform = !string.IsNullOrWhiteSpace(dto.Config.PrimaryPlatform)
             ? dto.Config.PrimaryPlatform.Trim()
             : platforms.FirstOrDefault() ?? "linkedin";
+
+        if (IsExternalProviderMode())
+        {
+            var brandContext = await BuildBrandContextAsync(teamId, dto.Config.ChannelId);
+            var externalSuggestDto = new SuggestCampaignRequestDto(
+                dto.Config.ChannelId,
+                dto.Config.Goal,
+                dto.Config.StartDate,
+                dto.Config.EndDate,
+                dto.Config.Platforms,
+                Theme: dto.Config.Theme,
+                Language: dto.Config.Language,
+                PostsPerWeek: dto.Config.PostsPerWeek,
+                CustomPrompt: dto.Config.CustomPrompt,
+                PrimaryPlatform: primaryPlatform);
+            var prompt = $"""
+                Generate a social media campaign as JSON.
+                Goal: {dto.Config.Goal}
+                Platforms: {string.Join(", ", platforms)}
+                Brand context: {brandContext}
+                Date range: {dto.Config.StartDate:O} to {dto.Config.EndDate:O}
+                Return ONLY a JSON object with keys: campaign_name, description, posts (array with title, text, contentType, scheduledAt ISO-8601, platform).
+                """;
+            var json = await _textGenerationService.GenerateTextAsync(prompt, "groq", AiUseCase.SuggestCampaign);
+            var suggestion = ParseCampaignSuggestion(json, externalSuggestDto);
+            var campaignJson = JsonDocument.Parse(ExtractJson(json)).RootElement.Clone();
+            return new CampaignContentStepResponseDto(
+                1,
+                campaignJson,
+                suggestion.Posts,
+                suggestion.CampaignName,
+                suggestion.Description,
+                correlationId);
+        }
+
         var brandContextBody = BuildBrandContextPayload(brandStudio);
 
         var campaign = await _localAiBackendClient.GenerateCampaignContentAsync(

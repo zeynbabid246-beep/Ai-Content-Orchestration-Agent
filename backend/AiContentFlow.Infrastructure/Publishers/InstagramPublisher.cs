@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using AiContentFlow.Application.Common.Interfaces;
+using AiContentFlow.Application.Common.Publishing;
 using AiContentFlow.Domain.Models;
 using Application.DTOs;
 using Application.Interfaces;
@@ -46,17 +47,9 @@ public class InstagramPublisher : IPublisher
             if (string.IsNullOrEmpty(post.ContentJson))
                 return PublishResult.Failure("PostVariant has no ContentJson");
 
-            var content = JsonSerializer.Deserialize<JsonElement>(post.ContentJson);
-            if (!content.TryGetProperty("text", out var textProp))
-                return PublishResult.Failure("Invalid ContentJson: missing 'text' field");
-
-            var caption = textProp.GetString() ?? string.Empty;
+            var (caption, imageUrl) = ContentJsonParser.Extract(post.ContentJson);
             if (string.IsNullOrWhiteSpace(caption))
-                return PublishResult.Failure("Invalid ContentJson: 'text' is empty");
-
-            string? imageUrl = null;
-            if (content.TryGetProperty("imageUrl", out var imageProp))
-                imageUrl = imageProp.GetString();
+                return PublishResult.Failure("Invalid ContentJson: 'text' is empty or missing");
 
             if (string.IsNullOrWhiteSpace(imageUrl))
                 return PublishResult.Failure("Instagram publishing requires an image. Add an image before publishing.");
